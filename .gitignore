@@ -1,0 +1,22 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Database and Large Export Files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.xlsx
+*.csv
+*.json
+scraped_data/
+
+# IDE / System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
