@@ -87,14 +87,26 @@ class DatabaseManager:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title)")
         conn.commit()
 
-        # Check if table is empty; if so, populate from JSON
+        # Check if table is empty; if so, populate from JSON or Supabase Cloud
         cur.execute("SELECT COUNT(*) FROM songs")
         count = cur.fetchone()[0]
         if count == 0:
             print("Populating local SQLite cache from dataset...")
+            data = []
             if os.path.exists(JSON_FILE):
                 with open(JSON_FILE, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+            elif cloud_is_configured():
+                try:
+                    print("Fetching songs dataset from Supabase cloud database...")
+                    endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,subcat,key,tags,lyrics,lyrics2,notes,yvideo,author&order=id.asc"
+                    res = safe_request("GET", endpoint, headers=HEADERS)
+                    if res.status_code == 200:
+                        data = res.json()
+                except Exception as ex:
+                    print(f"Failed to fetch from Supabase: {ex}")
+
+            if data:
                 rows = []
                 for item in data:
                     rows.append((
