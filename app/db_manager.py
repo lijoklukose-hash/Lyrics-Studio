@@ -54,7 +54,21 @@ class DatabaseManager:
         self.bg_executor = ThreadPoolExecutor(max_workers=2)
         self.export_lock = threading.Lock()
         self.export_pending = False
+        self._ensure_db_file()
         self.init_db()
+
+    def _ensure_db_file(self):
+        # If database file does not exist or is 0 bytes, check if compressed gzip exists
+        if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) == 0:
+            gz_path = self.db_path + ".gz"
+            if os.path.exists(gz_path):
+                import gzip
+                import shutil
+                print(f"Unpacking pre-built database from {gz_path}...")
+                with gzip.open(gz_path, 'rb') as f_in:
+                    with open(self.db_path, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                print(f"Unpacked database ({os.path.getsize(self.db_path):,} bytes).")
 
     def get_connection(self):
         conn = sqlite3.connect(self.db_path, timeout=60.0)
