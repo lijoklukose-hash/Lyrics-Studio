@@ -245,24 +245,25 @@ RAW LYRICS:
             "model": model,
             "prompt": prompt,
             "stream": False
-        }, timeout=45)
+        }, timeout=10)
 
         if resp.status_code == 200:
             result_text = resp.json().get("response", "").strip()
-            # Convert double newlines to <BR><BR> and single newlines to <BR>
-            clean_lyr = result_text.replace("\r\n", "\n").replace("\r", "\n")
-            clean_lyr = re.sub(r'\n{2,}', '<BR><BR>', clean_lyr)
-            clean_lyr = clean_lyr.replace("\n", "<BR>")
-            
-            # Generate updated transliteration as well
-            from app.translit_engine import generate_natural_transliteration
-            clean_lyr2 = generate_natural_transliteration(clean_lyr, category)
-            
-            return {"success": True, "formatted": clean_lyr, "formatted2": clean_lyr2}
-        else:
-            return {"success": False, "error": f"Ollama HTTP {resp.status_code}: {resp.text}"}
-    except Exception as ex:
-        return {"success": False, "error": f"Could not connect to Ollama (http://localhost:11434). Ensure Ollama is running on your PC. Error: {str(ex)}"}
+            if result_text:
+                clean_lyr = result_text.replace("\r\n", "\n").replace("\r", "\n")
+                clean_lyr = re.sub(r'\n{2,}', '<BR><BR>', clean_lyr)
+                clean_lyr = clean_lyr.replace("\n", "<BR>")
+                
+                from app.translit_engine import generate_natural_transliteration
+                clean_lyr2 = generate_natural_transliteration(clean_lyr, category)
+                return {"success": True, "formatted": clean_lyr, "formatted2": clean_lyr2, "engine": "Ollama LLM"}
+    except Exception:
+        pass
+
+    # Seamless Fallback to Ultra-Fast Rule Engine if Ollama is unreachable or model fails
+    from app.online_lyrics_search import smart_reconstruct_stanzas
+    clean_lyr, clean_lyr2 = smart_reconstruct_stanzas(raw_text, category, ai_model="rules")
+    return {"success": True, "formatted": clean_lyr, "formatted2": clean_lyr2, "engine": "Rule Reconstructor (Fallback)"}
 
 @app.get("/api/ai-models")
 async def list_ai_models():
