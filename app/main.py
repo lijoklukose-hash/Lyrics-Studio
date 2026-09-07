@@ -329,7 +329,6 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
         
         total = len(songs_to_fix)
         batch_fix_state["total"] = total
-        batch_fix_state["message"] = f"Processing {total:,} songs with AI ({ai_model})..."
         
         for i, song in enumerate(songs_to_fix, 1):
             if batch_fix_stop_event.is_set():
