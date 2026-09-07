@@ -118,7 +118,7 @@ def normalize_text(text):
     t = re.sub(r'[\(\)\[\]\-_,:\.]', ' ', str(text).lower()).strip()
     return re.sub(r'\s+', ' ', t)
 
-def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title=""):
+def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="qwen3.5:0.8b"):
     """
     State-of-the-art lyrics formatting engine:
     1. Removes website boilerplate, header breadcrumbs, view counts, and metadata lines.
@@ -206,11 +206,12 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title=""):
                 clean_lyrics2 = generate_natural_transliteration(clean_lyrics, category)
             return clean_lyrics, clean_lyrics2
 
-    # Attempt Local Ollama LLM formatting if available
-    try:
-        import requests
-        llm_text = '\n'.join(filtered_lines[:40])
-        prompt = f"""You are an expert song lyrics editor for {category} songs.
+    # Attempt Local Ollama LLM formatting if ai_model is specified and not 'rules'
+    if ai_model and ai_model != 'rules':
+        try:
+            import requests
+            llm_text = '\n'.join(filtered_lines[:45])
+            prompt = f"""You are an expert song lyrics editor for {category} songs.
 Format the following song lyrics into clean, beautiful stanzas.
 Rules:
 1. Separate verses/stanzas with blank lines (\n\n).

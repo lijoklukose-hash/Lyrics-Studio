@@ -290,7 +290,7 @@ batch_fix_state = {
 }
 batch_fix_stop_event = threading.Event()
 
-def background_batch_web_fix(category="All", limit=100, search_q=""):
+def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="qwen3.5:0.8b"):
     global batch_fix_state
     from app.online_lyrics_search import find_best_clean_version, smart_reconstruct_stanzas
     
@@ -324,7 +324,7 @@ def background_batch_web_fix(category="All", limit=100, search_q=""):
         
         total = len(songs_to_fix)
         batch_fix_state["total"] = total
-        batch_fix_state["message"] = f"Processing {total:,} songs..."
+        batch_fix_state["message"] = f"Processing {total:,} songs with AI ({ai_model})..."
         
         for i, song in enumerate(songs_to_fix, 1):
             if batch_fix_stop_event.is_set():
@@ -351,8 +351,8 @@ def background_batch_web_fix(category="All", limit=100, search_q=""):
                     candidate_lyr = orig_lyr
                     candidate_lyr2 = song.get('lyrics2', '')
 
-                # Always guarantee clean stanzas and remove boilerplate
-                new_lyr, new_lyr2 = smart_reconstruct_stanzas(candidate_lyr, cat, title=title)
+                # 2. Reconstruct stanzas using AI model or rule engine
+                new_lyr, new_lyr2 = smart_reconstruct_stanzas(candidate_lyr, cat, title=title, ai_model=ai_model)
                 if not new_lyr2 and candidate_lyr2:
                     new_lyr2 = candidate_lyr2
 
@@ -366,7 +366,7 @@ def background_batch_web_fix(category="All", limit=100, search_q=""):
             except Exception as ex:
                 print(f"Error fixing song {sid}: {ex}")
                 
-            time.sleep(0.3)
+            time.sleep(0.2)
             
         fixed_cnt = batch_fix_state["fixed_count"]
         
