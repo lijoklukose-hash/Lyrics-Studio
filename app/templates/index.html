@@ -771,6 +771,10 @@
                                     <i data-lucide="globe" class="w-3.5 h-3.5" :class="searchingWeb ? 'animate-spin' : ''"></i>
                                     <span x-text="searchingWeb ? 'Searching...' : 'Auto-Search Web & Fix'"></span>
                                 </button>
+                                <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-xs text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
+                                    <i data-lucide="bot" class="w-3.5 h-3.5" :class="formattingAI ? 'animate-spin' : ''"></i>
+                                    <span x-text="formattingAI ? 'AI Formatting...' : '🤖 AI Format'"></span>
+                                </button>
                                 <button type="button" @click="autoFormatBreaks()" class="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center space-x-1">
                                     <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                                     <span>Format</span>
@@ -1270,6 +1274,7 @@
                 },
 
                 searchingWeb: false,
+                formattingAI: false,
 
                 async autoFixFromWeb() {
                     if (!this.editingSong || !this.editingSong.title) {
@@ -1316,13 +1321,50 @@
                                 this.updateEditorLyricsFromInput();
                                 this.updateEditorLyrics2FromInput();
                                 this.editorPreviewTab = 'dual';
-                                this.showToast('Stanzas reconstructed with smart AI engine', 'info');
+                                this.showToast('Reconstructed stanzas with Smart Engine', 'info');
                             }
                         }
                     } catch (e) {
-                        this.showToast('Auto-fix error: ' + e, 'error');
+                        this.showToast('Search failed: ' + e.message, 'error');
                     } finally {
                         this.searchingWeb = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                async aiFormatLyrics() {
+                    if (!this.editorLyricsText && (!this.editingSong || !this.editingSong.lyrics)) {
+                        this.showToast('Please type or paste lyrics first', 'error');
+                        return;
+                    }
+                    this.formattingAI = true;
+                    try {
+                        const res = await fetch('/api/ai-format', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                text: this.editorLyricsText || this.editingSong.lyrics,
+                                category: this.editingSong ? this.editingSong.category : 'Hindi',
+                                model: 'qwen3.5:0.8b'
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.success && data.formatted) {
+                            this.editingSong.lyrics = data.formatted;
+                            if (data.formatted2) this.editingSong.lyrics2 = data.formatted2;
+                            this.editorLyricsText = this.formatFromBrTags(data.formatted);
+                            if (data.formatted2) this.editorLyrics2Text = this.formatFromBrTags(data.formatted2);
+                            this.updateEditorLyricsFromInput();
+                            this.updateEditorLyrics2FromInput();
+                            this.editorPreviewTab = 'dual';
+                            this.showToast('🤖 Formatted with local AI Model!', 'success');
+                        } else {
+                            this.showToast('AI format notice: ' + (data.error || 'Ollama unavailable'), 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('AI connection error: ' + e.message, 'error');
+                    } finally {
+                        this.formattingAI = false;
                         this.$nextTick(() => lucide.createIcons());
                     }
                 },

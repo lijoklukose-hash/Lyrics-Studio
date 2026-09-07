@@ -206,7 +206,40 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title=""):
                 clean_lyrics2 = generate_natural_transliteration(clean_lyrics, category)
             return clean_lyrics, clean_lyrics2
 
-    # Single-language (English or Pure Indic/Roman)
+    # Attempt Local Ollama LLM formatting if available
+    try:
+        import requests
+        llm_text = '\n'.join(filtered_lines[:40])
+        prompt = f"""You are an expert song lyrics editor for {category} songs.
+Format the following song lyrics into clean, beautiful stanzas.
+Rules:
+1. Separate verses/stanzas with blank lines (\n\n).
+2. Keep verse numbers (1., 2., 3.) and refrain tags.
+3. Do not alter or translate the native words.
+4. Output ONLY the clean lyrics text.
+
+Lyrics:
+{llm_text}"""
+        resp = requests.post("http://localhost:11434/api/generate", json={
+            "model": "qwen3.5:0.8b",
+            "prompt": prompt,
+            "stream": False
+        }, timeout=4)
+        if resp.status_code == 200:
+            ai_out = resp.json().get("response", "").strip()
+            if ai_out and len(ai_out) > 30:
+                ai_clean = ai_out.replace("\r\n", "\n").replace("\r", "\n")
+                ai_clean = re.sub(r'\n{2,}', '<BR><BR>', ai_clean)
+                clean_lyrics = ai_clean.replace("\n", "<BR>")
+                if category != 'English':
+                    clean_lyrics2 = generate_natural_transliteration(clean_lyrics, category)
+                else:
+                    clean_lyrics2 = ""
+                return clean_lyrics, clean_lyrics2
+    except Exception:
+        pass
+
+    # Fallback to rule-based parser if Ollama is offline or slow
     clean_lyrics = structure_lyrics_into_stanzas(filtered_lines)
     if category != 'English':
         clean_lyrics2 = generate_natural_transliteration(clean_lyrics, category)

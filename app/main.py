@@ -214,6 +214,69 @@ async def format_lyrics_helper(data: dict = Body(...)):
     clean_lyr, _ = smart_reconstruct_stanzas(raw_text, category)
     return {"formatted": clean_lyr}
 
+@app.post("/api/ai-format")
+async def ai_format_lyrics(data: dict = Body(...)):
+    import requests
+    raw_text = data.get("text", "")
+    category = data.get("category", "Hindi")
+    model = data.get("model", "qwen3.5:0.8b")
+
+    if not raw_text or not raw_text.strip():
+        return {"success": False, "error": "No text provided for AI formatting"}
+
+    # Replace <BR> tags with newlines for the LLM
+    text_for_llm = raw_text.replace("<BR><BR>", "\n\n").replace("<BR>", "\n").replace("<br>", "\n")
+
+    prompt = f"""You are an expert song lyrics editor specializing in {category} Christian devotional songs.
+Format the following song lyrics into clean, beautiful stanzas.
+
+RULES:
+1. Group lines into natural stanzas separated by blank lines (\n\n).
+2. Retain all verse numbers (1., 2., 3.) and chorus/pallavi markers if present.
+3. Preserve the exact original words and script without changing spelling or language.
+4. Remove any website ads, URLs, page numbers, or irrelevant metadata.
+5. Output ONLY the clean, formatted lyrics text and nothing else.
+
+RAW LYRICS:
+{text_for_llm}"""
+
+    try:
+        resp = requests.post("http://localhost:11434/api/generate", json={
+            "model": model,
+            "prompt": prompt,
+            "stream": False
+        }, timeout=45)
+
+        if resp.status_code == 200:
+            result_text = resp.json().get("response", "").strip()
+            # Convert double newlines to <BR><BR> and single newlines to <BR>
+            clean_lyr = result_text.replace("\r\n", "\n").replace("\r", "\n")
+            clean_lyr = re.sub(r'\n{2,}', '<BR><BR>', clean_lyr)
+            clean_lyr = clean_lyr.replace("\n", "<BR>")
+            
+            # Generate updated transliteration as well
+            from app.translit_engine import generate_natural_transliteration
+            clean_lyr2 = generate_natural_transliteration(clean_lyr, category)
+            
+            return {"success": True, "formatted": clean_lyr, "formatted2": clean_lyr2}
+        else:
+            return {"success": False, "error": f"Ollama HTTP {resp.status_code}: {resp.text}"}
+    except Exception as ex:
+        return {"success": False, "error": f"Could not connect to Ollama (http://localhost:11434). Ensure Ollama is running on your PC. Error: {str(ex)}"}
+
+@app.get("/api/ai-models")
+async def list_ai_models():
+    import requests
+    try:
+        resp = requests.get("http://localhost:11434/api/tags", timeout=3)
+        if resp.status_code == 200:
+            models = [m.get("name") for m in resp.json().get("models", [])]
+            return {"available": True, "models": models}
+    except Exception:
+        pass
+    return {"available": False, "models": []}
+
+
 
 # --- Batch Auto-Fix Web State & Engine ---
 batch_fix_state = {
