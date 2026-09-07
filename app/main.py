@@ -34,16 +34,21 @@ sync_state = {
 async def home_page(request: Request):
     try:
         stats = db_manager.get_stats()
-        # Support both Starlette >=0.36 (request as first arg) and legacy calling syntax
         try:
             return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "stats": stats})
         except TypeError:
             return templates.TemplateResponse("index.html", {"request": request, "stats": stats})
     except Exception as e:
-        import traceback
-        err = traceback.format_exc()
-        print(f"Error rendering home page: {err}")
-        return HTMLResponse(content=f"<h3>Lyrics Studio Initialization Notice</h3><p>Loading application...</p><pre>{err}</pre>", status_code=200)
+        # If template loading fails inside container, read file directly and return
+        try:
+            html_path = os.path.join(BASE_DIR, "templates", "index.html")
+            if not os.path.exists(html_path):
+                html_path = os.path.join(os.getcwd(), "app", "templates", "index.html")
+            with open(html_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return HTMLResponse(content=content, status_code=200)
+        except Exception as inner_e:
+            return HTMLResponse(content=f"<h3>Lyrics Studio</h3><p>Initialization Error: {str(e)} / {str(inner_e)}</p>", status_code=200)
 
 
 # --- API Endpoints ---
