@@ -362,9 +362,13 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
                 if not new_lyr2 and candidate_lyr2:
                     new_lyr2 = candidate_lyr2
 
-                # Update live preview state for UI
-                batch_fix_state["preview_lyrics"] = (new_lyr or orig_lyr or '')[:250].replace('<BR>', ' ') + '...'
-                batch_fix_state["preview_lyrics2"] = (new_lyr2 or '')[:250].replace('<BR>', ' ') + '...'
+                # Update live preview state for UI with clean line formatting
+                preview_text = (new_lyr or orig_lyr or '').replace('<BR><BR>', '\n').replace('<BR>', '\n')
+                preview_text2 = (new_lyr2 or '').replace('<BR><BR>', '\n').replace('<BR>', '\n')
+                preview_lines = [l.strip() for l in preview_text.split('\n') if l.strip()]
+                preview_lines2 = [l.strip() for l in preview_text2.split('\n') if l.strip()]
+                batch_fix_state["preview_lyrics"] = '\n'.join(preview_lines[:3])
+                batch_fix_state["preview_lyrics2"] = '\n'.join(preview_lines2[:2])
 
                 # Strict Non-Destructive Guard:
                 orig_clean_len = len(re.sub(r'<[^>]+>', '', orig_lyr or '').strip())
