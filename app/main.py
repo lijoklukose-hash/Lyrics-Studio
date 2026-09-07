@@ -288,6 +288,9 @@ batch_fix_state = {
     "fixed_count": 0,
     "current_song": "",
     "category": "All",
+    "source": "",
+    "preview_lyrics": "",
+    "preview_lyrics2": "",
     "message": "Ready for batch run"
 }
 batch_fix_stop_event = threading.Event()
@@ -349,21 +352,25 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
                 if res and res.get("found") and res.get("lyrics"):
                     candidate_lyr = res["lyrics"]
                     candidate_lyr2 = res.get("lyrics2", "")
+                    batch_fix_state["source"] = res.get("source", "Web Search")
                 else:
                     candidate_lyr = orig_lyr
                     candidate_lyr2 = song.get('lyrics2', '')
+                    batch_fix_state["source"] = "Local Reconstructor"
 
                 # 2. Reconstruct stanzas using AI model or rule engine
                 new_lyr, new_lyr2 = smart_reconstruct_stanzas(candidate_lyr, cat, title=title, ai_model=ai_model)
                 if not new_lyr2 and candidate_lyr2:
                     new_lyr2 = candidate_lyr2
 
+                # Update live preview state for UI
+                batch_fix_state["preview_lyrics"] = (new_lyr or orig_lyr or '')[:250].replace('<BR>', ' ') + '...'
+                batch_fix_state["preview_lyrics2"] = (new_lyr2 or '')[:250].replace('<BR>', ' ') + '...'
+
                 # Strict Non-Destructive Guard:
-                # Never allow web search or formatting to wipe out lyrics or replace good lyrics with truncated text
                 orig_clean_len = len(re.sub(r'<[^>]+>', '', orig_lyr or '').strip())
                 new_clean_len = len(re.sub(r'<[^>]+>', '', new_lyr or '').strip())
 
-                # If original song already has substantial content (>80 chars), only replace if candidate is valid & at least 80% as long
                 if new_lyr and new_clean_len >= 30:
                     if orig_clean_len == 0 or new_clean_len >= int(orig_clean_len * 0.8):
                         if new_lyr != orig_lyr or ('<BR><BR>' not in orig_lyr and '<BR><BR>' in new_lyr):
