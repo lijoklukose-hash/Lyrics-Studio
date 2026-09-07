@@ -221,24 +221,24 @@ Rules:
 
 Lyrics:
 {llm_text}"""
-        resp = requests.post("http://localhost:11434/api/generate", json={
-            "model": "qwen3.5:0.8b",
-            "prompt": prompt,
-            "stream": False
-        }, timeout=4)
-        if resp.status_code == 200:
-            ai_out = resp.json().get("response", "").strip()
-            if ai_out and len(ai_out) > 30:
-                ai_clean = ai_out.replace("\r\n", "\n").replace("\r", "\n")
-                ai_clean = re.sub(r'\n{2,}', '<BR><BR>', ai_clean)
-                clean_lyrics = ai_clean.replace("\n", "<BR>")
-                if category != 'English':
-                    clean_lyrics2 = generate_natural_transliteration(clean_lyrics, category)
-                else:
-                    clean_lyrics2 = ""
-                return clean_lyrics, clean_lyrics2
-    except Exception:
-        pass
+            resp = requests.post("http://localhost:11434/api/generate", json={
+                "model": ai_model,
+                "prompt": prompt,
+                "stream": False
+            }, timeout=6)
+            if resp.status_code == 200:
+                ai_out = resp.json().get("response", "").strip()
+                if ai_out and len(ai_out) > 30:
+                    ai_clean = ai_out.replace("\r\n", "\n").replace("\r", "\n")
+                    ai_clean = re.sub(r'\n{2,}', '<BR><BR>', ai_clean)
+                    clean_lyrics = ai_clean.replace("\n", "<BR>")
+                    if category != 'English':
+                        clean_lyrics2 = generate_natural_transliteration(clean_lyrics, category)
+                    else:
+                        clean_lyrics2 = ""
+                    return clean_lyrics, clean_lyrics2
+        except Exception:
+            pass
 
     # Fallback to rule-based parser if Ollama is offline or slow
     clean_lyrics = structure_lyrics_into_stanzas(filtered_lines)

@@ -1057,6 +1057,7 @@
                     this.loadStats();
                     this.loadSongs(1);
                     this.pollAutoScraperStatus();
+                    this.pollBatchFixStatus();
                     this.$nextTick(() => lucide.createIcons());
                 },
 
@@ -1575,6 +1576,61 @@
                         this.showToast('Sync trigger failed: ' + e, 'error');
                         this.syncing = false;
                     }
+                },
+
+                async startBatchWebFix() {
+                    this.batchFixRunning = true;
+                    try {
+                        const res = await fetch('/api/batch-auto-fix/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                category: this.batchFixCategory,
+                                limit: parseInt(this.batchFixLimit),
+                                search_q: this.batchFixSearchQ,
+                                ai_model: this.batchFixAiModel
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.status === 'started') {
+                            this.showToast(data.message, 'info');
+                            this.pollBatchFixStatus();
+                        } else {
+                            this.showToast('Batch notice: ' + data.message, 'error');
+                            this.batchFixRunning = false;
+                        }
+                    } catch (e) {
+                        this.showToast('Batch error: ' + e.message, 'error');
+                        this.batchFixRunning = false;
+                    }
+                },
+
+                async stopBatchWebFix() {
+                    try {
+                        await fetch('/api/batch-auto-fix/stop', { method: 'POST' });
+                        this.showToast('Stopping batch run...', 'info');
+                    } catch (e) { console.error(e); }
+                },
+
+                pollBatchFixStatus() {
+                    if (this.batchFixTimer) clearInterval(this.batchFixTimer);
+                    this.batchFixTimer = setInterval(async () => {
+                        try {
+                            const res = await fetch('/api/batch-auto-fix/status');
+                            this.batchFixState = await res.json();
+                            if (this.batchFixState.status === 'running') {
+                                this.batchFixRunning = true;
+                            } else {
+                                if (this.batchFixRunning) {
+                                    this.batchFixRunning = false;
+                                    clearInterval(this.batchFixTimer);
+                                    this.loadStats();
+                                    this.loadSongs(this.currentPage);
+                                    this.showToast(this.batchFixState.message, this.batchFixState.status === 'completed' ? 'success' : 'error');
+                                }
+                            }
+                        } catch (e) { console.error(e); }
+                    }, 1000);
                 },
 
                 pollSyncStatus() {

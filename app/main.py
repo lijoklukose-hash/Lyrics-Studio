@@ -424,8 +424,9 @@ async def start_batch_auto_fix(background_tasks: BackgroundTasks, data: dict = B
     category = data.get("category", "All")
     limit = int(data.get("limit", 100))
     search_q = data.get("search_q", "")
+    ai_model = data.get("ai_model", "qwen3.5:0.8b")
     
-    background_tasks.add_task(background_batch_web_fix, category=category, limit=limit, search_q=search_q)
+    background_tasks.add_task(background_batch_web_fix, category=category, limit=limit, search_q=search_q, ai_model=ai_model)
     return {"status": "started", "message": f"Batch Auto-Search Web & Fix started for {limit} songs ({category})"}
 
 @app.get("/api/batch-auto-fix/status")
