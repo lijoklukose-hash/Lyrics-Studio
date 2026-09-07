@@ -32,11 +32,19 @@ sync_state = {
 # --- Page Routes ---
 @app.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
-    stats = db_manager.get_stats()
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "stats": stats
-    })
+    try:
+        stats = db_manager.get_stats()
+        # Support both Starlette >=0.36 (request as first arg) and legacy calling syntax
+        try:
+            return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "stats": stats})
+        except TypeError:
+            return templates.TemplateResponse("index.html", {"request": request, "stats": stats})
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        print(f"Error rendering home page: {err}")
+        return HTMLResponse(content=f"<h3>Lyrics Studio Initialization Notice</h3><p>Loading application...</p><pre>{err}</pre>", status_code=200)
+
 
 # --- API Endpoints ---
 @app.get("/api/stats")
