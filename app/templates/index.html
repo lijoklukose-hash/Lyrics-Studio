@@ -766,7 +766,10 @@
                     <div>
                         <div class="flex justify-between items-center mb-1.5">
                             <label class="block text-xs font-bold text-slate-700">Native Lyrics</label>
-                            <div class="flex items-center space-x-2">
+                                <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-xs text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition shadow-2xs" title="Paste lyrics from clipboard and auto-detect lines and stanzas">
+                                    <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                    <span>Paste & Auto-Detect</span>
+                                </button>
                                 <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-xs text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50">
                                     <i data-lucide="globe" class="w-3.5 h-3.5" :class="searchingWeb ? 'animate-spin' : ''"></i>
                                     <span x-text="searchingWeb ? 'Searching...' : 'Auto-Search Web & Fix'"></span>
@@ -781,7 +784,7 @@
                                 </button>
                             </div>
                         </div>
-                        <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" rows="8" placeholder="Type or paste native lyrics here (use blank lines between stanzas)..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                        <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="8" placeholder="Type or paste native lyrics here (auto-detects lines and stanzas)..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
                     </div>
 
                     <div>
@@ -1391,6 +1394,56 @@
                     } finally {
                         this.formattingAI = false;
                         this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                async pasteAndAutoDetectBreaks() {
+                    try {
+                        const clipText = await navigator.clipboard.readText();
+                        if (!clipText || !clipText.trim()) {
+                            this.showToast('Clipboard is empty', 'info');
+                            return;
+                        }
+                        await this.applyAutoDetectToLyrics(clipText);
+                    } catch (err) {
+                        this.showToast('Please paste directly into the box with Ctrl+V', 'info');
+                    }
+                },
+
+                async handleNativeLyricsPaste(event) {
+                    const pastedData = (event.clipboardData || window.clipboardData).getData('text');
+                    if (pastedData && pastedData.trim()) {
+                        event.preventDefault();
+                        await this.applyAutoDetectToLyrics(pastedData);
+                    }
+                },
+
+                async applyAutoDetectToLyrics(rawText) {
+                    try {
+                        const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
+                        const res = await fetch('/api/songs/reconstruct-stanzas', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lyrics: rawText, category: cat })
+                        });
+                        const data = await res.json();
+                        if (data.lyrics) {
+                            this.editingSong.lyrics = data.lyrics;
+                            if (data.lyrics2) this.editingSong.lyrics2 = data.lyrics2;
+                            this.editorLyricsText = this.formatFromBrTags(data.lyrics);
+                            if (data.lyrics2) this.editorLyrics2Text = this.formatFromBrTags(data.lyrics2);
+                            this.updateEditorLyricsFromInput();
+                            this.updateEditorLyrics2FromInput();
+                            this.editorPreviewTab = data.lyrics2 ? 'dual' : 'native';
+                            this.showToast('✨ Auto-detected lines, stanzas & transliteration!', 'success');
+                        } else {
+                            this.editorLyricsText = rawText;
+                            this.updateEditorLyricsFromInput();
+                        }
+                    } catch (e) {
+                        this.editorLyricsText = rawText;
+                        this.updateEditorLyricsFromInput();
+                        this.showToast('Pasted lyrics (offline formatting applied)', 'info');
                     }
                 },
 
