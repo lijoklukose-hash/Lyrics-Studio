@@ -220,6 +220,42 @@ async def get_preset_scraper_status():
     from app.scraper import auto_scraper_state
     return auto_scraper_state
 
+@app.get("/api/scraper/review-queue")
+async def get_scraped_review_queue():
+    from app.raw_archive_manager import get_review_queue
+    return {"queue": get_review_queue()}
+
+@app.post("/api/scraper/review-resolve")
+async def resolve_scraped_review(data: dict = Body(...)):
+    import sqlite3
+    raw_id = data.get("id")
+    action = data.get("action") # 'approve' or 'reject'
+    if not raw_id or action not in {'approve', 'reject'}:
+        raise HTTPException(status_code=400, detail="Valid raw ID and action ('approve'/'reject') required")
+    
+    conn = sqlite3.connect('scraped_raw_archive.db')
+    cur = conn.cursor()
+    cur.execute("SELECT title_cleaned, language, cleaned_lyrics FROM raw_scrapes WHERE id = ?", (raw_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Scrape record not found")
+    
+    title, lang, lyrics = row[0], row[1], row[2]
+    if action == 'approve':
+        db_manager.save_song({
+            "title": title,
+            "category": lang,
+            "lyrics": lyrics,
+            "tags": "Approved from Scrape Review"
+        })
+        cur.execute("UPDATE raw_scrapes SET status = 'approved' WHERE id = ?", (raw_id,))
+    else:
+        cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "action": action}
+
 @app.post("/api/format-helper")
 async def format_lyrics_helper(data: dict = Body(...)):
     from app.online_lyrics_search import smart_reconstruct_stanzas

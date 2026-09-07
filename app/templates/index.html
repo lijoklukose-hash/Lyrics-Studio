@@ -407,8 +407,9 @@
                             <span>Status: <strong class="text-slate-900 capitalize" x-text="autoScraperState.status"></strong></span>
                         </span>
                         <div class="flex items-center space-x-4 text-xs font-mono">
-                            <span class="text-slate-500">Duplicates Skipped: <strong class="text-amber-600" x-text="autoScraperState.duplicates_skipped">0</strong></span>
-                            <span class="text-slate-500">New Imported: <strong class="text-emerald-600" x-text="autoScraperState.imported">0</strong></span>
+                            <span class="text-slate-500">Duplicates Skipped: <strong class="text-rose-600" x-text="autoScraperState.duplicates_skipped || 0">0</strong></span>
+                            <span class="text-slate-500">Queued for Review: <strong class="text-amber-600" x-text="autoScraperState.needs_review || 0">0</strong></span>
+                            <span class="text-slate-500">Pristine Imported: <strong class="text-emerald-600" x-text="autoScraperState.imported || 0">0</strong></span>
                         </div>
                     </div>
                     <div class="text-xs text-slate-700 font-mono truncate" x-text="autoScraperState.message"></div>
