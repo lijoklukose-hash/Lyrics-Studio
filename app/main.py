@@ -343,27 +343,24 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
             batch_fix_state["message"] = f"Checking ({i}/{total}): {title[:35]}"
             
             try:
-                # 1. Search web / intra-db for clean version
-                res = find_best_clean_version(sid, title, cat)
-                if res and res.get("found") and res.get("lyrics"):
-                    candidate_lyr = res["lyrics"]
-                    candidate_lyr2 = res.get("lyrics2", "")
-                else:
-                    candidate_lyr = orig_lyr
-                    candidate_lyr2 = song.get('lyrics2', '')
+                # 1. Reconstruct current lyrics safely first using rule or AI engine
+                new_lyr, new_lyr2 = smart_reconstruct_stanzas(orig_lyr, cat, title=title, ai_model=ai_model)
+                if not new_lyr2 and song.get('lyrics2'):
+                    new_lyr2 = song.get('lyrics2')
 
-                # 2. Reconstruct stanzas using AI model or rule engine
-                new_lyr, new_lyr2 = smart_reconstruct_stanzas(candidate_lyr, cat, title=title, ai_model=ai_model)
-                if not new_lyr2 and candidate_lyr2:
-                    new_lyr2 = candidate_lyr2
+                # Strict Safety Check: Never allow new lyrics to wipe out existing song content or shrink drastically
+                orig_clean_len = len(re.sub(r'<[^>]+>', '', orig_lyr or '').strip())
+                new_clean_len = len(re.sub(r'<[^>]+>', '', new_lyr or '').strip())
 
-                if new_lyr and (new_lyr != orig_lyr or ('<BR><BR>' not in orig_lyr and '<BR><BR>' in new_lyr)):
-                    conn = sqlite3.connect('lyrics_cache.db', timeout=30.0)
-                    cur = conn.cursor()
-                    cur.execute("UPDATE songs SET lyrics = ?, lyrics2 = ? WHERE id = ?", (new_lyr, new_lyr2, sid))
-                    conn.commit()
-                    conn.close()
-                    batch_fix_state["fixed_count"] += 1
+                # Only accept updates if new lyrics are non-empty and at least 80% as long as original
+                if new_lyr and (orig_clean_len == 0 or new_clean_len >= int(orig_clean_len * 0.8)):
+                    if new_lyr != orig_lyr or ('<BR><BR>' not in orig_lyr and '<BR><BR>' in new_lyr):
+                        conn = sqlite3.connect('lyrics_cache.db', timeout=30.0)
+                        cur = conn.cursor()
+                        cur.execute("UPDATE songs SET lyrics = ?, lyrics2 = ? WHERE id = ?", (new_lyr, new_lyr2, sid))
+                        conn.commit()
+                        conn.close()
+                        batch_fix_state["fixed_count"] += 1
             except Exception as ex:
                 print(f"Error fixing song {sid}: {ex}")
                 
