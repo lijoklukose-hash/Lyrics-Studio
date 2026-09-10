@@ -200,7 +200,14 @@ async def get_sync_status():
 @app.get("/api/sync/test-connection")
 async def test_supabase_connection():
     try:
-        headers = dict(HEADERS)
+        from app.db_manager import get_supabase_headers, cloud_is_configured
+        if not cloud_is_configured():
+            return {
+                "success": False,
+                "error": "Missing SUPABASE_API_KEY",
+                "message": "Supabase API key is missing. Please ensure SUPABASE_API_KEY is configured in your environment or .env file."
+            }
+        headers = get_supabase_headers()
         headers["Prefer"] = "count=exact"
         headers["Range-Unit"] = "items"
         headers["Range"] = "0-0"

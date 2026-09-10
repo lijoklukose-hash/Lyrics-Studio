@@ -17,7 +17,16 @@ CSV_FILE = "Joyful noise_supabase_utf8.csv"
 # Load environment variables if .env exists
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Search for .env in current directory and parent directory
+    env_paths = [
+        os.path.join(os.getcwd(), ".env"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    ]
+    for p in env_paths:
+        if os.path.exists(p):
+            load_dotenv(p, override=True)
+            break
 except ImportError:
     pass
 
@@ -25,12 +34,16 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supa
 API_KEY = os.environ.get("SUPABASE_API_KEY", "")
 TABLE_NAME = os.environ.get("SUPABASE_TABLE", "Joyful%20Noise")
 
-HEADERS = {
-    "apikey": API_KEY,
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=minimal"
-}
+def get_supabase_headers():
+    key = os.environ.get("SUPABASE_API_KEY", API_KEY)
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+
+HEADERS = get_supabase_headers()
 
 VALID_SUPABASE_FIELDS = ['id', 'title', 'category', 'key', 'tags', 'lyrics', 'lyrics2', 'notes', 'yvideo', 'author']
 
@@ -46,6 +59,8 @@ def sanitize_for_supabase(item):
 
 def safe_request(method, url, **kwargs):
     """Send a Supabase request, retrying transient failures and raising on errors."""
+    if "headers" not in kwargs:
+        kwargs["headers"] = get_supabase_headers()
     max_retries = 3
     last_error = None
     for attempt in range(max_retries):
@@ -60,7 +75,8 @@ def safe_request(method, url, **kwargs):
     raise RuntimeError(f"Supabase {method} request failed: {last_error}") from last_error
 
 def cloud_is_configured():
-    return bool(SUPABASE_URL and API_KEY)
+    key = os.environ.get("SUPABASE_API_KEY", API_KEY)
+    return bool(SUPABASE_URL and key)
 
 class DatabaseManager:
     def __init__(self, db_path=DB_PATH):
