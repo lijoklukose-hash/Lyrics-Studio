@@ -175,7 +175,7 @@ def background_supabase_pull():
             fetch_headers["Range-Unit"] = "items"
             fetch_headers["Range"] = f"{offset}-{end_offset}"
             
-            fetch_url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,subcat,key,tags,lyrics,lyrics2,notes,yvideo,author&order=id.asc"
+            fetch_url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,subcategory,key,tags,lyrics,lyrics2,notes,yvideo,author&order=id.asc"
             r = safe_request("GET", fetch_url, headers=fetch_headers)
             items = r.json()
             all_downloaded.extend(items)
@@ -195,10 +195,10 @@ def background_supabase_pull():
         rows = []
         for item in all_downloaded:
             rows.append((
-                item.get('id'),
+                int(item['id']) if str(item.get('id', '')).isdigit() else item.get('id'),
                 item.get('title'),
                 item.get('category'),
-                item.get('subcat'),
+                item.get('subcategory') or item.get('subcat') or '',
                 item.get('key'),
                 item.get('tags'),
                 item.get('lyrics'),
@@ -245,14 +245,14 @@ def background_supabase_sync():
 
         sync_state["message"] = "Uploading clean songs to Supabase..."
 
-        endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}"
+        endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?on_conflict=id"
 
         batch_size = 250
         batches = [data[i:i + batch_size] for i in range(0, total_songs, batch_size)]
         
         uploaded = 0
         headers = dict(HEADERS)
-        headers["Prefer"] = "resolution=merge-duplicates"
+        headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
 
         for batch in batches:
             safe_request("POST", endpoint, headers=headers, json=batch)
@@ -632,13 +632,14 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
                     all_rows = [dict(r) for r in cur.fetchall()]
                     conn.close()
                     
-                    endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}"
+                    from app.db_manager import sanitize_for_supabase
+                    endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?on_conflict=id"
                     headers = dict(HEADERS)
-                    headers["Prefer"] = "resolution=merge-duplicates"
+                    headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
                     
                     batch_size = 250
                     for b_idx in range(0, len(all_rows), batch_size):
-                        chunk = all_rows[b_idx:b_idx + batch_size]
+                        chunk = [sanitize_for_supabase(r) for r in all_rows[b_idx:b_idx + batch_size]]
                         safe_request("POST", endpoint, headers=headers, json=chunk)
                         
                     cloud_msg = " & Supabase Cloud"

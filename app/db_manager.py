@@ -64,16 +64,21 @@ def get_supabase_headers():
 
 HEADERS = get_supabase_headers()
 
-VALID_SUPABASE_FIELDS = ['id', 'title', 'category', 'key', 'tags', 'lyrics', 'lyrics2', 'notes', 'yvideo', 'author']
+VALID_SUPABASE_FIELDS = ['id', 'title', 'category', 'subcategory', 'key', 'tags', 'lyrics', 'lyrics2', 'notes', 'yvideo', 'author']
 
 def sanitize_for_supabase(item):
     d = {}
     for k in VALID_SUPABASE_FIELDS:
-        if k in item:
-            val = item.get(k)
-            if isinstance(val, str):
-                val = val.replace('\x00', '').replace('\u0000', '')
-            d[k] = val
+        if k == 'subcategory':
+            val = item.get('subcategory') if item.get('subcategory') is not None else item.get('subcat', '')
+        elif k == 'id':
+            val = str(item.get('id', ''))
+        else:
+            val = item.get(k, '')
+            
+        if isinstance(val, str):
+            val = val.replace('\x00', '').replace('\u0000', '')
+        d[k] = val if val is not None else ''
     return d
 
 def safe_request(method, url, **kwargs):
@@ -344,8 +349,8 @@ class DatabaseManager:
         def _upsert():
             try:
                 headers = dict(HEADERS)
-                headers["Prefer"] = "resolution=merge-duplicates"
-                safe_request("POST", f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}", headers=headers, json=[sanitize_for_supabase(song_data)])
+                headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+                safe_request("POST", f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?on_conflict=id", headers=headers, json=[sanitize_for_supabase(song_data)])
             except Exception as e:
                 print(f"Warning syncing to Supabase: {e}")
         self.bg_executor.submit(_upsert)
