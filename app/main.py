@@ -138,6 +138,92 @@ async def export_json():
     )
 
 # --- Cloud Sync Endpoints ---
+def background_supabase_pull():
+    global sync_state
+    sync_state["status"] = "syncing"
+    sync_state["message"] = "Connecting to Supabase table 'Joyful Noise'..."
+    sync_state["progress"] = 0
+    sync_state["total"] = 0
+
+    try:
+        from app.db_manager import get_supabase_headers, cloud_is_configured
+        if not cloud_is_configured():
+            raise RuntimeError("Supabase is not configured. Set SUPABASE_URL and SUPABASE_API_KEY.")
+            
+        headers = get_supabase_headers()
+        headers["Prefer"] = "count=exact"
+        headers["Range-Unit"] = "items"
+        headers["Range"] = "0-0"
+        
+        url_count = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id"
+        res_count = safe_request("GET", url_count, headers=headers)
+        count_str = res_count.headers.get("content-range", "").split("/")[-1]
+        remote_count = int(count_str) if count_str.isdigit() else 0
+        
+        if remote_count == 0:
+            raise RuntimeError("Remote table 'Joyful Noise' is empty or could not retrieve count.")
+
+        sync_state["total"] = remote_count
+        sync_state["message"] = f"Downloading {remote_count:,} songs from Supabase table 'Joyful Noise'..."
+
+        all_downloaded = []
+        batch_size = 1000
+        
+        for offset in range(0, remote_count, batch_size):
+            end_offset = min(offset + batch_size - 1, remote_count - 1)
+            fetch_headers = get_supabase_headers()
+            fetch_headers["Range-Unit"] = "items"
+            fetch_headers["Range"] = f"{offset}-{end_offset}"
+            
+            fetch_url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,subcat,key,tags,lyrics,lyrics2,notes,yvideo,author&order=id.asc"
+            r = safe_request("GET", fetch_url, headers=fetch_headers)
+            items = r.json()
+            all_downloaded.extend(items)
+            
+            sync_state["progress"] = len(all_downloaded)
+            percent = (len(all_downloaded) / remote_count * 100) if remote_count else 100
+            sync_state["message"] = f"Downloaded {len(all_downloaded):,} of {remote_count:,} songs ({percent:.1f}%)..."
+
+        sync_state["message"] = f"Populating {len(all_downloaded):,} songs into local database..."
+        
+        # Replace local sqlite DB
+        conn = db_manager.get_connection()
+        cur = conn.cursor()
+        cur.execute("BEGIN IMMEDIATE")
+        cur.execute("DELETE FROM songs")
+        
+        rows = []
+        for item in all_downloaded:
+            rows.append((
+                item.get('id'),
+                item.get('title'),
+                item.get('category'),
+                item.get('subcat'),
+                item.get('key'),
+                item.get('tags'),
+                item.get('lyrics'),
+                item.get('lyrics2'),
+                item.get('notes'),
+                item.get('yvideo'),
+                item.get('author')
+            ))
+            
+        cur.executemany("INSERT OR REPLACE INTO songs VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+        conn.commit()
+        conn.close()
+
+        # Export CSV, Excel, JSON
+        sync_state["message"] = "Updating local CSV, Excel and JSON export files..."
+        db_manager.export_all_local_files()
+
+        sync_state["status"] = "completed"
+        sync_state["progress"] = len(all_downloaded)
+        sync_state["message"] = f"Successfully synced {len(all_downloaded):,} songs from Supabase Cloud ('Joyful Noise') into local app!"
+
+    except Exception as e:
+        sync_state["status"] = "error"
+        sync_state["message"] = f"Sync from Cloud failed: {str(e)}"
+
 def background_supabase_sync():
     global sync_state
     sync_state["status"] = "syncing"
@@ -183,7 +269,18 @@ def background_supabase_sync():
         sync_state["status"] = "error"
         sync_state["message"] = f"Sync failed: {str(e)}"
 
+@app.post("/api/sync/pull-from-cloud")
+@app.post("/api/sync/pull")
+async def trigger_supabase_pull(background_tasks: BackgroundTasks):
+    global sync_state
+    if sync_state["status"] == "syncing":
+        return {"status": "busy", "message": "Synchronization is already in progress"}
+    
+    background_tasks.add_task(background_supabase_pull)
+    return {"status": "started", "message": "Downloading full database from Supabase Cloud..."}
+
 @app.post("/api/sync/supabase")
+@app.post("/api/sync/push")
 async def trigger_supabase_sync(background_tasks: BackgroundTasks):
     global sync_state
     if sync_state["status"] == "syncing":

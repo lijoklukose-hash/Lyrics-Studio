@@ -175,16 +175,24 @@
             </nav>
 
             <!-- ACTION BUTTONS: EXPORT & CLOUD SYNC -->
-            <div class="flex items-center space-x-2">
-                <a href="/api/export/csv" download class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 border border-slate-200 shadow-xs hover:scale-105 active:scale-95" title="Export CSV">
+            <div class="flex items-center space-x-1.5 sm:space-x-2">
+                <a href="/api/export/csv" download class="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 border border-slate-200 shadow-xs hover:scale-105 active:scale-95" title="Export CSV">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-slate-500"></i>
-                    <span class="hidden sm:inline">Export</span>
+                    <span class="hidden lg:inline">Export</span>
                 </a>
 
-                <button @click="triggerCloudSync()" :disabled="syncing" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-105 active:scale-95">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="syncing ? 'animate-spin' : ''"></i>
-                    <span class="hidden sm:inline" x-text="syncing ? 'Syncing...' : 'Sync Supabase'"></span>
-                    <span class="sm:hidden" x-text="syncing ? '...' : 'Sync'"></span>
+                <!-- SYNC FROM CLOUD (PULL) -->
+                <button @click="triggerCloudPull()" :disabled="syncing" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Pull all verified songs from Supabase Cloud">
+                    <i data-lucide="cloud-download" class="w-3.5 h-3.5" :class="syncing ? 'animate-bounce' : ''"></i>
+                    <span class="hidden sm:inline">Sync from Cloud</span>
+                    <span class="sm:hidden">Pull</span>
+                </button>
+
+                <!-- PUSH TO CLOUD -->
+                <button @click="triggerCloudSync()" :disabled="syncing" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Upload local songs to Supabase Cloud">
+                    <i data-lucide="cloud-upload" class="w-3.5 h-3.5" :class="syncing ? 'animate-spin' : ''"></i>
+                    <span class="hidden sm:inline">Push to Cloud</span>
+                    <span class="sm:hidden">Push</span>
                 </button>
             </div>
         </div>
@@ -752,10 +760,40 @@
                             <i data-lucide="activity" class="w-4 h-4 text-emerald-600" :class="testingConnection ? 'animate-pulse' : ''"></i>
                             <span x-text="testingConnection ? 'Testing...' : 'Test Connection'"></span>
                         </button>
+                    </div>
+                </div>
 
-                        <button @click="triggerCloudSync()" :disabled="syncing" class="px-4 sm:px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95">
-                            <i data-lucide="refresh-cw" class="w-4 h-4" :class="syncing ? 'animate-spin' : ''"></i>
-                            <span x-text="syncing ? 'Syncing...' : 'Sync All to Cloud'"></span>
+                <!-- 2-WAY SYNC ACTION CARDS -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- ACTION 1: SYNC FROM CLOUD (PULL) -->
+                    <div class="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/80 to-slate-50 border border-indigo-200/80 space-y-3 flex flex-col justify-between shadow-2xs">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="p-2 bg-indigo-600 text-white rounded-xl shadow-xs"><i data-lucide="cloud-download" class="w-5 h-5"></i></span>
+                                <span class="text-[10px] bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-indigo-200">Supabase → App</span>
+                            </div>
+                            <h3 class="text-base font-extrabold text-slate-900">Sync from Cloud (Pull / Download)</h3>
+                            <p class="text-xs text-slate-600 leading-relaxed">Download all verified songs from Supabase table <code class="font-bold text-indigo-700">Joyful Noise</code> directly into this web app and update your local SQLite database & export files.</p>
+                        </div>
+                        <button @click="triggerCloudPull()" :disabled="syncing" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
+                            <i data-lucide="cloud-download" class="w-4 h-4" :class="syncing ? 'animate-bounce' : ''"></i>
+                            <span x-text="syncing ? 'Synchronizing...' : '📥 Sync from Cloud (Download All Songs)'"></span>
+                        </button>
+                    </div>
+
+                    <!-- ACTION 2: PUSH TO CLOUD -->
+                    <div class="p-5 rounded-2xl bg-gradient-to-br from-emerald-50/80 to-teal-50 border border-emerald-200/80 space-y-3 flex flex-col justify-between shadow-2xs">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="p-2 bg-emerald-600 text-white rounded-xl shadow-xs"><i data-lucide="cloud-upload" class="w-5 h-5"></i></span>
+                                <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-emerald-200">App → Supabase</span>
+                            </div>
+                            <h3 class="text-base font-extrabold text-slate-900">Push to Cloud (Upload)</h3>
+                            <p class="text-xs text-slate-600 leading-relaxed">Upload all verified songs from this web app to remote Supabase table <code class="font-bold text-emerald-700">Joyful Noise</code> with automatic duplicate resolution.</p>
+                        </div>
+                        <button @click="triggerCloudSync()" :disabled="syncing" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
+                            <i data-lucide="cloud-upload" class="w-4 h-4" :class="syncing ? 'animate-spin' : ''"></i>
+                            <span x-text="syncing ? 'Synchronizing...' : '📤 Push to Cloud (Upload All Songs)'"></span>
                         </button>
                     </div>
                 </div>
@@ -1789,6 +1827,19 @@
                     } catch (e) { this.showToast('Resolution failed: ' + e, 'error'); }
                 },
 
+                async triggerCloudPull() {
+                    if (!confirm('Download and sync all songs from Supabase table "Joyful Noise" into this app? (This will populate and refresh your local database with all verified cloud songs)')) return;
+                    this.syncing = true;
+                    try {
+                        await fetch('/api/sync/pull-from-cloud', { method: 'POST' });
+                        this.pollSyncStatus();
+                        this.showToast('Downloading all songs from Supabase Cloud...', 'info');
+                    } catch (e) {
+                        this.showToast('Pull failed: ' + e, 'error');
+                        this.syncing = false;
+                    }
+                },
+
                 async triggerCloudSync() {
                     if (!confirm('Start full cloud sync to Supabase table "Joyful Noise"?')) return;
                     this.syncing = true;
@@ -1886,6 +1937,8 @@
                                 clearInterval(this.pollTimer);
                                 this.syncing = false;
                                 this.testSupabaseConnection();
+                                this.loadStats();
+                                this.loadSongs(1);
                                 this.showToast(this.syncState.message, this.syncState.status === 'completed' ? 'success' : 'error');
                                 this.$nextTick(() => lucide.createIcons());
                             }
