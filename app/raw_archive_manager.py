@@ -31,37 +31,39 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
     conn.close()
 
 def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
-    init_raw_archive(db_path)
-    conn = sqlite3.connect(db_path, timeout=60.0)
-    cur = conn.cursor()
-    cur.execute('''
-        INSERT INTO raw_scrapes (
-            source_url, source_website, raw_html, raw_lyrics,
-            cleaned_lyrics, title_original, title_cleaned,
-            language, overall_confidence, duplicate_score, matched_id, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(source_url) DO UPDATE SET
-            cleaned_lyrics = excluded.cleaned_lyrics,
-            title_cleaned = excluded.title_cleaned,
-            overall_confidence = excluded.overall_confidence,
-            duplicate_score = excluded.duplicate_score,
-            status = excluded.status
-    ''', (
-        data.get('source_url', ''),
-        data.get('source_website', ''),
-        data.get('raw_html', ''),
-        data.get('raw_lyrics', ''),
-        data.get('cleaned_lyrics', ''),
-        data.get('title_original', ''),
-        data.get('title_cleaned', ''),
-        data.get('language', ''),
-        data.get('overall_confidence', 0.0),
-        data.get('duplicate_score', 0.0),
-        data.get('matched_id'),
-        data.get('status', 'pending')
-    ))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(db_path, timeout=60.0)
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO raw_scrapes (
+                source_url, source_website, raw_html, raw_lyrics,
+                cleaned_lyrics, title_original, title_cleaned,
+                language, overall_confidence, duplicate_score, matched_id, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_url) DO UPDATE SET
+                cleaned_lyrics = excluded.cleaned_lyrics,
+                title_cleaned = excluded.title_cleaned,
+                overall_confidence = excluded.overall_confidence,
+                duplicate_score = excluded.duplicate_score,
+                status = excluded.status
+        ''', (
+            data.get('source_url', ''),
+            data.get('source_website', ''),
+            data.get('raw_html', ''),
+            data.get('raw_lyrics', ''),
+            data.get('cleaned_lyrics', ''),
+            data.get('title_original', ''),
+            data.get('title_cleaned', ''),
+            data.get('language', ''),
+            data.get('overall_confidence', 0.0),
+            data.get('duplicate_score', 0.0),
+            data.get('matched_id'),
+            data.get('status', 'pending')
+        ))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Warning saving raw scrape: {e}")
 
 def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH):
     init_raw_archive(db_path)

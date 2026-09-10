@@ -1,5 +1,5 @@
 import re
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, NavigableString, Tag, Comment
 
 BLOCK_TAGS = {'p', 'div', 'section', 'article', 'blockquote', 'li', 'tr'}
 BREAK_TAGS = {'br'}
@@ -21,7 +21,10 @@ UI_NOISE_PATTERNS = [
     r'^(?:comments?|leave\s+a\s+comment|leave\s+a\s+reply|post\s+comment)\b',
     r'^(?:login|sign\s+in|register|my\s+account)\b',
     r'^(?:copyright|all\s+rights\s+reserved|privacy\s+policy|terms\s+of\s+service)\b',
-    r'^(?:previous\s+post|next\s+post|prev|next)\b'
+    r'^(?:previous\s+post|next\s+post|prev|next)\b',
+    r'^(?:song\s*#\s*\d+|chords?|translate|original|manglish|english|malayalam|tamil|telugu|hindi|kannada)\b',
+    r'^[—–\-_=~*#\s]{3,}$',  # Separator lines like —————————————–
+    r'^(?:[MFABCDEFGH]|male|female|all)\s*$'  # Singer role indicators like M, F, A
 ]
 UI_NOISE_REGEX = re.compile('|'.join(UI_NOISE_PATTERNS), re.IGNORECASE)
 
@@ -58,20 +61,23 @@ class DOMStructureExtractor:
             tag.decompose()
         noise_selector = re.compile(r'share|social|comment|banner|ad-|advert|widget|sidebar|footer|related', re.IGNORECASE)
         for element in self.soup.find_all(attrs={'class': noise_selector}):
+            if not getattr(element, 'attrs', None):
+                continue
             classes = ' '.join(element.get('class', []))
             if not re.search(r'lyrics|song-content|entry-content', classes, re.IGNORECASE):
                 element.decompose()
 
     def find_lyrics_container(self) -> Tag:
         candidate_selectors = [
+            {'id': re.compile(r'^(?:original|div-lyric-text|printlyrics)$', re.IGNORECASE)},
             {'class_': re.compile(r'(?:song[_-]?lyrics|lyrics?[_-]?body|lyrics?[_-]?text|entry[_-]?content|post[_-]?body)', re.IGNORECASE)},
-            {'id': re.compile(r'(?:lyrics?|song[_-]?lyrics|printlyrics)', re.IGNORECASE)},
+            {'id': re.compile(r'(?:lyrics?|song[_-]?lyrics|printlyrics|div-lyric-text)', re.IGNORECASE)},
             {'itemprop': 'text'}
         ]
         for sel in candidate_selectors:
-            found = self.soup.find(attrs=sel)
-            if found and len(found.get_text(strip=True)) > 50:
-                return found
+            for found in self.soup.find_all(attrs=sel):
+                if found and len(found.get_text(strip=True)) > 50:
+                    return found
         article = self.soup.find('article') or self.soup.find('main')
         if article and len(article.get_text(strip=True)) > 50:
             return article
@@ -108,12 +114,19 @@ class DOMStructureExtractor:
 
         def walk(node):
             nonlocal current_lines
+            if isinstance(node, Comment):
+                return
+
             if isinstance(node, NavigableString):
                 raw_text = str(node)
                 lines = raw_text.split('\n')
                 for idx, line in enumerate(lines):
                     cleaned = clean_chords(line).strip()
                     if cleaned:
+                        # If the line is a standalone verse/stanza number (e.g. '1', '2.', 'Verse 1:'), start a new stanza
+                        if re.match(r'^(?:[0-9]+[.)]?|(?:verse|chorus|stanza|refrain)\s*[0-9]*:?)$', cleaned, re.IGNORECASE):
+                            if current_lines:
+                                flush_stanza()
                         current_lines.append(cleaned)
                     elif idx > 0 and len(lines) > 2 and current_lines:
                         flush_stanza()

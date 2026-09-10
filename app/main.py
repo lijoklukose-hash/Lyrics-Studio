@@ -146,7 +146,10 @@ def background_supabase_sync():
     try:
         db_manager.export_all_local_files()
         with open(JSON_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            raw_data = json.load(f)
+
+        from app.db_manager import sanitize_for_supabase
+        data = [sanitize_for_supabase(item) for item in raw_data]
 
         total_songs = len(data)
         sync_state["total"] = total_songs
@@ -174,7 +177,7 @@ def background_supabase_sync():
 
         sync_state["status"] = "completed"
         sync_state["progress"] = total_songs
-        sync_state["message"] = f"Successfully upserted all {total_songs:,} local songs to Supabase. Existing remote-only rows were preserved."
+        sync_state["message"] = f"Successfully synced all {total_songs:,} songs to Supabase ('Joyful Noise')."
 
     except Exception as e:
         sync_state["status"] = "error"
@@ -194,6 +197,31 @@ async def get_sync_status():
     global sync_state
     return sync_state
 
+@app.get("/api/sync/test-connection")
+async def test_supabase_connection():
+    try:
+        headers = dict(HEADERS)
+        headers["Prefer"] = "count=exact"
+        headers["Range-Unit"] = "items"
+        headers["Range"] = "0-0"
+        url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id"
+        res = safe_request("GET", url, headers=headers)
+        count_str = res.headers.get("content-range", "").split("/")[-1]
+        remote_count = int(count_str) if count_str.isdigit() else 0
+        return {
+            "success": True,
+            "supabase_url": SUPABASE_URL,
+            "table_name": "Joyful Noise",
+            "remote_count": remote_count,
+            "message": f"Connected to Supabase! Remote table 'Joyful Noise' has {remote_count:,} songs."
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Could not connect to Supabase: {str(e)}"
+        }
+
 # --- Scraper & Duplicates ---
 @app.post("/api/scrape")
 async def scrape_lyrics(data: dict = Body(...)):
@@ -207,13 +235,19 @@ async def scrape_lyrics(data: dict = Body(...)):
 async def trigger_preset_scraper(background_tasks: BackgroundTasks, data: dict = Body(...)):
     from app.scraper import auto_scraper_state, run_preset_auto_scraper
     source = data.get("source", "all")
+    languages = data.get("languages", None)
     if source not in {"all", "waytochurch", "madely"}:
         raise HTTPException(status_code=400, detail="Unsupported scraper source")
     if auto_scraper_state["status"] == "running":
         return {"status": "busy", "message": "Auto-scraper is already running"}
     
-    background_tasks.add_task(run_preset_auto_scraper, source=source)
+    background_tasks.add_task(run_preset_auto_scraper, source=source, allowed_languages=languages)
     return {"status": "started", "message": f"Auto-scraping for source '{source}' started in background"}
+
+@app.post("/api/scrape/preset/stop")
+async def stop_preset_scraper():
+    from app.scraper import stop_preset_auto_scraper
+    return stop_preset_auto_scraper()
 
 @app.get("/api/scrape/preset/status")
 async def get_preset_scraper_status():

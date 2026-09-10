@@ -322,50 +322,53 @@ def transliterate_malayalam(text):
 
     return '<BR><BR>'.join(formatted_stanzas)
 
-TAMIL_CONSONANTS = {
+TAMIL_CONSONANTS_MAP = {
     'க': 'k', 'ங': 'ng', 'ச': 's', 'ஞ': 'nj', 'ட': 't', 'ண': 'n',
     'த': 'th', 'ந': 'n', 'ப': 'p', 'ம': 'm', 'ய': 'y', 'ர': 'r',
     'ல': 'l', 'வ': 'v', 'ழ': 'zh', 'ள': 'l', 'ற': 'r', 'ன': 'n',
     'ஜ': 'j', 'ஷ': 'sh', 'ஸ': 's', 'ஹ': 'h', 'க்ஷ': 'ksh'
 }
 
-TAMIL_VOWEL_SIGNS = {
-    'ா': 'aa', 'ி': 'i', 'ீ': 'ee', 'ு': 'u', 'ూ': 'oo', 'ூ': 'oo',
+TAMIL_VOWEL_SIGNS_MAP = {
+    'ா': 'aa', 'ி': 'i', 'ீ': 'ee', 'ு': 'u', 'ூ': 'oo',
     'ெ': 'e', 'ே': 'e', 'ை': 'ai', 'ொ': 'o', 'ோ': 'o', 'ௌ': 'au',
     '்': ''
 }
 
-TAMIL_INDEP_VOWELS = {
+TAMIL_INDEP_VOWELS_MAP = {
     'அ': 'a', 'ஆ': 'aa', 'இ': 'i', 'ஈ': 'ee', 'உ': 'u', 'ஊ': 'oo',
     'எ': 'e', 'ஏ': 'e', 'ஐ': 'ai', 'ஒ': 'o', 'ஓ': 'o', 'ஔ': 'au'
 }
 
-TAMIL_COMBOS = [
-    ('கர்த்தர்', 'karthar'), ('கர்த்தரை', 'kartharai'), ('ஸ்தோத்திரி', 'sthothiri'),
-    ('ஸ்தோத்திரம்', 'sthothiram'), ('ஆத்துமாவே', 'aathumaave'), ('ஆத்துமா', 'aathumaa'),
+TAMIL_COMMON_WORDS = [
+    ('கர்த்தர்', 'karthar'), ('கர்த்தரை', 'kartharai'), ('கர்த்தருக்கு', 'kartharukku'),
+    ('ஸ்தோத்திரி', 'sthothiri'), ('ஸ்தோத்திரம்', 'sthothiram'),
+    ('ஆத்துமாவே', 'aathumaave'), ('ஆத்துமா', 'aathumaa'),
     ('அல்லேலூயா', 'halleluyaah'), ('இயேசு', 'yesu'), ('இயேசுவே', 'yesuve'),
     ('பரிசுத்த', 'parisuttha'), ('ஆவியே', 'aaviye'), ('இரட்சகர்', 'iratchagar'),
-    ('இரத்தமே', 'iratthame'), ('கிருபை', 'kirubai'), ('ந்த', 'nth'), ('த்த', 'tth'),
-    ('ற்ற', 'ttr'), ('ண்ட', 'nd'), ('ம்ப', 'mb'), ('ங்க', 'ng'), ('ஞ்ச', 'nj'),
+    ('இரத்தமே', 'iratthame'), ('கிருபை', 'kirubai'),
 ]
 
 def transliterate_tamil(text):
-    if not text: return ""
+    if not text:
+        return ""
     t = text
-    for k, v in TAMIL_COMBOS:
+    for k, v in TAMIL_COMMON_WORDS:
         t = t.replace(k, v)
+    
     t_res = []
     i = 0
     n = len(t)
     while i < n:
         c = t[i]
-        if c in TAMIL_INDEP_VOWELS:
-            t_res.append(TAMIL_INDEP_VOWELS[c])
+        if c in TAMIL_INDEP_VOWELS_MAP:
+            t_res.append(TAMIL_INDEP_VOWELS_MAP[c])
             i += 1
-        elif c in TAMIL_CONSONANTS:
-            base = TAMIL_CONSONANTS[c]
-            if i + 1 < n and t[i+1] in TAMIL_VOWEL_SIGNS:
-                t_res.append(base + TAMIL_VOWEL_SIGNS[t[i+1]])
+        elif c in TAMIL_CONSONANTS_MAP:
+            base = TAMIL_CONSONANTS_MAP[c]
+            if i + 1 < n and t[i+1] in TAMIL_VOWEL_SIGNS_MAP:
+                vowel_sign = t[i+1]
+                t_res.append(base + TAMIL_VOWEL_SIGNS_MAP[vowel_sign])
                 i += 2
             else:
                 t_res.append(base + 'a')
@@ -373,7 +376,14 @@ def transliterate_tamil(text):
         else:
             t_res.append(c)
             i += 1
-    return "".join(t_res)
+            
+    res = ''.join(t_res)
+    res = re.sub(r'nth\b', 'nthu', res)
+    res = re.sub(r'tth\b', 'tthu', res)
+    res = re.sub(r'nd\b', 'ndu', res)
+    res = re.sub(r'mb\b', 'mbu', res)
+    res = re.sub(r'ng\b', 'ngu', res)
+    return res
 
 def generate_natural_transliteration(text, category):
     if not text or category == 'English':
@@ -417,7 +427,7 @@ def generate_natural_transliteration(text, category):
             l = re.sub(r'M(?=[tTdDnNsS])', 'n', l)
             l = re.sub(r'M(?=[pPbBmM]|\b)', 'm', l)
             l = re.sub(r'M(?=[kKgG])', 'ng', l)
-            l = re.sub(r'M', 'm', l)
+            l = re.sub(r'M', 'n', l)
 
             CLEANERS = [
                 (r'kSh|kS|ksh', 'ksh'),
@@ -444,21 +454,91 @@ def generate_natural_transliteration(text, category):
                 l = re.sub(pat, rep, l)
 
             if category == 'Hindi':
-                l = re.sub(r'aaoomgaa\b', 'aaungaa', l)
-                l = re.sub(r'oom\b', 'oon', l)
-                HINDI_SCHWA = [
+                HINDI_POST_PROCESS = [
+                    (r'\bkarate\b', 'karte'),
+                    (r'\bkaratee\b', 'karti'),
+                    (r'\bkarataa\b', 'karta'),
+                    (r'\bgaate\b', 'gaate'),
+                    (r'\bgaatee\b', 'gaati'),
+                    (r'\bgaataa\b', 'gaata'),
+                    (r'\bkahate\b', 'kahte'),
+                    (r'\bkahatee\b', 'kahti'),
+                    (r'\bkahataa\b', 'kahta'),
+                    (r'\brahate\b', 'rahte'),
+                    (r'\brahatee\b', 'rahti'),
+                    (r'\brahataa\b', 'rahta'),
+                    (r'\brahegaa\b', 'rahega'),
+                    (r'\bmujhamem\b', 'mujhme'),
+                    (r'\btujhamem\b', 'tujhme'),
+                    (r'\bjisamem\b', 'jisme'),
+                    (r'\busamem\b', 'usme'),
+                    (r'\bhamem\b', 'humein'),
+                    (r'\bteree\b', 'teri'),
+                    (r'\bteraa\b', 'tera'),
+                    (r'\btere\b', 'tere'),
+                    (r'\bmeiree\b|\bmeraa\b|\bmeree\b', 'meri'),
+                    (r'\bmeiraa\b', 'mera'),
+                    (r'\bmeire\b', 'mere'),
+                    (r'\bhamaaraa\b', 'hamara'),
+                    (r'\bhamaaree\b', 'hamari'),
+                    (r'\bhamaare\b', 'hamare'),
+                    (r'\byeeshu\b|\byeshoo\b', 'yeshu'),
+                    (r'\btoo\b', 'tu'),
+                    (r'\bhee\b', 'hi'),
+                    (r'\bdee\b', 'di'),
+                    (r'\bkee\b', 'ki'),
+                    (r'\bkaa\b', 'ka'),
+                    (r'\bko\b', 'ko'),
+                    (r'\bse\b', 'se'),
+                    (r'\bhai\b', 'hai'),
+                    (r'\bhain\b', 'hain'),
+                    (r'\bho\b', 'ho'),
+                    (r'\bhoon\b', 'hoon'),
+                    (r'\baaraadhanaa\b', 'aaradhana'),
+                    (r'\bmahimaa\b', 'mahima'),
+                    (r'\baatmaa\b', 'aatma'),
+                    (r'\bpavitra\b', 'pavitra'),
+                    (r'\bshakti\b', 'shakti'),
+                    (r'\bnamrataa\b', 'namrata'),
+                    (r'\bkripaa\b', 'kripa'),
+                    (r'\bdayaa\b', 'daya'),
+                    (r'\btaakata\b', 'taaqat'),
+                    (r'\bimaana\b', 'imaan'),
+                    (r'\bshifaa\b', 'shifa'),
+                    (r'\bkhushiyaa\b|\bkhushiyaan\b', 'khushiyan'),
+                    (r'\bmandira\b', 'mandir'),
+                    (r'\bbhavara\b', 'bhawar'),
+                    (r'\bbeecha\b|\bbicha\b', 'beech'),
+                    (r'\bmem\b|\bmai\b', 'mein'),
                     (r'\bke\s+saatha\b', 'ke saath'),
                     (r'\bnaama\b', 'naam'),
                     (r'\bdhanyavaada\b', 'dhanyavaad'),
                     (r'\bjeevana\b', 'jeevan'),
                     (r'\bpaapa\b', 'paap'),
                     (r'\bvishvaasa\b', 'vishvaas'),
-                    (r'\bshvarga\b|\bsvarga\b', 'svarg'),
+                    (r'\bshvarga\b|\bsvarga\b', 'swarg'),
                     (r'\bkaama\b', 'kaam'),
                     (r'\bdhaama\b', 'dhaam'),
+                    (r'\bdila\b', 'dil'),
+                    (r'\bpyaara\b', 'pyaar'),
+                    (r'\bkroosa\b', 'kroos'),
+                    (r'\bjaana\b', 'jaan'),
+                    (r'\bjinda\b', 'zinda'),
+                    (r'\bjindagee\b', 'zindagi'),
+                    (r'\bsahaaraa\b', 'sahara'),
+                    (r'\btoone\b', 'tune'),
                 ]
-                for pat, rep in HINDI_SCHWA:
+                for pat, rep in HINDI_POST_PROCESS:
                     l = re.sub(pat, rep, l, flags=re.IGNORECASE)
+
+                # General Hindi word-terminal schwa drop (words > 3 letters ending in single 'a')
+                words_temp = l.split()
+                cleaned_words = []
+                for wt in words_temp:
+                    if len(wt) > 3 and wt.endswith('a') and not wt.endswith('aa') and not wt.endswith('ya') and not wt.endswith('ra') and not wt.lower() in ('kripa', 'daya', 'hawa', 'raja', 'sewa'):
+                        wt = wt[:-1]
+                    cleaned_words.append(wt)
+                l = ' '.join(cleaned_words)
 
         # Cleanup stray accents and Indic residual codepoints
         l = re.sub(r'[èéòóàá^~`]', '', l)

@@ -14,7 +14,14 @@ JSON_FILE = "Joyful noise_supabase_utf8.json"
 EXCEL_FILE = "Joyful noise_supabase_utf8.xlsx"
 CSV_FILE = "Joyful noise_supabase_utf8.csv"
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+# Load environment variables if .env exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supabase.co").rstrip("/")
 API_KEY = os.environ.get("SUPABASE_API_KEY", "")
 TABLE_NAME = os.environ.get("SUPABASE_TABLE", "Joyful%20Noise")
 
@@ -28,7 +35,14 @@ HEADERS = {
 VALID_SUPABASE_FIELDS = ['id', 'title', 'category', 'key', 'tags', 'lyrics', 'lyrics2', 'notes', 'yvideo', 'author']
 
 def sanitize_for_supabase(item):
-    return {k: item.get(k) for k in VALID_SUPABASE_FIELDS if k in item}
+    d = {}
+    for k in VALID_SUPABASE_FIELDS:
+        if k in item:
+            val = item.get(k)
+            if isinstance(val, str):
+                val = val.replace('\x00', '').replace('\u0000', '')
+            d[k] = val
+    return d
 
 def safe_request(method, url, **kwargs):
     """Send a Supabase request, retrying transient failures and raising on errors."""
@@ -74,7 +88,8 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_path, timeout=60.0)
         conn.row_factory = sqlite3.Row
         try:
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=60000")
+            conn.execute("PRAGMA synchronous=NORMAL")
         except:
             pass
         return conn
@@ -180,12 +195,11 @@ class DatabaseManager:
             q_clean = f"%{raw_q}%"
             if id_match.isdigit():
                 num_id = int(id_match)
-                id_like = f"%{id_match}%"
-                conditions.append("(id = ? OR CAST(id AS TEXT) LIKE ? OR title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
-                params.extend([num_id, id_like, q_clean, q_clean, q_clean, q_clean, q_clean])
+                conditions.append("(id = ? OR title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
+                params.extend([num_id, q_clean, q_clean, q_clean, q_clean, q_clean])
             else:
-                conditions.append("(CAST(id AS TEXT) LIKE ? OR title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
-                params.extend([q_clean, q_clean, q_clean, q_clean, q_clean, q_clean])
+                conditions.append("(title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
+                params.extend([q_clean, q_clean, q_clean, q_clean, q_clean])
 
         where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 

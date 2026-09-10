@@ -2,7 +2,7 @@ import re
 from bs4 import BeautifulSoup
 
 SEO_JUNK_REGEX = re.compile(
-    r'(?i)\s*(?:song\s+lyrics|official\s+lyrics|lyrics|mp3|free\s+download|chords|full\s+lyrics|with\s+chords|video)\b'
+    r'(?i)\s*(?:song\s+lyrics|official\s+lyrics|lyrics|mp3|free\s+download|chords|full\s+lyrics|with\s+chords|video|malayalam\s*(&|and)?\s*manglish|malayalam|tamil|telugu|hindi|kannada|english|manglish)\b'
 )
 
 SITE_BRAND_REGEX = re.compile(
@@ -14,11 +14,15 @@ def clean_raw_title(raw_title: str) -> str:
     if not raw_title:
         return ''
     t = str(raw_title).strip()
+    # Strip (Chords), [Chords], (with Chords), etc.
+    t = re.sub(r'[\(\[\{]\s*(?:with\s+)?chords?\s*[\)\]\}]', '', t, flags=re.IGNORECASE)
     t = SITE_BRAND_REGEX.sub('', t)
     t = SEO_JUNK_REGEX.sub('', t)
-    t = re.sub(r'^[\\d\\.\\-\\:\\)]+\\s*', '', t)
-    t = re.sub(r'[\\|\\-\\–\\—]+$', '', t)
-    t = re.sub(r'\\s+', ' ', t).strip()
+    # Remove empty brackets if left over
+    t = re.sub(r'[\(\[\{]\s*[\)\]\}]', '', t)
+    t = re.sub(r'^\s*[\d\.\-\:\)]+\s*', '', t)
+    t = re.sub(r'[\|\-\–\—&]+$', '', t)
+    t = re.sub(r'\s+', ' ', t).strip()
     return t
 
 def extract_and_clean_title(soup: BeautifulSoup, url: str = '') -> tuple:
