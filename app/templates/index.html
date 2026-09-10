@@ -729,10 +729,10 @@
 
 
         <!-- ==================== TAB 4: CLOUD SYNC & EXPORTS ==================== -->
-        <div x-show="currentTab === 'cloud'" x-cloak x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6 max-w-5xl mx-auto">
+        <div x-show="currentTab === 'cloud'" x-cloak x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-4 sm:space-y-6 max-w-5xl mx-auto">
             
             <!-- SUPABASE CLOUD CONNECTION STATUS CARD -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6 relative overflow-hidden">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200 space-y-5 sm:space-y-6 relative overflow-hidden">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-5">
                     <div class="flex items-center space-x-3.5">
                         <div class="p-3 bg-emerald-50 text-emerald-600 border border-emerald-200/60 rounded-2xl shadow-xs">
@@ -741,27 +741,27 @@
                         <div>
                             <div class="flex items-center space-x-2">
                                 <h2 class="text-xl font-extrabold text-slate-900">Supabase Cloud Database</h2>
-                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Linked & Live</span>
+                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold" :class="supabaseRemoteCount !== null ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'" x-text="supabaseRemoteCount !== null ? '🟢 Connected & Live' : '🟡 Ready to Connect'"></span>
                             </div>
                             <p class="text-xs text-slate-500 mt-0.5">Table: <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono font-bold">Joyful Noise</code> • Real-time 2-way sync with your mobile app and web clients.</p>
                         </div>
                     </div>
 
-                    <div class="flex items-center space-x-2.5">
-                        <button @click="testSupabaseConnection()" :disabled="testingConnection" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center space-x-2 border border-slate-200 shadow-xs active:scale-95">
+                    <div class="flex items-center space-x-2">
+                        <button @click="testSupabaseConnection()" :disabled="testingConnection" class="px-3.5 sm:px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center space-x-2 border border-slate-200 shadow-xs active:scale-95">
                             <i data-lucide="activity" class="w-4 h-4 text-emerald-600" :class="testingConnection ? 'animate-pulse' : ''"></i>
                             <span x-text="testingConnection ? 'Testing...' : 'Test Connection'"></span>
                         </button>
 
-                        <button @click="triggerCloudSync()" :disabled="syncing" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95">
+                        <button @click="triggerCloudSync()" :disabled="syncing" class="px-4 sm:px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95">
                             <i data-lucide="refresh-cw" class="w-4 h-4" :class="syncing ? 'animate-spin' : ''"></i>
-                            <span x-text="syncing ? 'Syncing Now...' : 'Sync All to Cloud'"></span>
+                            <span x-text="syncing ? 'Syncing...' : 'Sync All to Cloud'"></span>
                         </button>
                     </div>
                 </div>
 
                 <!-- Live Supabase Status Strip -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
                         <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Local Verified Songs</span>
                         <div class="text-2xl font-black text-slate-900 font-mono mt-1" x-text="stats.total ? stats.total.toLocaleString() : '25,056'"></div>
@@ -777,10 +777,10 @@
                 </div>
 
                 <!-- Sync Progress Card -->
-                <div class="p-5 rounded-2xl border" :class="syncState.status === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' : (syncState.status === 'completed' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-700')">
-                    <div class="flex justify-between items-center text-xs font-bold mb-2">
+                <div class="p-4 sm:p-5 rounded-2xl border" :class="syncState.status === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' : (syncState.status === 'completed' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-700')">
+                    <div class="flex justify-between items-center text-xs font-bold mb-1.5">
                         <span>Sync Engine Status: <strong class="capitalize text-slate-900" x-text="syncState.status"></strong></span>
-                        <span class="font-mono text-indigo-700" x-text="syncState.total > 0 ? (syncState.progress + ' / ' + syncState.total) : ''"></span>
+                        <span class="font-mono text-indigo-700 font-extrabold" x-text="syncState.total > 0 ? (syncState.progress + ' / ' + syncState.total) : ''"></span>
                     </div>
                     <p class="text-xs" x-text="syncState.message"></p>
                 </div>

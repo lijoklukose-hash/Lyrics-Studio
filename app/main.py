@@ -200,8 +200,9 @@ async def get_sync_status():
 @app.get("/api/sync/test-connection")
 async def test_supabase_connection():
     try:
-        from app.db_manager import get_supabase_headers, cloud_is_configured
-        if not cloud_is_configured():
+        from app.db_manager import get_supabase_headers, cloud_is_configured, get_default_supabase_key
+        key = os.environ.get("SUPABASE_API_KEY") or get_default_supabase_key()
+        if not key:
             return {
                 "success": False,
                 "error": "Missing SUPABASE_API_KEY",
@@ -228,6 +229,38 @@ async def test_supabase_connection():
             "error": str(e),
             "message": f"Could not connect to Supabase: {str(e)}"
         }
+
+@app.get("/api/sync/config")
+async def get_supabase_config_endpoint():
+    from app.db_manager import get_default_supabase_key
+    key = os.environ.get("SUPABASE_API_KEY") or get_default_supabase_key()
+    masked_key = (key[:8] + "..." + key[-6:]) if len(key) > 14 else ("*" * len(key))
+    return {
+        "supabase_url": os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supabase.co"),
+        "table_name": "Joyful Noise",
+        "api_key_masked": masked_key,
+        "is_configured": bool(key)
+    }
+
+@app.post("/api/sync/save-config")
+async def save_supabase_config_endpoint(data: dict = Body(...)):
+    url = data.get("supabase_url", "").strip()
+    key = data.get("supabase_api_key", "").strip()
+    if url:
+        os.environ["SUPABASE_URL"] = url
+    if key and not key.startswith("sb_secret_..."):
+        os.environ["SUPABASE_API_KEY"] = key
+    
+    # Save to .env
+    try:
+        current_url = os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supabase.co")
+        current_key = os.environ.get("SUPABASE_API_KEY", "")
+        with open(".env", "w", encoding="utf-8") as f:
+            f.write(f"SUPABASE_URL={current_url}\nSUPABASE_API_KEY={current_key}\nSUPABASE_TABLE=Joyful%20Noise\n")
+    except Exception as e:
+        print(f"Notice: Failed to write .env file ({e})")
+    
+    return {"success": True, "message": "Supabase configuration updated successfully!"}
 
 # --- Scraper & Duplicates ---
 @app.post("/api/scrape")
