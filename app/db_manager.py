@@ -232,14 +232,52 @@ class DatabaseManager:
             # Clean numeric query if user typed '#274771' or 'id: 274771' or 'ID 274771'
             id_match = re.sub(r'^(?:id[:\s#]*|#)', '', raw_q, flags=re.IGNORECASE).strip()
             
-            q_clean = f"%{raw_q}%"
             if id_match.isdigit():
                 num_id = int(id_match)
+                q_clean = f"%{raw_q}%"
                 conditions.append("(id = ? OR title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
                 params.extend([num_id, q_clean, q_clean, q_clean, q_clean, q_clean])
+                order_by = f"CASE WHEN id = {num_id} THEN 0 ELSE 1 END, id ASC"
             else:
-                conditions.append("(title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
-                params.extend([q_clean, q_clean, q_clean, q_clean, q_clean])
+                tokens = [t.strip() for t in raw_q.split() if t.strip()]
+                if len(tokens) == 1:
+                    q_clean = f"%{tokens[0]}%"
+                    conditions.append("(title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
+                    params.extend([q_clean, q_clean, q_clean, q_clean, q_clean])
+                    
+                    # Prioritize exact title match, title prefix match, title contains match, lyrics match
+                    exact_q = tokens[0]
+                    prefix_q = f"{exact_q}%"
+                    order_by = f"""
+                        CASE 
+                            WHEN title = '{exact_q}' THEN 0
+                            WHEN title LIKE '{prefix_q}' THEN 1
+                            WHEN title LIKE '%{exact_q}%' THEN 2
+                            WHEN lyrics2 LIKE '{prefix_q}' THEN 3
+                            WHEN lyrics2 LIKE '%{exact_q}%' THEN 4
+                            ELSE 5 
+                        END, id ASC
+                    """
+                else:
+                    # Multi-word search: every word must match in (title OR lyrics OR lyrics2 OR author)
+                    token_clauses = []
+                    for t in tokens:
+                        token_clauses.append("(title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
+                        t_clean = f"%{t}%"
+                        params.extend([t_clean, t_clean, t_clean, t_clean, t_clean])
+                    conditions.append(" AND ".join(token_clauses))
+                    
+                    # Rank songs where title contains the whole phrase first, then title contains all words, then lyrics
+                    full_phrase = f"%{raw_q}%"
+                    order_by = f"""
+                        CASE 
+                            WHEN title LIKE '{full_phrase}' THEN 0
+                            WHEN lyrics2 LIKE '{full_phrase}' THEN 1
+                            ELSE 2
+                        END, id ASC
+                    """
+        else:
+            order_by = "id ASC"
 
         where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
@@ -247,14 +285,8 @@ class DatabaseManager:
         cur.execute(f"SELECT COUNT(*) FROM songs{where_clause}", params)
         total = cur.fetchone()[0]
 
-        # Paginated results (if query is a specific ID, prioritize exact ID match at the top)
+        # Paginated results
         offset = (page - 1) * per_page
-        if query and query.strip().isdigit():
-            exact_id = int(query.strip())
-            order_by = f"CASE WHEN id = {exact_id} THEN 0 ELSE 1 END, id ASC"
-        else:
-            order_by = "id ASC"
-
         query_sql = f"SELECT * FROM songs{where_clause} ORDER BY {order_by} LIMIT ? OFFSET ?"
         cur.execute(query_sql, params + [per_page, offset])
         rows = [dict(r) for r in cur.fetchall()]
