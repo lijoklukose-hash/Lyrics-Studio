@@ -16,8 +16,10 @@ from indic_transliteration.sanscript import transliterate
 from app.db_manager import db_manager, CSV_FILE, EXCEL_FILE, JSON_FILE, SUPABASE_URL, TABLE_NAME, HEADERS, safe_request, cloud_is_configured
 from app.duplicate_engine import find_duplicates, generate_diff
 from app.scraper import scrape_url, clean_and_format_lyrics
+from fastapi.middleware.gzip import GZipMiddleware
 
 app = FastAPI(title="Lyrics Studio - Scraper, Editor, Transliteration & Cloud Sync")
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))

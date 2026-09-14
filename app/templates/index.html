@@ -1317,15 +1317,20 @@
                 toastCount: 0,
 
                 init() {
-                    // Load primary stats & initial song list in parallel
-                    this.loadStats();
+                    // 1. Immediately load initial songs and stats
                     this.loadSongs(1);
-                    // Check background status without blocking render
+                    this.loadStats();
+                    
+                    // 2. Defer background tasks to avoid saturating browser network connections
                     setTimeout(() => {
-                        this.testSupabaseConnection(false); // background silent check
                         this.pollAutoScraperStatus();
                         this.pollBatchFixStatus();
-                    }, 500);
+                    }, 1200);
+                    
+                    setTimeout(() => {
+                        this.testSupabaseConnection(false); // silent check after UI is completely rendered
+                    }, 2500);
+
                     this.$nextTick(() => lucide.createIcons());
                 },
 
@@ -1772,13 +1777,22 @@
                             } else {
                                 if (this.autoScrapingActive) {
                                     this.autoScrapingActive = false;
+                                    clearInterval(this.autoScraperTimer);
+                                    this.autoScraperTimer = null;
                                     this.loadStats();
                                     this.loadSongs(1);
                                     this.showToast('Auto-scraping finished!', 'success');
+                                } else {
+                                    // Already idle, stop timer to save CPU & network
+                                    clearInterval(this.autoScraperTimer);
+                                    this.autoScraperTimer = null;
                                 }
                             }
-                        } catch (e) { console.error(e); }
-                    }, 1500);
+                        } catch (e) { 
+                            clearInterval(this.autoScraperTimer);
+                            this.autoScraperTimer = null;
+                        }
+                    }, 2000);
                 },
 
                 async runScrape() {
@@ -1955,13 +1969,20 @@
                                 if (this.batchFixRunning) {
                                     this.batchFixRunning = false;
                                     clearInterval(this.batchFixTimer);
+                                    this.batchFixTimer = null;
                                     this.loadStats();
                                     this.loadSongs(this.currentPage);
                                     this.showToast(this.batchFixState.message, this.batchFixState.status === 'completed' ? 'success' : 'error');
+                                } else {
+                                    clearInterval(this.batchFixTimer);
+                                    this.batchFixTimer = null;
                                 }
                             }
-                        } catch (e) { console.error(e); }
-                    }, 1000);
+                        } catch (e) { 
+                            clearInterval(this.batchFixTimer);
+                            this.batchFixTimer = null;
+                        }
+                    }, 2000);
                 },
 
                 async testSupabaseConnection(showToast = true) {
