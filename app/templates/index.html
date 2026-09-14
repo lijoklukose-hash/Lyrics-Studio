@@ -1265,11 +1265,15 @@
                 toastCount: 0,
 
                 init() {
+                    // Load primary stats & initial song list in parallel
                     this.loadStats();
                     this.loadSongs(1);
-                    this.testSupabaseConnection();
-                    this.pollAutoScraperStatus();
-                    this.pollBatchFixStatus();
+                    // Check background status without blocking render
+                    setTimeout(() => {
+                        this.testSupabaseConnection(false); // background silent check
+                        this.pollAutoScraperStatus();
+                        this.pollBatchFixStatus();
+                    }, 500);
                     this.$nextTick(() => lucide.createIcons());
                 },
 
@@ -1908,19 +1912,19 @@
                     }, 1000);
                 },
 
-                async testSupabaseConnection() {
+                async testSupabaseConnection(showToast = true) {
                     this.testingConnection = true;
                     try {
                         const res = await fetch('/api/sync/test-connection');
                         const data = await res.json();
                         if (data.success) {
                             this.supabaseRemoteCount = data.remote_count;
-                            this.showToast(`Connected to Supabase! Remote has ${data.remote_count.toLocaleString()} songs.`, 'success');
+                            if (showToast) this.showToast(`Connected to Supabase! Remote has ${data.remote_count.toLocaleString()} songs.`, 'success');
                         } else {
-                            this.showToast('Supabase connection error: ' + data.message, 'error');
+                            if (showToast) this.showToast('Supabase connection error: ' + data.message, 'error');
                         }
                     } catch (e) {
-                        this.showToast('Could not test connection: ' + e, 'error');
+                        if (showToast) this.showToast('Could not test connection: ' + e, 'error');
                     } finally {
                         this.testingConnection = false;
                         this.$nextTick(() => lucide.createIcons());

@@ -14,7 +14,6 @@ JSON_FILE = "Joyful noise_supabase_utf8.json"
 EXCEL_FILE = "Joyful noise_supabase_utf8.xlsx"
 CSV_FILE = "Joyful noise_supabase_utf8.csv"
 
-# Fallback default key (obfuscated to avoid git push blocks while ensuring 100% out-of-the-box operation)
 _DEFAULT_B64_KEY = "c2Jfc2VjcmV0X21sV3JfTlBuVy16STZJQUk2N0dTNEFfNlNfUzJ0QnA="
 import base64
 
@@ -39,7 +38,6 @@ try:
             loaded = True
             break
     if not loaded:
-        # Auto-create .env in current working directory
         try:
             with open(".env", "w", encoding="utf-8") as f:
                 f.write(f"SUPABASE_URL=https://qeadsbmhajmrqobtserv.supabase.co\nSUPABASE_API_KEY={get_default_supabase_key()}\nSUPABASE_TABLE=Joyful%20Noise\n")
@@ -82,7 +80,6 @@ def sanitize_for_supabase(item):
     return d
 
 def safe_request(method, url, **kwargs):
-    """Send a Supabase request, retrying transient failures and raising on errors."""
     if "headers" not in kwargs:
         kwargs["headers"] = get_supabase_headers()
     max_retries = 3
@@ -108,11 +105,12 @@ class DatabaseManager:
         self.bg_executor = ThreadPoolExecutor(max_workers=2)
         self.export_lock = threading.Lock()
         self.export_pending = False
+        self._stats_cache = None
+        self._stats_cache_time = 0
         self._ensure_db_file()
         self.init_db()
 
     def _ensure_db_file(self):
-        # If database file does not exist or is 0 bytes, check if compressed gzip exists
         if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) == 0:
             gz_path = self.db_path + ".gz"
             if os.path.exists(gz_path):
@@ -130,7 +128,11 @@ class DatabaseManager:
         try:
             conn.execute("PRAGMA busy_timeout=60000")
             conn.execute("PRAGMA synchronous=NORMAL")
-        except:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA cache_size=-64000")  # 64MB memory cache for instant queries
+            conn.execute("PRAGMA mmap_size=268435456") # 256MB memory mapping
+            conn.execute("PRAGMA temp_store=MEMORY")
+        except Exception:
             pass
         return conn
 
@@ -154,6 +156,59 @@ class DatabaseManager:
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_songs_category ON songs(category)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_songs_cat_id ON songs(category, id)")
+        
+        # Check if FTS5 table exists
+        cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='songs_fts'")
+        fts_exists = cur.fetchone()[0] > 0
+        if not fts_exists:
+            try:
+                cur.execute("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS songs_fts USING fts5(
+                        id UNINDEXED,
+                        title,
+                        category UNINDEXED,
+                        lyrics,
+                        lyrics2,
+                        author,
+                        tags,
+                        content=songs,
+                        content_rowid=id,
+                        tokenize = 'unicode61 remove_diacritics 2'
+                    )
+                """)
+                cur.execute("""
+                    INSERT INTO songs_fts(rowid, id, title, category, lyrics, lyrics2, author, tags)
+                    SELECT id, id, title, category, lyrics, lyrics2, author, tags FROM songs
+                """)
+            except Exception as e:
+                print(f"Notice: FTS5 setup deferred: {e}")
+
+        # Ensure Triggers for FTS consistency
+        try:
+            cur.execute("""
+                CREATE TRIGGER IF NOT EXISTS songs_ai AFTER INSERT ON songs BEGIN
+                    INSERT INTO songs_fts(rowid, id, title, category, lyrics, lyrics2, author, tags)
+                    VALUES (new.id, new.id, new.title, new.category, new.lyrics, new.lyrics2, new.author, new.tags);
+                END;
+            """)
+            cur.execute("""
+                CREATE TRIGGER IF NOT EXISTS songs_ad AFTER DELETE ON songs BEGIN
+                    INSERT INTO songs_fts(songs_fts, rowid, id, title, category, lyrics, lyrics2, author, tags)
+                    VALUES('delete', old.id, old.id, old.title, old.category, old.lyrics, old.lyrics2, old.author, old.tags);
+                END;
+            """)
+            cur.execute("""
+                CREATE TRIGGER IF NOT EXISTS songs_au AFTER UPDATE ON songs BEGIN
+                    INSERT INTO songs_fts(songs_fts, rowid, id, title, category, lyrics, lyrics2, author, tags)
+                    VALUES('delete', old.id, old.id, old.title, old.category, old.lyrics, old.lyrics2, old.author, old.tags);
+                    INSERT INTO songs_fts(rowid, id, title, category, lyrics, lyrics2, author, tags)
+                    VALUES (new.id, new.id, new.title, new.category, new.lyrics, new.lyrics2, new.author, new.tags);
+                END;
+            """)
+        except Exception:
+            pass
+
         conn.commit()
 
         # Check if table is empty; if so, populate from JSON or Supabase Cloud
@@ -205,6 +260,11 @@ class DatabaseManager:
         return next_id
 
     def get_stats(self):
+        # 10-second memory cache for instant sub-millisecond response
+        now = time.time()
+        if self._stats_cache and (now - self._stats_cache_time < 10):
+            return self._stats_cache
+
         conn = self.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM songs")
@@ -212,83 +272,130 @@ class DatabaseManager:
         cur.execute("SELECT category, COUNT(*) FROM songs GROUP BY category ORDER BY COUNT(*) DESC")
         cats = {row[0]: row[1] for row in cur.fetchall()}
         conn.close()
-        return {"total": total, "categories": cats}
+        
+        self._stats_cache = {"total": total, "categories": cats}
+        self._stats_cache_time = now
+        return self._stats_cache
+
+    def invalidate_stats_cache(self):
+        self._stats_cache = None
 
     def search_songs(self, query="", category="All", page=1, per_page=50):
         page = max(1, int(page))
         per_page = min(100, max(1, int(per_page)))
+        offset = (page - 1) * per_page
         conn = self.get_connection()
         cur = conn.cursor()
-        
+
+        raw_q = query.strip() if query else ""
+
+        # Case 1: Fast browsing without search query (Default / Category Filter)
+        if not raw_q:
+            if category and category != "All":
+                cur.execute("SELECT COUNT(*) FROM songs WHERE category = ?", (category,))
+                total = cur.fetchone()[0]
+                cur.execute("SELECT * FROM songs WHERE category = ? ORDER BY id ASC LIMIT ? OFFSET ?", (category, per_page, offset))
+            else:
+                cur.execute("SELECT COUNT(*) FROM songs")
+                total = cur.fetchone()[0]
+                cur.execute("SELECT * FROM songs ORDER BY id ASC LIMIT ? OFFSET ?", (per_page, offset))
+            
+            rows = [dict(r) for r in cur.fetchall()]
+            conn.close()
+            return {
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page if total > 0 else 1,
+                "songs": rows
+            }
+
+        # Case 2: Numeric ID search (#274771, 274771, ID 274771)
+        id_match = re.sub(r'^(?:id[:\s#]*|#)', '', raw_q, flags=re.IGNORECASE).strip()
+        if id_match.isdigit():
+            num_id = int(id_match)
+            cur.execute("SELECT * FROM songs WHERE id = ?", (num_id,))
+            direct_match = cur.fetchone()
+            if direct_match:
+                conn.close()
+                return {
+                    "total": 1,
+                    "page": 1,
+                    "per_page": per_page,
+                    "total_pages": 1,
+                    "songs": [dict(direct_match)]
+                }
+
+        # Case 3: Ultra-Fast FTS5 Search (Full Text Search Index)
+        try:
+            # Clean tokens for FTS5 (escape quotes and special characters)
+            tokens = [re.sub(r'[^\w\u0B80-\u0D7F\u0900-\u097F\u0C00-\u0C7F\u0C80-\u0CFF]', '', t) for t in raw_q.split()]
+            tokens = [t for t in tokens if t]
+
+            if tokens:
+                # Build FTS prefix query e.g. "Yeshu*" OR "Yeshu"
+                fts_query = " ".join([f'"{t}"*' for t in tokens])
+                
+                cat_filter = ""
+                cat_param = []
+                if category and category != "All":
+                    cat_filter = "AND s.category = ?"
+                    cat_param = [category]
+
+                # Count matches
+                count_sql = f"""
+                    SELECT count(*)
+                    FROM songs_fts f
+                    JOIN songs s ON f.rowid = s.id
+                    WHERE songs_fts MATCH ? {cat_filter}
+                """
+                cur.execute(count_sql, [fts_query] + cat_param)
+                total = cur.fetchone()[0]
+
+                # Fetch ranked results: exact title match first, then bm25 rank, then id
+                search_sql = f"""
+                    SELECT s.*
+                    FROM songs_fts f
+                    JOIN songs s ON f.rowid = s.id
+                    WHERE songs_fts MATCH ? {cat_filter}
+                    ORDER BY 
+                        CASE WHEN s.title LIKE ? THEN 0 ELSE 1 END,
+                        bm25(songs_fts),
+                        s.id ASC
+                    LIMIT ? OFFSET ?
+                """
+                cur.execute(search_sql, [fts_query] + cat_param + [f"%{raw_q}%", per_page, offset])
+                rows = [dict(r) for r in cur.fetchall()]
+                conn.close()
+
+                return {
+                    "total": total,
+                    "page": page,
+                    "per_page": per_page,
+                    "total_pages": (total + per_page - 1) // per_page if total > 0 else 1,
+                    "songs": rows
+                }
+        except Exception as e:
+            # Fallback to standard query if FTS syntax edge case occurs
+            pass
+
+        # Case 4: Robust fallback search with optimized LIKE
         conditions = []
         params = []
-
         if category and category != "All":
             conditions.append("category = ?")
             params.append(category)
 
-        if query:
-            raw_q = query.strip()
-            # Clean numeric query if user typed '#274771' or 'id: 274771' or 'ID 274771'
-            id_match = re.sub(r'^(?:id[:\s#]*|#)', '', raw_q, flags=re.IGNORECASE).strip()
-            
-            if id_match.isdigit():
-                num_id = int(id_match)
-                q_clean = f"%{raw_q}%"
-                conditions.append("(id = ? OR title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
-                params.extend([num_id, q_clean, q_clean, q_clean, q_clean, q_clean])
-                order_by = f"CASE WHEN id = {num_id} THEN 0 ELSE 1 END, id ASC"
-            else:
-                tokens = [t.strip() for t in raw_q.split() if t.strip()]
-                if len(tokens) == 1:
-                    q_clean = f"%{tokens[0]}%"
-                    conditions.append("(title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
-                    params.extend([q_clean, q_clean, q_clean, q_clean, q_clean])
-                    
-                    # Prioritize exact title match, title prefix match, title contains match, lyrics match
-                    exact_q = tokens[0]
-                    prefix_q = f"{exact_q}%"
-                    order_by = f"""
-                        CASE 
-                            WHEN title = '{exact_q}' THEN 0
-                            WHEN title LIKE '{prefix_q}' THEN 1
-                            WHEN title LIKE '%{exact_q}%' THEN 2
-                            WHEN lyrics2 LIKE '{prefix_q}' THEN 3
-                            WHEN lyrics2 LIKE '%{exact_q}%' THEN 4
-                            ELSE 5 
-                        END, id ASC
-                    """
-                else:
-                    # Multi-word search: every word must match in (title OR lyrics OR lyrics2 OR author)
-                    token_clauses = []
-                    for t in tokens:
-                        token_clauses.append("(title LIKE ? OR lyrics LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
-                        t_clean = f"%{t}%"
-                        params.extend([t_clean, t_clean, t_clean, t_clean, t_clean])
-                    conditions.append(" AND ".join(token_clauses))
-                    
-                    # Rank songs where title contains the whole phrase first, then title contains all words, then lyrics
-                    full_phrase = f"%{raw_q}%"
-                    order_by = f"""
-                        CASE 
-                            WHEN title LIKE '{full_phrase}' THEN 0
-                            WHEN lyrics2 LIKE '{full_phrase}' THEN 1
-                            ELSE 2
-                        END, id ASC
-                    """
-        else:
-            order_by = "id ASC"
+        q_clean = f"%{raw_q}%"
+        conditions.append("(title LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
+        params.extend([q_clean, q_clean, q_clean, q_clean])
 
         where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
-
-        # Total count
         cur.execute(f"SELECT COUNT(*) FROM songs{where_clause}", params)
         total = cur.fetchone()[0]
 
-        # Paginated results
-        offset = (page - 1) * per_page
-        query_sql = f"SELECT * FROM songs{where_clause} ORDER BY {order_by} LIMIT ? OFFSET ?"
-        cur.execute(query_sql, params + [per_page, offset])
+        query_sql = f"SELECT * FROM songs{where_clause} ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, id ASC LIMIT ? OFFSET ?"
+        cur.execute(query_sql, params + [q_clean, per_page, offset])
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
 
@@ -312,7 +419,6 @@ class DatabaseManager:
         conn = self.get_connection()
         cur = conn.cursor()
         try:
-            # Serialize MAX(id)+1 so two concurrent new-song requests cannot overwrite each other.
             cur.execute("BEGIN IMMEDIATE")
             song_id = song_data.get('id')
             if not song_id or str(song_id).lower() in ['new', '0', 'none', 'null']:
@@ -331,6 +437,7 @@ class DatabaseManager:
                     author=excluded.author
             """, tuple(song_data.get(k) for k in ['id', 'title', 'category', 'subcat', 'key', 'tags', 'lyrics', 'lyrics2', 'notes', 'yvideo', 'author']))
             conn.commit()
+            self.invalidate_stats_cache()
         except Exception:
             conn.rollback()
             raise
@@ -348,6 +455,7 @@ class DatabaseManager:
         cur.execute("DELETE FROM songs WHERE id = ?", (song_id,))
         deleted = cur.rowcount > 0
         conn.commit()
+        self.invalidate_stats_cache()
         conn.close()
 
         if not deleted:
@@ -358,7 +466,6 @@ class DatabaseManager:
         return deleted
 
     def schedule_export(self):
-        """Coalesce rapid edits into one export instead of exporting the entire dataset per edit."""
         with self.export_lock:
             if self.export_pending:
                 return
@@ -440,6 +547,5 @@ class DatabaseManager:
             wb.save("Joyful noise_supabase_utf8_latest.xlsx")
         except Exception as e:
             print(f"Notice: Excel export skipped ({e})")
-
 
 db_manager = DatabaseManager()
