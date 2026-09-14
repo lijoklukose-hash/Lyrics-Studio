@@ -280,7 +280,7 @@ class DatabaseManager:
     def invalidate_stats_cache(self):
         self._stats_cache = None
 
-    def search_songs(self, query="", category="All", page=1, per_page=50):
+    def search_songs(self, query="", category="All", letter="", sort_by="title", sort_order="asc", page=1, per_page=50):
         page = max(1, int(page))
         per_page = min(100, max(1, int(per_page)))
         offset = (page - 1) * per_page
@@ -288,17 +288,34 @@ class DatabaseManager:
         cur = conn.cursor()
 
         raw_q = query.strip() if query else ""
+        letter_filter = letter.strip().upper() if letter else ""
+        
+        # Determine sorting SQL
+        sort_col = "s.title" if sort_by == "title" else "s.id"
+        sort_dir = "DESC" if str(sort_order).lower() == "desc" else "ASC"
+        order_clause = f"{sort_col} COLLATE NOCASE {sort_dir}, s.id ASC"
 
-        # Case 1: Fast browsing without search query (Default / Category Filter)
+        # Case 1: Fast browsing without search query (Default / Category Filter / Letter Filter)
         if not raw_q:
+            where_clauses = []
+            params = []
             if category and category != "All":
-                cur.execute("SELECT COUNT(*) FROM songs WHERE category = ?", (category,))
-                total = cur.fetchone()[0]
-                cur.execute("SELECT * FROM songs WHERE category = ? ORDER BY id ASC LIMIT ? OFFSET ?", (category, per_page, offset))
-            else:
-                cur.execute("SELECT COUNT(*) FROM songs")
-                total = cur.fetchone()[0]
-                cur.execute("SELECT * FROM songs ORDER BY id ASC LIMIT ? OFFSET ?", (per_page, offset))
+                where_clauses.append("category = ?")
+                params.append(category)
+            if letter_filter:
+                if letter_filter == "#":
+                    where_clauses.append("SUBSTR(TRIM(title), 1, 1) NOT GLOB '[A-Za-z\u0D00-\u0D7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0900-\u097F]'")
+                else:
+                    where_clauses.append("UPPER(SUBSTR(TRIM(title), 1, 1)) = ?")
+                    params.append(letter_filter)
+
+            where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+            
+            cur.execute(f"SELECT COUNT(*) FROM songs{where_str}", params)
+            total = cur.fetchone()[0]
+            
+            direct_sort = f"title COLLATE NOCASE {sort_dir}, id ASC" if sort_by == "title" else f"id {sort_dir}"
+            cur.execute(f"SELECT * FROM songs{where_str} ORDER BY {direct_sort} LIMIT ? OFFSET ?", params + [per_page, offset])
             
             rows = [dict(r) for r in cur.fetchall()]
             conn.close()
@@ -328,43 +345,53 @@ class DatabaseManager:
 
         # Case 3: Ultra-Fast FTS5 Search (Full Text Search Index)
         try:
-            # Clean tokens for FTS5 (escape quotes and special characters)
             tokens = [re.sub(r'[^\w\u0B80-\u0D7F\u0900-\u097F\u0C00-\u0C7F\u0C80-\u0CFF]', '', t) for t in raw_q.split()]
             tokens = [t for t in tokens if t]
 
             if tokens:
-                # Build FTS prefix query e.g. "Yeshu*" OR "Yeshu"
                 fts_query = " ".join([f'"{t}"*' for t in tokens])
                 
-                cat_filter = ""
+                cat_filter = []
                 cat_param = []
                 if category and category != "All":
-                    cat_filter = "AND s.category = ?"
-                    cat_param = [category]
+                    cat_filter.append("s.category = ?")
+                    cat_param.append(category)
+                if letter_filter:
+                    if letter_filter == "#":
+                        cat_filter.append("SUBSTR(TRIM(s.title), 1, 1) NOT GLOB '[A-Za-z\u0D00-\u0D7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0900-\u097F]'")
+                    else:
+                        cat_filter.append("UPPER(SUBSTR(TRIM(s.title), 1, 1)) = ?")
+                        cat_param.append(letter_filter)
+
+                extra_where = "AND " + " AND ".join(cat_filter) if cat_filter else ""
 
                 # Count matches
                 count_sql = f"""
                     SELECT count(*)
                     FROM songs_fts f
                     JOIN songs s ON f.rowid = s.id
-                    WHERE songs_fts MATCH ? {cat_filter}
+                    WHERE songs_fts MATCH ? {extra_where}
                 """
                 cur.execute(count_sql, [fts_query] + cat_param)
                 total = cur.fetchone()[0]
 
-                # Fetch ranked results: exact title match first, then bm25 rank, then id
+                # Fetch ranked results
+                if sort_by == "title":
+                    search_sort = f"CASE WHEN s.title LIKE ? THEN 0 ELSE 1 END, s.title COLLATE NOCASE {sort_dir}, s.id ASC"
+                    search_params = [fts_query] + cat_param + [f"%{raw_q}%", per_page, offset]
+                else:
+                    search_sort = f"CASE WHEN s.title LIKE ? THEN 0 ELSE 1 END, bm25(songs_fts), s.id {sort_dir}"
+                    search_params = [fts_query] + cat_param + [f"%{raw_q}%", per_page, offset]
+
                 search_sql = f"""
                     SELECT s.*
                     FROM songs_fts f
                     JOIN songs s ON f.rowid = s.id
-                    WHERE songs_fts MATCH ? {cat_filter}
-                    ORDER BY 
-                        CASE WHEN s.title LIKE ? THEN 0 ELSE 1 END,
-                        bm25(songs_fts),
-                        s.id ASC
+                    WHERE songs_fts MATCH ? {extra_where}
+                    ORDER BY {search_sort}
                     LIMIT ? OFFSET ?
                 """
-                cur.execute(search_sql, [fts_query] + cat_param + [f"%{raw_q}%", per_page, offset])
+                cur.execute(search_sql, search_params)
                 rows = [dict(r) for r in cur.fetchall()]
                 conn.close()
 
@@ -375,8 +402,7 @@ class DatabaseManager:
                     "total_pages": (total + per_page - 1) // per_page if total > 0 else 1,
                     "songs": rows
                 }
-        except Exception as e:
-            # Fallback to standard query if FTS syntax edge case occurs
+        except Exception:
             pass
 
         # Case 4: Robust fallback search with optimized LIKE
@@ -385,6 +411,12 @@ class DatabaseManager:
         if category and category != "All":
             conditions.append("category = ?")
             params.append(category)
+        if letter_filter:
+            if letter_filter == "#":
+                conditions.append("SUBSTR(TRIM(title), 1, 1) NOT GLOB '[A-Za-z\u0D00-\u0D7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0900-\u097F]'")
+            else:
+                conditions.append("UPPER(SUBSTR(TRIM(title), 1, 1)) = ?")
+                params.append(letter_filter)
 
         q_clean = f"%{raw_q}%"
         conditions.append("(title LIKE ? OR lyrics2 LIKE ? OR author LIKE ? OR tags LIKE ?)")
@@ -394,7 +426,8 @@ class DatabaseManager:
         cur.execute(f"SELECT COUNT(*) FROM songs{where_clause}", params)
         total = cur.fetchone()[0]
 
-        query_sql = f"SELECT * FROM songs{where_clause} ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, id ASC LIMIT ? OFFSET ?"
+        direct_sort = f"title COLLATE NOCASE {sort_dir}, id ASC" if sort_by == "title" else f"id {sort_dir}"
+        query_sql = f"SELECT * FROM songs{where_clause} ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, {direct_sort} LIMIT ? OFFSET ?"
         cur.execute(query_sql, params + [q_clean, per_page, offset])
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()

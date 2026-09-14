@@ -258,7 +258,7 @@
             </div>
 
             <!-- SEARCH & FILTERS TOOLBAR -->
-            <div class="sticky top-14 sm:top-16 z-30 bg-white/95 backdrop-blur-xl shadow-lg rounded-2xl sm:rounded-3xl p-3 sm:p-5 border border-slate-200 flex flex-col gap-3 sm:gap-4 transition-all duration-300">
+            <div class="sticky top-14 sm:top-16 z-30 bg-white/95 backdrop-blur-xl shadow-lg rounded-2xl sm:rounded-3xl p-3 sm:p-5 border border-slate-200 flex flex-col gap-3 sm:gap-3.5 transition-all duration-300">
                 
                 <!-- Search Input with Clear Button -->
                 <div class="relative w-full group">
@@ -269,12 +269,12 @@
                     </button>
                 </div>
 
-                <!-- Sub-bar: Language Filter Chips & Action Controls -->
+                <!-- Sub-bar 1: Language Filter Chips & Action Controls -->
                 <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
                     <!-- Language Filter Tabs (Smooth Horizontal Scroll on Mobile) -->
                     <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
                         <template x-for="cat in ['All', 'Malayalam', 'Tamil', 'Telugu', 'English', 'Hindi', 'Kannada']" :key="cat">
-                            <button @click="selectedCategory = cat; loadSongs(1)" 
+                            <button @click="selectedCategory = cat; selectedLetter = ''; loadSongs(1)" 
                                     :class="selectedCategory === cat ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 font-semibold'" 
                                     class="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs whitespace-nowrap transition-all duration-200 active:scale-95 shrink-0" 
                                     x-text="cat"></button>
@@ -301,6 +301,55 @@
                             <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
                             <span>Add</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Sub-bar 2: A-Z Alphabetical Selector Strip & Quick Sort + Top Pagination -->
+                <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                    <!-- A-Z Alphabetical Quick Jump Ribbon -->
+                    <div class="flex items-center space-x-1 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5 shrink-0">Jump:</span>
+                        <!-- All Letters Button -->
+                        <button @click="selectedLetter = ''; loadSongs(1)" 
+                                :class="selectedLetter === '' ? 'bg-indigo-600 text-white font-black shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 font-semibold'" 
+                                class="px-2 py-1 rounded-lg text-[11px] whitespace-nowrap transition-all duration-150 shrink-0">
+                            All
+                        </button>
+                        <!-- A-Z Letters -->
+                        <template x-for="l in ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','#']" :key="l">
+                            <button @click="selectedLetter = (selectedLetter === l ? '' : l); loadSongs(1)" 
+                                    :class="selectedLetter === l ? 'bg-indigo-600 text-white font-black shadow-xs scale-105' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 font-semibold'" 
+                                    class="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg text-[11px] font-mono transition-all duration-150 shrink-0 active:scale-95" 
+                                    x-text="l"></button>
+                        </template>
+                    </div>
+
+                    <!-- Sort Controls & Top Pagination Controls (No need to scroll down) -->
+                    <div class="flex items-center justify-between md:justify-end gap-2 shrink-0">
+                        <!-- Sort Mode Selector -->
+                        <div class="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 text-[11px]">
+                            <button @click="sortBy = 'title'; loadSongs(1)" :class="sortBy === 'title' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'" class="px-2 py-1 rounded-lg transition" title="Sort Alphabetically by Song Title">A-Z</button>
+                            <button @click="sortBy = 'id'; loadSongs(1)" :class="sortBy === 'id' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'" class="px-2 py-1 rounded-lg transition" title="Sort by Song ID">ID</button>
+                            <!-- Order Toggle -->
+                            <button @click="sortOrder = (sortOrder === 'asc' ? 'desc' : 'asc'); loadSongs(1)" class="p-1 text-slate-600 hover:text-indigo-600 rounded-lg hover:bg-white transition flex items-center" :title="sortOrder === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'">
+                                <i :data-lucide="sortOrder === 'asc' ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow'" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <!-- Top Quick Pagination Prev/Next -->
+                        <div class="flex items-center space-x-1.5 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200 text-xs">
+                            <span class="text-[11px] text-slate-500">
+                                <span class="font-extrabold text-slate-900" x-text="currentPage"></span>/<span class="font-extrabold text-slate-700" x-text="totalPages"></span>
+                            </span>
+                            <div class="flex items-center space-x-0.5">
+                                <button @click="loadSongs(currentPage - 1)" :disabled="currentPage <= 1" class="p-1 hover:bg-slate-200 text-slate-600 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition" title="Previous Page">
+                                    <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button @click="loadSongs(currentPage + 1)" :disabled="currentPage >= totalPages" class="p-1 hover:bg-slate-200 text-slate-600 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition" title="Next Page">
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1203,6 +1252,9 @@
                 totalSongsCount: 0,
                 searchQuery: '',
                 selectedCategory: 'All',
+                selectedLetter: '',
+                sortBy: 'title',
+                sortOrder: 'asc',
                 loadingSongs: false,
                 previewFontSize: 13,
                 copiedTooltip: false,
@@ -1303,7 +1355,7 @@
                     this.currentPage = page;
                     this.loadingSongs = true;
                     try {
-                        const url = `/api/songs?q=${encodeURIComponent(this.searchQuery)}&category=${encodeURIComponent(this.selectedCategory)}&page=${page}&per_page=50`;
+                        const url = `/api/songs?q=${encodeURIComponent(this.searchQuery)}&category=${encodeURIComponent(this.selectedCategory)}&letter=${encodeURIComponent(this.selectedLetter)}&sort_by=${encodeURIComponent(this.sortBy)}&sort_order=${encodeURIComponent(this.sortOrder)}&page=${page}&per_page=50`;
                         const res = await fetch(url);
                         const data = await res.json();
                         this.songs = data.songs;

@@ -57,8 +57,24 @@ async def get_stats():
     return db_manager.get_stats()
 
 @app.get("/api/songs")
-async def list_songs(q: str = "", category: str = "All", page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=100)):
-    return db_manager.search_songs(query=q, category=category, page=page, per_page=per_page)
+async def list_songs(
+    q: str = "",
+    category: str = "All",
+    letter: str = "",
+    sort_by: str = "title",
+    sort_order: str = "asc",
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=100)
+):
+    return db_manager.search_songs(
+        query=q,
+        category=category,
+        letter=letter,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        page=page,
+        per_page=per_page
+    )
 
 @app.get("/api/songs/next-id")
 async def get_next_song_id():
