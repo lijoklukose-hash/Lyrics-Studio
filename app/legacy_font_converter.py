@@ -14,17 +14,22 @@ import re
 # ── Detection ──────────────────────────────────────────────────────────────────
 
 INDIC_RE = re.compile(r'[\u0900-\u0D7F]')
-LEGACY_CHAR_RE = re.compile(r'[\u0080-\u00FF]')  # Latin-1 Supplement block chars typical in legacy Indic fonts
+LEGACY_CHAR_RE = re.compile(r'[\u0080-\u00FF\`\~\%\^\&\[\]\{\}\<\>\|\\\_]')  # Extended characters, accents & legacy font glyphs
 
 def has_indic_unicode(text: str) -> bool:
     return bool(INDIC_RE.search(text or ''))
 
 def looks_like_legacy_font(text: str) -> bool:
-    """True when text has ≥3 Latin-1 Supplement chars but no native Indic Unicode."""
-    if not text:
+    """True when text lacks native Indic Unicode but contains legacy font glyphs or non-English ASCII patterns."""
+    if not text or has_indic_unicode(text):
         return False
     legacy_count = len(LEGACY_CHAR_RE.findall(text))
-    return legacy_count >= 3 and not has_indic_unicode(text)
+    if legacy_count >= 1:
+        return True
+    # Also check if text has heavy non-standard ASCII sequences
+    words = text.split()
+    odd_words = [w for w in words if re.search(r'[A-Za-z]+[0-9%`~^&[\]{}<>|\\_]+[A-Za-z]*', w)]
+    return len(odd_words) >= 1
 
 # ── Karthika → Malayalam ───────────────────────────────────────────────────────
 
@@ -169,10 +174,11 @@ def convert_baraha_to_kannada(text: str) -> str:
 # ── Shusha & KrutiDev → Hindi ────────────────────────────────────────────────
 
 SHUSHA_RULES = [
-    ('AaAao', 'आओ'), ('AaAo', 'आओ'), ('Aao', 'आओ'),
-    ('Aa%maa', 'आत्मा'), ('Aa%ma', 'आत्मा'), ('%maa', 'त्मा'),
-    ('piva~', 'पवित्र'), ('p`Bau', 'प्रभु'), ('p`aqa-naa', 'प्रार्थना'),
-    ('toro', 'तेरे'), ('torI', 'तेरी'), ('toraa', 'तेरा'),
+    (r'AaAao', 'आओ'), (r'AaAo', 'आओ'), (r'Aao', 'आओ'),
+    (r'Aa%maa', 'आत्मा'), (r'Aa%ma', 'आत्मा'), (r'%maa', 'त्मा'),
+    (r'piva~', 'पवित्र'), (r'p`Bau', 'प्रभु'), (r'p`aqa-naa', 'प्रार्थना'),
+    (r'p\Bau', 'प्रभु'), (r'p\aqa-naa', 'प्रार्थना'), (r'p\aqa', 'प्रार्थ'), (r'p\a', 'प्रा'),
+    (r'toro', 'तेरे'), (r'torI', 'तेरी'), (r'toraa', 'तेरा'),
     ('samauK', 'सम्मुख'), ('saaqa', 'साथ'), ('saamanao', 'सामने'),
     ('kao', 'को'), ('hma', 'हम'), ('caahtoM', 'चाहते'), ('hOM', 'हैं'), ('hO', 'है'),
     ('sao', 'से'), ('mauJakao', 'मुझको'), ('mauJao', 'मुझे'), ('mauJ', 'मुझ'),
@@ -195,6 +201,7 @@ SHUSHA_RULES = [
     ('paAao', 'पाओ'), ('dUr', 'दूर'), ('kro', 'करे'),
     ('donaa', 'देना'), ('laonaa', 'लेना'), ('khnaa', 'कहना'),
     ('sauMdr', 'सुंदर'), ('kudavand', 'खुदावंद'), ('kroosa', 'क्रूस'),
+    ('p`Bau', 'प्रभु'), ('p`aqa-naa', 'प्रार्थना'), ('p`aqa', 'प्रार्थ'), ('p`a', 'प्रा'),
     ('p`oma', 'प्रेम'), ('rajaa', 'राजा'), ('dUsara', 'दूसरा'),
     ('kao[-', 'कोई'), ('nahIM', 'नहीं'), ('AamaIna', 'आमीन')
 ]
@@ -221,7 +228,7 @@ KRUTIDEV_RULES = [
 def convert_shusha_to_hindi(text: str) -> str:
     if not text:
         return ''
-    res = text
+    res = text.replace('`', '`')
     for src, dst in SHUSHA_RULES:
         res = res.replace(src, dst)
     return res
@@ -229,7 +236,7 @@ def convert_shusha_to_hindi(text: str) -> str:
 def convert_krutidev_to_hindi(text: str) -> str:
     if not text:
         return ''
-    res = text
+    res = text.replace('`', '`')
     for src, dst in KRUTIDEV_RULES:
         res = res.replace(src, dst)
     for src, dst in SHUSHA_RULES:

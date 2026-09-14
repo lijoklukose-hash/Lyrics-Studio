@@ -266,7 +266,7 @@ def transliterate_malayalam(text):
             l = re.sub(pat, rep, l)
 
         l = l.replace('\u200D', '').replace('\u200C', '')
-        l = re.sub(r'[\u0D00-\u0D7F]', '', l)
+        l = re.sub(r'[\u0900-\u0D7F]', '', l)
         l = re.sub(r'[èéòóàá^~`]', '', l)
 
         words = l.split()
@@ -391,6 +391,11 @@ def generate_natural_transliteration(text, category):
             # Preserve Dravidian short vowels
             l = l.replace('è', 'e').replace('é', 'e').replace('ò', 'o').replace('ó', 'o').replace('à', 'a').replace('á', 'a')
 
+            if category == 'Hindi':
+                # Pre-clean ITRANS artifacts before consonant replacements
+                l = re.sub(r'(\w)\s+[nN]\b', r'\1n', l) # e.g. "hoo n" -> "hoon"
+                l = re.sub(r'\bmaim\b|\bmaimn\b|\bmai\b', 'main', l, flags=re.IGNORECASE)
+
             # Nasal assimilation for Anusvara M
             l = re.sub(r'M(?=[tTdDnNsS])', 'n', l)
             l = re.sub(r'M(?=[pPbBmM]|\b)', 'm', l)
@@ -423,6 +428,76 @@ def generate_natural_transliteration(text, category):
 
             if category == 'Hindi':
                 HINDI_POST_PROCESS = [
+                    # Pre-clean ITRANS nasal and vowel oddities
+                    (r'(\w)\s+[nN]\b', r'\1n'), # e.g. "hoo n" -> "hoon"
+                    (r'\bmaim\b|\bmaimn\b|\bmai\b|\bmem\b', 'main'),
+                    (r'\bhoo\s*n\b|\bhoon\b|\bhuun\b|\bhuu\s*n\b', 'hoon'),
+                    (r'\baaja\b|\baajaa\b', 'aaj'),
+                    (r'\baaja\s+hai\b|\baajaa\s+hai\b', 'aaj hai'),
+                    (r'\baa\s*jaa\b|\baa\s*ja\b', 'aa ja'),
+                    (r'\baagayaa\b|\baa\s*gayaa\b|\baa\s*gaya\b', 'aa gaya'),
+                    (r'\bsarvadaa\b|\bsarvada\b', 'sarvada'),
+                    (r'\bkushee\b|\bkhushee\b|\bkhushi\b|\bkhushee\b', 'khushi'),
+                    (r'\bkhudaavanda\b|\bkhudaavand\b|\bkhudavand\b|\bkhudavanda\b|\bkhudaavand\b', 'khudawand'),
+                    (r'\bpivaatru\b|\bpivatr\b|\bpavitr\b|\bpavitra\b|\bpavitraa\b', 'pavitra'),
+                    (r'\baatmaa\b|\baatma\b|\baatman\b', 'aatma'),
+                    (r'\byeeshu\b|\byeshoo\b|\byiishu\b|\byiishshu\b', 'yeshu'),
+                    (r'\bprabhoo\b|\bprabhuu\b', 'prabhu'),
+                    (r'\baura\b|\baur\b', 'aur'),
+                    (r'\baankha\b|\baankh\b|\baankhe\b', 'aankh'),
+                    (r'\bdoora\b|\bdoor\b', 'door'),
+                    (r'\bsahee\b|\bsahi\b', 'sahi'),
+                    (r'\baadi\b', 'aadi'),
+                    (r'\banta\b|\bant\b', 'ant'),
+                    (r'\bteree\b', 'teri'),
+                    (r'\bteraa\b', 'tera'),
+                    (r'\btere\b', 'tere'),
+                    (r'\bmeiree\b|\bmeraa\b|\bmeree\b', 'meri'),
+                    (r'\bmeiraa\b', 'mera'),
+                    (r'\bmeire\b', 'mere'),
+                    (r'\bhamaaraa\b', 'hamara'),
+                    (r'\bhamaaree\b', 'hamari'),
+                    (r'\bhamaare\b', 'hamare'),
+                    (r'\btoo\b', 'tu'),
+                    (r'\btoone\b', 'tune'),
+                    (r'\bhee\b', 'hi'),
+                    (r'\bdee\b', 'di'),
+                    (r'\bkee\b', 'ki'),
+                    (r'\bkaa\b', 'ka'),
+                    (r'\bko\b', 'ko'),
+                    (r'\bse\b', 'se'),
+                    (r'\bhai\b', 'hai'),
+                    (r'\bhain\b', 'hain'),
+                    (r'\bho\b', 'ho'),
+                    (r'\baaraadhanaa\b|\baaradhanaa\b|\baradhana\b', 'aaradhana'),
+                    (r'\bmahimaa\b|\bmahima\b', 'mahima'),
+                    (r'\bshakti\b', 'shakti'),
+                    (r'\bnamrataa\b|\bnamrata\b', 'namrata'),
+                    (r'\bkripaa\b|\bkripa\b', 'kripa'),
+                    (r'\bdayaa\b|\bdaya\b', 'daya'),
+                    (r'\btaakata\b|\btaakat\b', 'taaqat'),
+                    (r'\bimaana\b|\bimaan\b', 'imaan'),
+                    (r'\bshifaa\b|\bshifa\b', 'shifa'),
+                    (r'\bkhushiyaa\b|\bkhushiyaan\b', 'khushiyan'),
+                    (r'\bmandira\b', 'mandir'),
+                    (r'\bbhavara\b', 'bhawar'),
+                    (r'\bbeecha\b|\bbicha\b', 'beech'),
+                    (r'\bke\s+saatha\b', 'ke saath'),
+                    (r'\bnaama\b', 'naam'),
+                    (r'\bdhanyavaada\b', 'dhanyavaad'),
+                    (r'\bjeevana\b|\bjeevan\b', 'jeevan'),
+                    (r'\bpaapa\b|\bpaap\b', 'paap'),
+                    (r'\bvishvaasa\b|\bvishvaas\b|\bvishwas\b', 'vishwas'),
+                    (r'\bshvarga\b|\bsvarga\b', 'swarg'),
+                    (r'\bkaama\b', 'kaam'),
+                    (r'\bdhaama\b', 'dhaam'),
+                    (r'\bdila\b', 'dil'),
+                    (r'\bpyaara\b', 'pyaar'),
+                    (r'\bkroosa\b|\bkroos\b', 'kroos'),
+                    (r'\bjaana\b', 'jaan'),
+                    (r'\bjinda\b', 'zinda'),
+                    (r'\bjindagee\b', 'zindagi'),
+                    (r'\bsahaaraa\b|\bsahara\b', 'sahara'),
                     (r'\bkarate\b', 'karte'),
                     (r'\bkaratee\b', 'karti'),
                     (r'\bkarataa\b', 'karta'),
@@ -441,70 +516,128 @@ def generate_natural_transliteration(text, category):
                     (r'\bjisamem\b', 'jisme'),
                     (r'\busamem\b', 'usme'),
                     (r'\bhamem\b', 'humein'),
-                    (r'\bteree\b', 'teri'),
-                    (r'\bteraa\b', 'tera'),
-                    (r'\btere\b', 'tere'),
-                    (r'\bmeiree\b|\bmeraa\b|\bmeree\b', 'meri'),
-                    (r'\bmeiraa\b', 'mera'),
-                    (r'\bmeire\b', 'mere'),
-                    (r'\bhamaaraa\b', 'hamara'),
-                    (r'\bhamaaree\b', 'hamari'),
-                    (r'\bhamaare\b', 'hamare'),
-                    (r'\byeeshu\b|\byeshoo\b', 'yeshu'),
-                    (r'\btoo\b', 'tu'),
-                    (r'\bhee\b', 'hi'),
-                    (r'\bdee\b', 'di'),
-                    (r'\bkee\b', 'ki'),
-                    (r'\bkaa\b', 'ka'),
-                    (r'\bko\b', 'ko'),
-                    (r'\bse\b', 'se'),
-                    (r'\bhai\b', 'hai'),
-                    (r'\bhain\b', 'hain'),
-                    (r'\bho\b', 'ho'),
-                    (r'\bhoon\b', 'hoon'),
-                    (r'\baaraadhanaa\b', 'aaradhana'),
-                    (r'\bmahimaa\b', 'mahima'),
-                    (r'\baatmaa\b', 'aatma'),
-                    (r'\bpavitra\b', 'pavitra'),
-                    (r'\bshakti\b', 'shakti'),
-                    (r'\bnamrataa\b', 'namrata'),
-                    (r'\bkripaa\b', 'kripa'),
-                    (r'\bdayaa\b', 'daya'),
-                    (r'\btaakata\b', 'taaqat'),
-                    (r'\bimaana\b', 'imaan'),
-                    (r'\bshifaa\b', 'shifa'),
-                    (r'\bkhushiyaa\b|\bkhushiyaan\b', 'khushiyan'),
-                    (r'\bmandira\b', 'mandir'),
-                    (r'\bbhavara\b', 'bhawar'),
-                    (r'\bbeecha\b|\bbicha\b', 'beech'),
-                    (r'\bmem\b|\bmai\b', 'mein'),
-                    (r'\bke\s+saatha\b', 'ke saath'),
-                    (r'\bnaama\b', 'naam'),
-                    (r'\bdhanyavaada\b', 'dhanyavaad'),
-                    (r'\bjeevana\b', 'jeevan'),
-                    (r'\bpaapa\b', 'paap'),
-                    (r'\bvishvaasa\b', 'vishvaas'),
-                    (r'\bshvarga\b|\bsvarga\b', 'swarg'),
-                    (r'\bkaama\b', 'kaam'),
-                    (r'\bdhaama\b', 'dhaam'),
-                    (r'\bdila\b', 'dil'),
-                    (r'\bpyaara\b', 'pyaar'),
-                    (r'\bkroosa\b', 'kroos'),
-                    (r'\bjaana\b', 'jaan'),
-                    (r'\bjinda\b', 'zinda'),
-                    (r'\bjindagee\b', 'zindagi'),
-                    (r'\bsahaaraa\b', 'sahara'),
-                    (r'\btoone\b', 'tune'),
+                    (r'\bgayaa\b', 'gaya'),
+                    (r'\bdiyaa\b', 'diya'),
+                    (r'\bliyaa\b', 'liya'),
+                    (r'\bkiyaa\b', 'kiya'),
+                    (r'\bhuaa\b', 'hua'),
+                    (r'\bhoonlinee\b', 'hoon'),
+                    (r'\bchhaayaa\b', 'chhaya'),
+                    (r'\bbanaataa\b', 'banata'),
+                    (r'\bbanatee\b', 'banati'),
+                    (r'\bbanate\b', 'banate'),
+                    (r'\bjaataa\b', 'jaata'),
+                    (r'\bjaatee\b', 'jaati'),
+                    (r'\bjaate\b', 'jaate'),
+                    (r'\baataa\b', 'aata'),
+                    (r'\baatee\b', 'aati'),
+                    (r'\baate\b', 'aate'),
+                    (r'\blaaee\b', 'lai'),
+                    # Fine-grained word level post-processing
+                    (r'\.\s*n\b|\.n', 'n'), # e.g. sa.ns -> sans, karu.n -> karun
+                    (r'\bmainn\b|\bmainn\b', 'main'),
+                    (r'\bupara\b|\bupar\b', 'upar'),
+                    (r'\bphira\b|\bphir\b', 'phir'),
+                    (r'\bhara\b|\bhar\b', 'har'),
+                    (r'\baba\b|\bab\b', 'ab'),
+                    (r'\bisa\b|\bis\b', 'is'),
+                    (r'\busa\b|\bus\b', 'us'),
+                    (r'\bjisa\b|\bjis\b', 'jis'),
+                    (r'\bkisa\b|\bkis\b', 'kis'),
+                    (r'\bkhudaa\b|\bkhud\b', 'khuda'),
+                    (r'\buttara\b|\buttar\b', 'uttar'),
+                    (r'\buddhara\b|\buddhar\b', 'uddhar'),
+                    (r'\bhazara\b|\bhazar\b', 'hazar'),
+                    (r'\bmilake\b', 'milke'),
+                    (r'\bbadala\b', 'badal'),
+                    (r'\btaripha\b|\btariph\b', 'tareef'),
+                    (r'\bbhandara\b|\bbhandar\b', 'bhandar'),
+                    (r'\bupakara\b|\bupakar\b', 'upakar'),
+                    (r'\bbeshumara\b|\bbeshumar\b', 'beshumar'),
+                    (r'\bkhola\b', 'khol'),
+                    (r'\bbhara\b', 'bhar'),
+                    (r'\bsakara\b|\bsakra\b', 'sakra'),
+                    (r'\brakhana\b', 'rakhna'),
+                    (r'\brahane\b', 'rahne'),
+                    (r'\bvalom\b|\bvalon\b', 'walon'),
+                    (r'\bvale\b|\bvala\b|\bvali\b', 'wale'),
+                    (r'\bbharapura\b|\bbharapur\b', 'bharpoor'),
+                    (r'\btumhem\b|\btumhen\b', 'tumhein'),
+                    (r'\bkhushiyann\b|\bkhushiyan\b', 'khushiyan'),
+                    (r'\bkyongki\b|\bkyonki\b', 'kyunki'),
+                    (r'\bparakha\b', 'parakha'),
+                    (r'\bkahungga\b|\bkahunga\b', 'kahunga'),
+                    (r'\bgaengge\b|\bgaenge\b', 'gaenge'),
+                    (r'\bhaim\b|\bhain\b', 'hain'),
+                    (r'\baashishom\b|\baashishon\b', 'aashishon'),
+                    (r'\bvishvasiyom\b|\bvishvasiyon\b', 'vishvasiyon'),
+                    (r'\baanand\b|\banand\b', 'anand'),
+                    (r'\bsamajho\b', 'samjho'),
+                    (r'\bdaraega\b', 'darayega'),
+                    (r'\bjaega\b', 'jayega'),
+                    (r'\bgaega\b', 'gayega'),
+                    (r'\blaaega\b', 'layega'),
+                    (r'\baayegaa\b|\baayega\b|\baayeg\b', 'aayega'),
+                    (r'\bbaitalaham\b', 'bethlehem'),
+                    (r'\baashish\b|\baashisha\b', 'aashish'),
+                    (r'\baashishem\b|\baashishen\b', 'aashishen'),
+                    (r'\bdil\s+me\b|\bdil\s+main\b', 'dil mein'),
+                    (r'\bme\b', 'mein'),
+                    (r'\bmain\s+chaa\b', 'mein chha'),
+                    (r'\brastaa\b', 'rasta'),
+                    (r'\bvaaste\b', 'vaaste'),
+                    (r'\bvaasta\b', 'vaasta'),
+                    (r'\bsamarth\b|\bsaamarth\b', 'samarth'),
+                    (r'\bshaktimaan\b|\bshaktiman\b', 'shaktiman'),
+                    (r'\bsarvashaktimaan\b|\bsarvashaktiman\b', 'sarvashaktiman'),
+                    (r'\bsamaa\.n\b|\bsamaa\b|\bsaman\b', 'sama'),
+                    (r'\bbadashaa\b|\bbadashaha\b|\bbadshah\b', 'badshah'),
+                    (r'\bhuzoora\b|\bhuzoor\b|\bhazura\b', 'huzoor'),
+                    (r'\brooh\b|\bruh\b', 'rooh'),
+                    (r'\bpaak\b|\bpaka\b', 'paak'),
+                    (r'\bjeevana\b|\bjeevan\b|\bjivan\b', 'jeevan'),
+                    (r'\bjina\b', 'jeena'),
+                    (r'\bbekara\b', 'bekar'),
+                    (r'\baadhaara\b|\baadhar\b', 'aadhar'),
+                    (r'\bmanggo\b', 'mango'),
+                    (r'\bparameshvara\b|\bparameshvar\b', 'parameshwar'),
+                    (r'\bmahaan\b|\bmahana\b', 'mahan'),
+                    (r'\bsamane\b', 'saamne'),
+                    (r'\bsaans\b|\bsa\.ns\b|\bsans\b', 'saans'),
+                    (r'\bchu\.n\b', 'chun'),
+                    (r'\bmujhako\b', 'mujhko'),
+                    (r'\btujhako\b', 'tujhko'),
+                    (r'\busako\b', 'usko'),
+                    (r'\bisako\b', 'isko'),
+                    (r'\bisame\b|\bisamen\b', 'isme'),
+                    (r'\busame\b|\busamen\b', 'usme'),
+                    (r'\bjasme\b|\bjasmen\b', 'jisme'),
+                    (r'\bkisame\b|\bkisamen\b', 'kisme'),
+                    (r'\bhaath\b|\bhaatha\b', 'haath'),
+                    (r'\bsaath\b|\bsaatha\b', 'saath'),
+                    (r'\bmaatha\b|\bmaatha\b', 'maatha'),
                 ]
                 for pat, rep in HINDI_POST_PROCESS:
                     l = re.sub(pat, rep, l, flags=re.IGNORECASE)
 
-                # General Hindi word-terminal schwa drop (words > 3 letters ending in single 'a')
+                # Smooth remaining doubled vowels aa -> a (except starting Aa or specific short words like Aaj/Aatma/Aadi), ee -> i, oo -> u
                 words_temp = l.split()
                 cleaned_words = []
                 for wt in words_temp:
-                    if len(wt) > 3 and wt.endswith('a') and not wt.endswith('aa') and not wt.endswith('ya') and not wt.endswith('ra') and not wt.lower() in ('kripa', 'daya', 'hawa', 'raja', 'sewa'):
+                    wt_lower = wt.lower()
+                    # Strip trailing schwa 'a' on word endings
+                    if len(wt) > 3 and wt_lower.endswith('a') and not wt_lower.endswith('aa') and not wt_lower.endswith('ya') and not wt_lower.endswith('ra') and not wt_lower in ('kripa', 'daya', 'hawa', 'raja', 'sewa', 'pavitra', 'aatma', 'mahima', 'aaradhana', 'prarthana', 'khushi', 'sarvada'):
                         wt = wt[:-1]
+                    
+                    # Convert internal double aa to a (e.g. Sarvadaa -> Sarvada, Gayaa -> Gaya, Diyaa -> Diya)
+                    if len(wt) > 3 and not wt_lower.startswith('aa') and 'aa' in wt_lower:
+                        wt = re.sub(r'aa', 'a', wt, flags=re.IGNORECASE)
+                    
+                    # Convert double ee to i, double oo to u for general words
+                    if len(wt) > 3 and wt_lower not in ('yeshu', 'kroos', 'jinda'):
+                        wt = re.sub(r'ee', 'i', wt, flags=re.IGNORECASE)
+                        wt = re.sub(r'oo', 'u', wt, flags=re.IGNORECASE)
+                        
                     cleaned_words.append(wt)
                 l = ' '.join(cleaned_words)
 

@@ -1011,22 +1011,30 @@
                         <div>
                             <div class="flex flex-wrap justify-between items-center mb-1.5 gap-1">
                                 <label class="block text-xs font-bold text-slate-700">Native Lyrics</label>
-                                <div class="flex items-center space-x-1 sm:space-x-1.5 flex-wrap gap-y-1">
-                                    <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[10px] sm:text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format">
-                                        <i data-lucide="clipboard-paste" class="w-3 h-3 text-indigo-600"></i>
-                                        <span>Paste & Format</span>
-                                    </button>
-                                    <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-[10px] sm:text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition">
-                                        <i data-lucide="globe" class="w-3 h-3" :class="searchingWeb ? 'animate-spin' : ''"></i>
-                                        <span x-text="searchingWeb ? 'Searching...' : 'Web Fix'"></span>
-                                    </button>
-                                    <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-[10px] sm:text-[11px] text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
-                                        <i data-lucide="bot" class="w-3 h-3" :class="formattingAI ? 'animate-spin' : ''"></i>
-                                        <span x-text="formattingAI ? 'Formatting...' : 'AI Format'"></span>
-                                    </button>
-                                </div>
-                            </div>
-                            <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="6" placeholder="Type or paste native lyrics here (auto-detects lines and stanzas)..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                                 <div class="flex items-center space-x-1 sm:space-x-1.5 flex-wrap gap-y-1">
+                                     <button type="button" @click="pastePreserveFormat()" class="text-[10px] sm:text-[11px] text-slate-600 hover:text-slate-900 font-extrabold flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-200 transition" title="Paste from clipboard — preserves your original line format">
+                                         <i data-lucide="clipboard" class="w-3 h-3 text-slate-600"></i>
+                                         <span>Paste</span>
+                                     </button>
+                                     <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[10px] sm:text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format stanzas">
+                                         <i data-lucide="clipboard-paste" class="w-3 h-3 text-indigo-600"></i>
+                                         <span>Paste & Format</span>
+                                     </button>
+                                     <button type="button" @click="convertFontToUnicode()" :disabled="convertingFont" class="text-[10px] sm:text-[11px] text-amber-700 hover:text-amber-900 font-bold flex items-center space-x-1 disabled:opacity-50 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200 transition" title="Convert legacy font (Karthika/Bamini/KrutiDev) to Unicode">
+                                         <i data-lucide="type" class="w-3 h-3" :class="convertingFont ? 'animate-pulse' : ''"></i>
+                                         <span x-text="convertingFont ? 'Converting...' : 'Font → Unicode'"></span>
+                                     </button>
+                                     <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-[10px] sm:text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition">
+                                         <i data-lucide="globe" class="w-3 h-3" :class="searchingWeb ? 'animate-spin' : ''"></i>
+                                         <span x-text="searchingWeb ? 'Searching...' : 'Web Fix'"></span>
+                                     </button>
+                                     <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-[10px] sm:text-[11px] text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
+                                         <i data-lucide="bot" class="w-3 h-3" :class="formattingAI ? 'animate-spin' : ''"></i>
+                                         <span x-text="formattingAI ? 'Formatting...' : 'AI Format'"></span>
+                                     </button>
+                                 </div>
+                             </div>
+                             <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="6" placeholder="Paste lyrics here — format &amp; font auto-detected on Ctrl+V..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
                         </div>
 
                         <div>
@@ -1561,6 +1569,7 @@
 
                 searchingWeb: false,
                 formattingAI: false,
+                convertingFont: false,
 
                 async autoFixFromWeb() {
                     if (!this.editingSong || !this.editingSong.title) {
@@ -1668,11 +1677,36 @@
                     }
                 },
 
+                // Ctrl+V in textarea — auto-preserve format + auto-convert legacy fonts
                 async handleNativeLyricsPaste(event) {
                     const pastedData = (event.clipboardData || window.clipboardData).getData('text');
-                    if (pastedData && pastedData.trim()) {
-                        event.preventDefault();
-                        await this.applyAutoDetectToLyrics(pastedData);
+                    if (!pastedData || !pastedData.trim()) return;
+                    event.preventDefault();
+                    const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
+                    try {
+                        const res = await fetch('/api/paste-preserve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: pastedData, category: cat })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.editingSong.lyrics = data.lyrics;
+                            this.editorLyricsText = this.formatFromBrTags(data.lyrics);
+                            if (data.lyrics2) {
+                                this.editingSong.lyrics2 = data.lyrics2;
+                                this.editorLyrics2Text = this.formatFromBrTags(data.lyrics2);
+                                this.updateEditorLyrics2FromInput();
+                                this.editorPreviewTab = 'dual';
+                            }
+                            this.updateEditorLyricsFromInput();
+                            this.showToast('📋 Pasted — original format preserved!', 'success');
+                        }
+                    } catch (e) {
+                        // Fallback: insert raw text preserving format client-side
+                        const lines = pastedData.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                        this.editorLyricsText = lines;
+                        this.updateEditorLyricsFromInput();
                     }
                 },
 
@@ -1702,6 +1736,78 @@
                         this.editorLyricsText = rawText;
                         this.updateEditorLyricsFromInput();
                         this.showToast('Pasted lyrics (offline formatting applied)', 'info');
+                    }
+                },
+
+                // Paste preserving original format — no reconstruction
+                async pastePreserveFormat() {
+                    try {
+                        const clipText = await navigator.clipboard.readText();
+                        if (!clipText || !clipText.trim()) {
+                            this.showToast('Clipboard is empty', 'info');
+                            return;
+                        }
+                        const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
+                        const res = await fetch('/api/paste-preserve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: clipText, category: cat })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.editingSong.lyrics = data.lyrics;
+                            this.editorLyricsText = this.formatFromBrTags(data.lyrics);
+                            if (data.lyrics2) {
+                                this.editingSong.lyrics2 = data.lyrics2;
+                                this.editorLyrics2Text = this.formatFromBrTags(data.lyrics2);
+                                this.updateEditorLyrics2FromInput();
+                                this.editorPreviewTab = 'dual';
+                            }
+                            this.updateEditorLyricsFromInput();
+                            this.showToast('📋 Pasted — original format preserved!', 'success');
+                        }
+                    } catch (err) {
+                        this.showToast('Paste failed. Try Ctrl+V directly in the text box.', 'warning');
+                    }
+                },
+
+                // Convert legacy font (Karthika/Bamini/KrutiDev/Baraha) to Unicode
+                async convertFontToUnicode() {
+                    const currentText = this.editorLyricsText || (this.editingSong ? this.formatFromBrTags(this.editingSong.lyrics || '') : '');
+                    if (!currentText || !currentText.trim()) {
+                        this.showToast('No lyrics to convert. Paste some text first.', 'info');
+                        return;
+                    }
+                    this.convertingFont = true;
+                    try {
+                        const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
+                        const res = await fetch('/api/convert-font', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: currentText, category: cat })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.editingSong.lyrics = data.converted;
+                            this.editorLyricsText = this.formatFromBrTags(data.converted);
+                            if (data.lyrics2) {
+                                this.editingSong.lyrics2 = data.lyrics2;
+                                this.editorLyrics2Text = this.formatFromBrTags(data.lyrics2);
+                                this.updateEditorLyrics2FromInput();
+                                this.editorPreviewTab = 'dual';
+                            }
+                            this.updateEditorLyricsFromInput();
+                            const msg = data.was_legacy
+                                ? `✅ Legacy font converted to Unicode! (${data.font_detected})`
+                                : `ℹ️ Text is already Unicode — no conversion needed.`;
+                            this.showToast(msg, data.was_legacy ? 'success' : 'info');
+                        } else {
+                            this.showToast('Font conversion failed: ' + (data.error || 'Unknown error'), 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('Font conversion error: ' + e.message, 'error');
+                    } finally {
+                        this.convertingFont = false;
                     }
                 },
 

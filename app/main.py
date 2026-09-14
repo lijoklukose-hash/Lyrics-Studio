@@ -121,6 +121,102 @@ async def transliterate_lyrics(data: dict = Body(...)):
     except Exception as e:
         return {"transliteration": text, "error": str(e)}
 
+# --- Legacy Font → Unicode Converter ---
+@app.post("/api/convert-font")
+async def convert_font_to_unicode(data: dict = Body(...)):
+    """
+    Converts pasted legacy-font text (Karthika/Malayalam, Bamini/Tamil,
+    Baraha/Kannada, KrutiDev/Hindi) to proper Unicode.
+    Also normalises line-breaks and returns both converted lyrics
+    and transliteration.
+    """
+    from app.legacy_font_converter import (
+        looks_like_legacy_font, convert_legacy_lyrics, has_indic_unicode
+    )
+    from app.translit_engine import generate_natural_transliteration
+
+    raw = data.get("text", "")
+    category = data.get("category", "Malayalam")
+
+    if not raw or not raw.strip():
+        return {"success": False, "error": "No text provided", "converted": "", "lyrics2": ""}
+
+    # Normalise CR/CRLF → LF, collapse 3+ blank lines to 2
+    text = raw.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # Detect and convert legacy fonts (or convert directly when user clicks button)
+    was_legacy = looks_like_legacy_font(text) or not has_indic_unicode(text)
+    converted_text = convert_legacy_lyrics(text, category)
+    if converted_text != text:
+        text = converted_text
+        was_legacy = True
+
+    # Format to <BR> tags while PRESERVING the original line structure
+    stanzas = text.split('\n\n')
+    br_parts = []
+    for st in stanzas:
+        lines = [l.rstrip() for l in st.split('\n')]
+        lines = [l for l in lines if l]   # remove blank-only lines within stanza
+        if lines:
+            br_parts.append('<BR>'.join(lines))
+    formatted = '<BR><BR>'.join(br_parts)
+
+    # Auto-generate transliteration
+    try:
+        lyr2 = generate_natural_transliteration(formatted, category)
+    except Exception:
+        lyr2 = ""
+
+    return {
+        "success": True,
+        "converted": formatted,
+        "lyrics2": lyr2,
+        "was_legacy": was_legacy,
+        "font_detected": "Legacy font converted to Unicode" if was_legacy else "Unicode text (no conversion needed)"
+    }
+
+# --- Paste & Preserve Format (no reformatting) ---
+@app.post("/api/paste-preserve")
+async def paste_preserve_format(data: dict = Body(...)):
+    """
+    Converts plain pasted text to <BR>-formatted lyrics
+    WITHOUT any reformatting/reconstruction — preserves the original structure.
+    """
+    from app.legacy_font_converter import looks_like_legacy_font, convert_legacy_lyrics
+    from app.translit_engine import generate_natural_transliteration
+
+    raw = data.get("text", "")
+    category = data.get("category", "Malayalam")
+
+    if not raw or not raw.strip():
+        return {"success": False, "lyrics": "", "lyrics2": ""}
+
+    # Normalise line endings
+    text = raw.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # Convert legacy font if detected
+    if looks_like_legacy_font(text):
+        text = convert_legacy_lyrics(text, category)
+
+    # Convert newlines to <BR> tags preserving original structure exactly
+    stanzas = text.split('\n\n')
+    br_parts = []
+    for st in stanzas:
+        lines = [l.rstrip() for l in st.split('\n')]
+        lines = [l for l in lines if l]
+        if lines:
+            br_parts.append('<BR>'.join(lines))
+    formatted = '<BR><BR>'.join(br_parts)
+
+    try:
+        lyr2 = generate_natural_transliteration(formatted, category)
+    except Exception:
+        lyr2 = ""
+
+    return {"success": True, "lyrics": formatted, "lyrics2": lyr2}
+
 # --- Export Endpoints ---
 @app.get("/api/export/csv")
 async def export_csv():
