@@ -175,24 +175,24 @@
             </nav>
 
             <!-- ACTION BUTTONS: EXPORT & CLOUD SYNC -->
-            <div class="flex items-center space-x-1.5 sm:space-x-2">
-                <a href="/api/export/csv" download class="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 border border-slate-200 shadow-xs hover:scale-105 active:scale-95" title="Export CSV">
+            <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
+                <a href="/api/export/csv" download class="p-2 sm:px-3 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 border border-slate-200 shadow-xs hover:scale-105 active:scale-95" title="Export CSV">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-slate-500"></i>
-                    <span class="hidden lg:inline">Export</span>
+                    <span class="hidden md:inline">Export</span>
                 </a>
 
                 <!-- SYNC FROM CLOUD (PULL) -->
-                <button @click="triggerCloudPull()" :disabled="syncing" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Pull all verified songs from Supabase Cloud">
+                <button @click="triggerCloudPull()" :disabled="syncing" class="px-2 sm:px-3.5 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Pull all verified songs from Supabase Cloud">
                     <i data-lucide="cloud-download" class="w-3.5 h-3.5" :class="syncing ? 'animate-bounce' : ''"></i>
                     <span class="hidden sm:inline">Sync from Cloud</span>
-                    <span class="sm:hidden">Pull</span>
+                    <span class="sm:hidden text-[11px]">Pull</span>
                 </button>
 
                 <!-- PUSH TO CLOUD -->
-                <button @click="triggerCloudSync()" :disabled="syncing" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Upload local songs to Supabase Cloud">
+                <button @click="triggerCloudSync()" :disabled="syncing" class="px-2 sm:px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Upload local songs to Supabase Cloud">
                     <i data-lucide="cloud-upload" class="w-3.5 h-3.5" :class="syncing ? 'animate-spin' : ''"></i>
                     <span class="hidden sm:inline">Push to Cloud</span>
-                    <span class="sm:hidden">Push</span>
+                    <span class="sm:hidden text-[11px]">Push</span>
                 </button>
             </div>
         </div>
@@ -269,8 +269,8 @@
                     </button>
                 </div>
 
-                <!-- Sub-bar: Language Filter Chips & View Toggles -->
-                <div class="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2.5">
+                <!-- Sub-bar: Language Filter Chips & Action Controls -->
+                <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
                     <!-- Language Filter Tabs (Smooth Horizontal Scroll on Mobile) -->
                     <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
                         <template x-for="cat in ['All', 'Malayalam', 'Tamil', 'Telugu', 'English', 'Hindi', 'Kannada']" :key="cat">
@@ -282,22 +282,22 @@
                     </div>
 
                     <!-- Action Controls: Dual View Toggle, Auto-Search Web & Add Button -->
-                    <div class="flex items-center space-x-2 justify-between sm:justify-end">
-                        <div class="bg-slate-100 p-1 rounded-xl flex items-center space-x-0.5 text-xs border border-slate-200/80">
+                    <div class="flex items-center justify-between sm:justify-end gap-1.5 sm:space-x-2 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <div class="bg-slate-100 p-1 rounded-xl flex items-center space-x-0.5 text-xs border border-slate-200/80 shrink-0">
                             <button @click="libraryViewMode = 'native'" :class="libraryViewMode === 'native' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'" class="px-2 py-1 rounded-lg text-xs transition-all">Native</button>
                             <button @click="libraryViewMode = 'translit'" :class="libraryViewMode === 'translit' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'" class="px-2 py-1 rounded-lg text-xs transition-all">Translit</button>
                             <button @click="libraryViewMode = 'dual'" :class="libraryViewMode === 'dual' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-800'" class="px-2 py-1 rounded-lg text-xs transition-all">Dual</button>
                         </div>
 
                         <!-- BATCH AUTO-SEARCH WEB & FIX BUTTON -->
-                        <button @click="openBatchWebFixModal()" class="px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95 shrink-0" title="Auto-Search Web & Fix">
+                        <button @click="openBatchWebFixModal()" class="px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95 shrink-0" title="Auto-Search Web & Fix">
                             <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-100"></i>
                             <span class="hidden sm:inline">Auto-Search & Fix</span>
-                            <span class="sm:hidden">Web Fix</span>
+                            <span class="sm:hidden text-[11px]">Web Fix</span>
                         </button>
 
                         <!-- ADD SONG BUTTON -->
-                        <button @click="openNewSongModal()" class="px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all duration-200 flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 hover:scale-105 active:scale-95 shrink-0">
+                        <button @click="openNewSongModal()" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-indigo-600/20 hover:scale-105 active:scale-95 shrink-0">
                             <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
                             <span>Add</span>
                         </button>
@@ -870,36 +870,36 @@
     </main>
 
     <!-- ==================== RICH SONG EDITOR MODAL (LIGHT THEME & MOBILE RESPONSIVE) ==================== -->
-    <div x-show="editingSong" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-        <div class="bg-white rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-200 max-w-5xl w-full min-h-screen sm:min-h-0 sm:max-h-[92vh] p-4 sm:p-8 flex flex-col justify-between overflow-y-auto" @click.outside="editingSong = null">
+    <div x-show="editingSong" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-200 max-w-5xl w-full max-h-[94vh] sm:max-h-[92vh] p-3.5 sm:p-8 flex flex-col justify-between overflow-y-auto" @click.outside="editingSong = null">
             
             <!-- Modal Header -->
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3 sm:pb-4 sticky top-0 bg-white z-10">
-                <div class="flex items-center space-x-2.5 sm:space-x-3">
-                    <div class="p-2 sm:p-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-xl sm:rounded-2xl">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 sticky top-0 bg-white z-10">
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                    <div class="p-2 sm:p-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-xl sm:rounded-2xl shrink-0">
                         <i data-lucide="edit-3" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </div>
                     <div>
                         <span class="text-[10px] sm:text-xs font-mono text-indigo-600 font-bold" x-text="'Song ID: ' + (editingSong?.id || 'New')"></span>
-                        <h3 class="text-base sm:text-xl font-extrabold text-slate-900" x-text="editingSong?.id ? 'Edit Song Lyrics' : 'Create New Song'"></h3>
+                        <h3 class="text-sm sm:text-xl font-extrabold text-slate-900 truncate max-w-[200px] sm:max-w-md" x-text="editingSong?.id ? (editingSong.title || 'Edit Song') : 'Create New Song'"></h3>
                     </div>
                 </div>
-                <button @click="editingSong = null" class="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">
+                <button @click="editingSong = null" class="p-1.5 sm:p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
             <!-- Modal Body Content -->
-            <div class="space-y-4 sm:space-y-6 py-3 sm:py-4 flex-1">
+            <div class="space-y-3.5 sm:space-y-6 py-3 sm:py-4 flex-1 overflow-y-auto">
                 <!-- Meta Details Grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                    <div class="md:col-span-2">
+                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+                    <div class="col-span-2 md:col-span-2">
                         <label class="block text-xs font-bold text-slate-700 mb-1">Title</label>
-                        <input type="text" x-model="editingSong.title" class="w-full px-3.5 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" x-model="editingSong.title" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Language</label>
-                        <select x-model="editingSong.category" class="w-full px-3.5 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <select x-model="editingSong.category" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
                             <option>Malayalam</option>
                             <option>Tamil</option>
                             <option>Telugu</option>
@@ -910,47 +910,47 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Scale / Key</label>
-                        <input type="text" x-model="editingSong.key" placeholder="e.g. D Major, C" class="w-full px-3.5 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" x-model="editingSong.key" placeholder="e.g. D Major, C" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Author / Singer</label>
-                        <input type="text" x-model="editingSong.author" placeholder="Author name" class="w-full px-3.5 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" x-model="editingSong.author" placeholder="Author name" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Tags</label>
-                        <input type="text" x-model="editingSong.tags" placeholder="Worship, Classic..." class="w-full px-3.5 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" x-model="editingSong.tags" placeholder="Worship, Classic..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">YouTube Video Link</label>
-                        <input type="text" x-model="editingSong.yvideo" placeholder="https://youtube.com/..." class="w-full px-3.5 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" x-model="editingSong.yvideo" placeholder="https://youtube.com/..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
 
                 <!-- Lyrics Controls Bar -->
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-2.5 gap-2.5">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-2.5 gap-2">
                     <div class="flex items-center space-x-2">
                         <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Lyrics Editor</span>
-                        <div class="bg-slate-100 p-1 rounded-xl flex items-center space-x-1 text-[10px] sm:text-[11px] border border-slate-200">
-                            <button type="button" @click="toggleEditorTextMode('natural')" :class="editorTextMode === 'natural' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2.5 sm:px-3 py-1 rounded-lg transition">Natural (Enter)</button>
-                            <button type="button" @click="toggleEditorTextMode('raw')" :class="editorTextMode === 'raw' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2.5 sm:px-3 py-1 rounded-lg transition">Raw &lt;BR&gt;</button>
+                        <div class="bg-slate-100 p-0.5 sm:p-1 rounded-xl flex items-center space-x-0.5 text-[10px] sm:text-[11px] border border-slate-200">
+                            <button type="button" @click="toggleEditorTextMode('natural')" :class="editorTextMode === 'natural' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-3 py-1 rounded-lg transition">Natural</button>
+                            <button type="button" @click="toggleEditorTextMode('raw')" :class="editorTextMode === 'raw' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-3 py-1 rounded-lg transition">Raw &lt;BR&gt;</button>
                         </div>
                     </div>
                     
-                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                    <div class="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
                         <!-- Zoom Lyrics Preview -->
-                        <div class="flex items-center space-x-1 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200 text-xs text-slate-600">
+                        <div class="flex items-center space-x-1 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200 text-xs text-slate-600 shrink-0">
                             <button type="button" @click="previewFontSize = Math.max(10, previewFontSize - 2)" class="px-1.5 py-0.5 hover:text-slate-900 font-bold">A-</button>
-                            <span class="font-mono text-[11px] font-bold text-indigo-700" x-text="previewFontSize + 'px'"></span>
+                            <span class="font-mono text-[10px] sm:text-[11px] font-bold text-indigo-700" x-text="previewFontSize + 'px'"></span>
                             <button type="button" @click="previewFontSize = Math.min(24, previewFontSize + 2)" class="px-1.5 py-0.5 hover:text-slate-900 font-bold">A+</button>
                         </div>
 
-                        <div class="bg-slate-100 p-1 rounded-xl flex items-center space-x-0.5 text-xs border border-slate-200">
-                            <button type="button" @click="editorPreviewTab = 'native'" :class="editorPreviewTab === 'native' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">Native</button>
-                            <button type="button" @click="editorPreviewTab = 'translit'" :class="editorPreviewTab === 'translit' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">Translit</button>
-                            <button type="button" @click="editorPreviewTab = 'dual'" :class="editorPreviewTab === 'dual' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">Dual</button>
+                        <div class="bg-slate-100 p-0.5 sm:p-1 rounded-xl flex items-center space-x-0.5 text-xs border border-slate-200 shrink-0">
+                            <button type="button" @click="editorPreviewTab = 'native'" :class="editorPreviewTab === 'native' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Native</button>
+                            <button type="button" @click="editorPreviewTab = 'translit'" :class="editorPreviewTab === 'translit' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Translit</button>
+                            <button type="button" @click="editorPreviewTab = 'dual'" :class="editorPreviewTab === 'dual' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Dual</button>
                         </div>
                     </div>
                 </div>
@@ -958,37 +958,37 @@
                 <!-- Two-Column Editor & Live Display -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <!-- Inputs Column -->
-                    <div class="space-y-4">
+                    <div class="space-y-3 sm:space-y-4">
                         <div>
-                            <div class="flex flex-wrap justify-between items-center mb-1.5 gap-1.5">
+                            <div class="flex flex-wrap justify-between items-center mb-1.5 gap-1">
                                 <label class="block text-xs font-bold text-slate-700">Native Lyrics</label>
-                                <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                                    <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format">
+                                <div class="flex items-center space-x-1 sm:space-x-1.5 flex-wrap gap-y-1">
+                                    <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[10px] sm:text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format">
                                         <i data-lucide="clipboard-paste" class="w-3 h-3 text-indigo-600"></i>
                                         <span>Paste & Format</span>
                                     </button>
-                                    <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50">
+                                    <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-[10px] sm:text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition">
                                         <i data-lucide="globe" class="w-3 h-3" :class="searchingWeb ? 'animate-spin' : ''"></i>
                                         <span x-text="searchingWeb ? 'Searching...' : 'Web Fix'"></span>
                                     </button>
-                                    <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-[11px] text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
+                                    <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-[10px] sm:text-[11px] text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
                                         <i data-lucide="bot" class="w-3 h-3" :class="formattingAI ? 'animate-spin' : ''"></i>
                                         <span x-text="formattingAI ? 'Formatting...' : 'AI Format'"></span>
                                     </button>
                                 </div>
                             </div>
-                            <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="7" placeholder="Type or paste native lyrics here (auto-detects lines and stanzas)..." class="w-full p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                            <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="6" placeholder="Type or paste native lyrics here (auto-detects lines and stanzas)..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
                         </div>
 
                         <div>
                             <div class="flex justify-between items-center mb-1.5">
                                 <label class="block text-xs font-bold text-slate-700">English Transliteration</label>
-                                <button type="button" @click="autoTransliterateEditor()" class="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center space-x-1">
+                                <button type="button" @click="autoTransliterateEditor()" class="text-[11px] sm:text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center space-x-1 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200 transition">
                                     <i data-lucide="languages" class="w-3.5 h-3.5"></i>
                                     <span>Auto-Transliterate</span>
                                 </button>
                             </div>
-                            <textarea x-model="editorLyrics2Text" @input="updateEditorLyrics2FromInput()" rows="6" placeholder="English Romanized transliteration..." class="w-full p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                            <textarea x-model="editorLyrics2Text" @input="updateEditorLyrics2FromInput()" rows="5" placeholder="English Romanized transliteration..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
                         </div>
                     </div>
 
@@ -999,12 +999,12 @@
                                 <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
                                 <span x-text="editorPreviewTab === 'translit' ? 'Live Transliteration Display' : (editorPreviewTab === 'dual' ? 'Live Dual Script Display' : 'Live Native Script Display')"></span>
                             </label>
-                            <button type="button" @click="copyLyricsToClipboard()" class="text-[11px] text-slate-500 hover:text-slate-800 flex items-center space-x-1 font-semibold">
+                            <button type="button" @click="copyLyricsToClipboard()" class="text-[11px] text-slate-500 hover:text-slate-800 flex items-center space-x-1 font-semibold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
                                 <i data-lucide="copy" class="w-3 h-3"></i>
                                 <span x-text="copiedTooltip ? 'Copied!' : 'Copy Lyrics'"></span>
                             </button>
                         </div>
-                        <div class="p-4 sm:p-5 bg-slate-900 text-slate-100 rounded-2xl min-h-[220px] max-h-[380px] sm:h-[400px] overflow-y-auto border border-slate-800 shadow-inner flex-1">
+                        <div class="p-3.5 sm:p-5 bg-slate-900 text-slate-100 rounded-xl sm:rounded-2xl min-h-[160px] max-h-[300px] sm:max-h-[380px] sm:h-[380px] overflow-y-auto border border-slate-800 shadow-inner flex-1">
                             <div x-show="editorPreviewTab === 'native'" class="lyrics-preview" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
                             <div x-show="editorPreviewTab === 'translit'" class="lyrics-preview text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
                             <div x-show="editorPreviewTab === 'dual'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800">
@@ -1016,8 +1016,8 @@
                 </div>
             </div>
 
-            <!-- Modal Footer (Sticky on Mobile) -->
-            <div class="flex justify-between items-center pt-3 pb-safe border-t border-slate-100 bg-white sticky bottom-0 z-10">
+            <!-- Modal Footer (Sticky on Mobile with safe padding) -->
+            <div class="flex justify-between items-center pt-3 pb-2 sm:pb-0 border-t border-slate-100 bg-white sticky bottom-0 z-10">
                 <button type="button" @click="editingSong = null" class="px-4 sm:px-5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
                     Cancel
                 </button>
@@ -1048,10 +1048,10 @@
             </div>
 
             <!-- Configuration Form -->
-            <div class="space-y-4" x-show="!batchFixRunning">
+            <div class="space-y-3.5 sm:space-y-4" x-show="!batchFixRunning">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Select Language Category</label>
-                    <select x-model="batchFixCategory" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                    <select x-model="batchFixCategory" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
                         <option value="All">All Languages (Full Database)</option>
                         <option value="Malayalam">Malayalam</option>
                         <option value="Tamil">Tamil</option>
@@ -1062,10 +1062,10 @@
                     </select>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Batch Size (Songs)</label>
-                        <select x-model="batchFixLimit" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                        <select x-model="batchFixLimit" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
                             <option value="50">50 Songs (Quick test)</option>
                             <option value="100">100 Songs (Standard)</option>
                             <option value="250">250 Songs</option>
@@ -1077,8 +1077,8 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Formatting Mode</label>
-                        <select x-model="batchFixAiModel" class="w-full px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-bold text-emerald-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
-                            <option value="rules">⚡ Ultra-Fast Stanza Reconstructor (Recommended for Batch)</option>
+                        <select x-model="batchFixAiModel" class="w-full px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs sm:text-sm font-bold text-emerald-900 focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                            <option value="rules">⚡ Ultra-Fast Stanza Reconstructor (Recommended)</option>
                             <option value="qwen3.5:0.8b">🤖 Local Ollama AI (qwen3.5:0.8b)</option>
                             <option value="gemma4:31b-cloud">🤖 Gemma AI (gemma4:31b)</option>
                         </select>
