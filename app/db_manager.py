@@ -567,8 +567,9 @@ class DatabaseManager:
         try:
             import openpyxl
             from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
-            wb = openpyxl.Workbook(write_only=True)
-            ws = wb.create_sheet("Songs")
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Songs"
             ws.append(headers)
             for r in rows:
                 clean_row = [
