@@ -615,29 +615,31 @@
             </div>
 
             <!-- Single Scrape Preview -->
-            <div x-show="scrapedSong" x-cloak class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-5">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                    <div>
-                        <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-1">Extraction Ready</span>
-                        <h3 class="text-lg font-bold text-slate-900" x-text="scrapedSong ? scrapedSong.title : ''"></h3>
+            <template x-if="scrapedSong">
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-5">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <div>
+                            <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-1">Extraction Ready</span>
+                            <h3 class="text-lg font-bold text-slate-900" x-text="scrapedSong ? scrapedSong.title : ''"></h3>
+                        </div>
+                        <button @click="saveScrapedSong()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 shadow-sm">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                            <span>Import into Database & Cloud</span>
+                        </button>
                     </div>
-                    <button @click="saveScrapedSong()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 shadow-sm">
-                        <i data-lucide="check" class="w-4 h-4"></i>
-                        <span>Import into Database & Cloud</span>
-                    </button>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Native Lyrics (&lt;BR&gt; and &lt;BR&gt;&lt;BR&gt;)</label>
-                        <textarea x-model="scrapedSong.lyrics" rows="9" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-800"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">English Transliteration</label>
-                        <textarea x-model="scrapedSong.lyrics2" rows="9" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-800"></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Native Lyrics (&lt;BR&gt; and &lt;BR&gt;&lt;BR&gt;)</label>
+                            <textarea x-model="scrapedSong.lyrics" rows="9" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-800"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">English Transliteration</label>
+                            <textarea x-model="scrapedSong.lyrics2" rows="9" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-800"></textarea>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </template>
         </div>
 
 
@@ -919,172 +921,174 @@
     </main>
 
     <!-- ==================== RICH SONG EDITOR MODAL (LIGHT THEME & MOBILE RESPONSIVE) ==================== -->
-    <div x-show="editingSong" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-200 max-w-5xl w-full max-h-[94vh] sm:max-h-[92vh] p-3.5 sm:p-8 flex flex-col justify-between overflow-y-auto" @click.outside="editingSong = null">
-            
-            <!-- Modal Header -->
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3 sticky top-0 bg-white z-10">
-                <div class="flex items-center space-x-2 sm:space-x-3">
-                    <div class="p-2 sm:p-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-xl sm:rounded-2xl shrink-0">
-                        <i data-lucide="edit-3" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] sm:text-xs font-mono text-indigo-600 font-bold" x-text="'Song ID: ' + (editingSong?.id || 'New')"></span>
-                        <h3 class="text-sm sm:text-xl font-extrabold text-slate-900 truncate max-w-[200px] sm:max-w-md" x-text="editingSong?.id ? (editingSong.title || 'Edit Song') : 'Create New Song'"></h3>
-                    </div>
-                </div>
-                <button @click="editingSong = null" class="p-1.5 sm:p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <!-- Modal Body Content -->
-            <div class="space-y-3.5 sm:space-y-6 py-3 sm:py-4 flex-1 overflow-y-auto">
-                <!-- Meta Details Grid -->
-                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
-                    <div class="col-span-2 md:col-span-2">
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Title</label>
-                        <input type="text" x-model="editingSong.title" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Language</label>
-                        <select x-model="editingSong.category" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
-                            <option>Malayalam</option>
-                            <option>Tamil</option>
-                            <option>Telugu</option>
-                            <option>English</option>
-                            <option>Hindi</option>
-                            <option>Kannada</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Scale / Key</label>
-                        <input type="text" x-model="editingSong.key" placeholder="e.g. D Major, C" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Author / Singer</label>
-                        <input type="text" x-model="editingSong.author" placeholder="Author name" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Tags</label>
-                        <input type="text" x-model="editingSong.tags" placeholder="Worship, Classic..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">YouTube Video Link</label>
-                        <input type="text" x-model="editingSong.yvideo" placeholder="https://youtube.com/..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                </div>
-
-                <!-- Lyrics Controls Bar -->
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-2.5 gap-2">
-                    <div class="flex items-center space-x-2">
-                        <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Lyrics Editor</span>
-                        <div class="bg-slate-100 p-0.5 sm:p-1 rounded-xl flex items-center space-x-0.5 text-[10px] sm:text-[11px] border border-slate-200">
-                            <button type="button" @click="toggleEditorTextMode('natural')" :class="editorTextMode === 'natural' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-3 py-1 rounded-lg transition">Natural</button>
-                            <button type="button" @click="toggleEditorTextMode('raw')" :class="editorTextMode === 'raw' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-3 py-1 rounded-lg transition">Raw &lt;BR&gt;</button>
+    <template x-if="editingSong">
+        <div x-show="editingSong" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-200 max-w-5xl w-full max-h-[94vh] sm:max-h-[92vh] p-3.5 sm:p-8 flex flex-col justify-between overflow-y-auto" @click.outside="editingSong = null">
+                
+                <!-- Modal Header -->
+                <div class="flex justify-between items-center border-b border-slate-100 pb-3 sticky top-0 bg-white z-10">
+                    <div class="flex items-center space-x-2 sm:space-x-3">
+                        <div class="p-2 sm:p-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-xl sm:rounded-2xl shrink-0">
+                            <i data-lucide="edit-3" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                         </div>
-                    </div>
-                    
-                    <div class="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
-                        <!-- Zoom Lyrics Preview -->
-                        <div class="flex items-center space-x-1 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200 text-xs text-slate-600 shrink-0">
-                            <button type="button" @click="previewFontSize = Math.max(10, previewFontSize - 2)" class="px-1.5 py-0.5 hover:text-slate-900 font-bold">A-</button>
-                            <span class="font-mono text-[10px] sm:text-[11px] font-bold text-indigo-700" x-text="previewFontSize + 'px'"></span>
-                            <button type="button" @click="previewFontSize = Math.min(24, previewFontSize + 2)" class="px-1.5 py-0.5 hover:text-slate-900 font-bold">A+</button>
-                        </div>
-
-                        <div class="bg-slate-100 p-0.5 sm:p-1 rounded-xl flex items-center space-x-0.5 text-xs border border-slate-200 shrink-0">
-                            <button type="button" @click="editorPreviewTab = 'native'" :class="editorPreviewTab === 'native' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Native</button>
-                            <button type="button" @click="editorPreviewTab = 'translit'" :class="editorPreviewTab === 'translit' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Translit</button>
-                            <button type="button" @click="editorPreviewTab = 'dual'" :class="editorPreviewTab === 'dual' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Dual</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Two-Column Editor & Live Display -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <!-- Inputs Column -->
-                    <div class="space-y-3 sm:space-y-4">
                         <div>
-                            <div class="flex flex-wrap justify-between items-center mb-1.5 gap-1">
-                                <label class="block text-xs font-bold text-slate-700">Native Lyrics</label>
-                                 <div class="flex items-center space-x-1 sm:space-x-1.5 flex-wrap gap-y-1">
-                                     <button type="button" @click="pastePreserveFormat()" class="text-[10px] sm:text-[11px] text-slate-600 hover:text-slate-900 font-extrabold flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-200 transition" title="Paste from clipboard — preserves your original line format">
-                                         <i data-lucide="clipboard" class="w-3 h-3 text-slate-600"></i>
-                                         <span>Paste</span>
-                                     </button>
-                                     <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[10px] sm:text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format stanzas">
-                                         <i data-lucide="clipboard-paste" class="w-3 h-3 text-indigo-600"></i>
-                                         <span>Paste & Format</span>
-                                     </button>
-                                     <button type="button" @click="convertFontToUnicode()" :disabled="convertingFont" class="text-[10px] sm:text-[11px] text-amber-700 hover:text-amber-900 font-bold flex items-center space-x-1 disabled:opacity-50 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200 transition" title="Convert legacy font (Karthika/Bamini/KrutiDev) to Unicode">
-                                         <i data-lucide="type" class="w-3 h-3" :class="convertingFont ? 'animate-pulse' : ''"></i>
-                                         <span x-text="convertingFont ? 'Converting...' : 'Font → Unicode'"></span>
-                                     </button>
-                                     <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-[10px] sm:text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition">
-                                         <i data-lucide="globe" class="w-3 h-3" :class="searchingWeb ? 'animate-spin' : ''"></i>
-                                         <span x-text="searchingWeb ? 'Searching...' : 'Web Fix'"></span>
-                                     </button>
-                                     <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-[10px] sm:text-[11px] text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
-                                         <i data-lucide="bot" class="w-3 h-3" :class="formattingAI ? 'animate-spin' : ''"></i>
-                                         <span x-text="formattingAI ? 'Formatting...' : 'AI Format'"></span>
-                                     </button>
+                            <span class="text-[10px] sm:text-xs font-mono text-indigo-600 font-bold" x-text="'Song ID: ' + (editingSong?.id || 'New')"></span>
+                            <h3 class="text-sm sm:text-xl font-extrabold text-slate-900 truncate max-w-[200px] sm:max-w-md" x-text="editingSong?.id ? (editingSong.title || 'Edit Song') : 'Create New Song'"></h3>
+                        </div>
+                    </div>
+                    <button @click="editingSong = null" class="p-1.5 sm:p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body Content -->
+                <div class="space-y-3.5 sm:space-y-6 py-3 sm:py-4 flex-1 overflow-y-auto">
+                    <!-- Meta Details Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+                        <div class="col-span-2 md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Title</label>
+                            <input type="text" x-model="editingSong.title" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Language</label>
+                            <select x-model="editingSong.category" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                                <option>Malayalam</option>
+                                <option>Tamil</option>
+                                <option>Telugu</option>
+                                <option>English</option>
+                                <option>Hindi</option>
+                                <option>Kannada</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Scale / Key</label>
+                            <input type="text" x-model="editingSong.key" placeholder="e.g. D Major, C" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Author / Singer</label>
+                            <input type="text" x-model="editingSong.author" placeholder="Author name" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Tags</label>
+                            <input type="text" x-model="editingSong.tags" placeholder="Worship, Classic..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">YouTube Video Link</label>
+                            <input type="text" x-model="editingSong.yvideo" placeholder="https://youtube.com/..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
+                    <!-- Lyrics Controls Bar -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-2.5 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Lyrics Editor</span>
+                            <div class="bg-slate-100 p-0.5 sm:p-1 rounded-xl flex items-center space-x-0.5 text-[10px] sm:text-[11px] border border-slate-200">
+                                <button type="button" @click="toggleEditorTextMode('natural')" :class="editorTextMode === 'natural' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-3 py-1 rounded-lg transition">Natural</button>
+                                <button type="button" @click="toggleEditorTextMode('raw')" :class="editorTextMode === 'raw' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-3 py-1 rounded-lg transition">Raw &lt;BR&gt;</button>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                            <!-- Zoom Lyrics Preview -->
+                            <div class="flex items-center space-x-1 bg-slate-100 px-2 py-1 rounded-xl border border-slate-200 text-xs text-slate-600 shrink-0">
+                                <button type="button" @click="previewFontSize = Math.max(10, previewFontSize - 2)" class="px-1.5 py-0.5 hover:text-slate-900 font-bold">A-</button>
+                                <span class="font-mono text-[10px] sm:text-[11px] font-bold text-indigo-700" x-text="previewFontSize + 'px'"></span>
+                                <button type="button" @click="previewFontSize = Math.min(24, previewFontSize + 2)" class="px-1.5 py-0.5 hover:text-slate-900 font-bold">A+</button>
+                            </div>
+
+                            <div class="bg-slate-100 p-0.5 sm:p-1 rounded-xl flex items-center space-x-0.5 text-xs border border-slate-200 shrink-0">
+                                <button type="button" @click="editorPreviewTab = 'native'" :class="editorPreviewTab === 'native' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Native</button>
+                                <button type="button" @click="editorPreviewTab = 'translit'" :class="editorPreviewTab === 'translit' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Translit</button>
+                                <button type="button" @click="editorPreviewTab = 'dual'" :class="editorPreviewTab === 'dual' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-2 sm:px-2.5 py-1 rounded-lg text-xs transition">Dual</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Two-Column Editor & Live Display -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        <!-- Inputs Column -->
+                        <div class="space-y-3 sm:space-y-4">
+                            <div>
+                                <div class="flex flex-wrap justify-between items-center mb-1.5 gap-1">
+                                    <label class="block text-xs font-bold text-slate-700">Native Lyrics</label>
+                                     <div class="flex items-center space-x-1 sm:space-x-1.5 flex-wrap gap-y-1">
+                                         <button type="button" @click="pastePreserveFormat()" class="text-[10px] sm:text-[11px] text-slate-600 hover:text-slate-900 font-extrabold flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-200 transition" title="Paste from clipboard — preserves your original line format">
+                                             <i data-lucide="clipboard" class="w-3 h-3 text-slate-600"></i>
+                                             <span>Paste</span>
+                                         </button>
+                                         <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[10px] sm:text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format stanzas">
+                                             <i data-lucide="clipboard-paste" class="w-3 h-3 text-indigo-600"></i>
+                                             <span>Paste & Format</span>
+                                         </button>
+                                         <button type="button" @click="convertFontToUnicode()" :disabled="convertingFont" class="text-[10px] sm:text-[11px] text-amber-700 hover:text-amber-900 font-bold flex items-center space-x-1 disabled:opacity-50 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200 transition" title="Convert legacy font (Karthika/Bamini/KrutiDev) to Unicode">
+                                             <i data-lucide="type" class="w-3 h-3" :class="convertingFont ? 'animate-pulse' : ''"></i>
+                                             <span x-text="convertingFont ? 'Converting...' : 'Font → Unicode'"></span>
+                                         </button>
+                                         <button type="button" @click="autoFixFromWeb()" :disabled="searchingWeb" class="text-[10px] sm:text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition">
+                                             <i data-lucide="globe" class="w-3 h-3" :class="searchingWeb ? 'animate-spin' : ''"></i>
+                                             <span x-text="searchingWeb ? 'Searching...' : 'Web Fix'"></span>
+                                         </button>
+                                         <button type="button" @click="aiFormatLyrics()" :disabled="formattingAI" class="text-[10px] sm:text-[11px] text-purple-600 hover:text-purple-700 font-bold flex items-center space-x-1 disabled:opacity-50 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200 transition">
+                                             <i data-lucide="bot" class="w-3 h-3" :class="formattingAI ? 'animate-spin' : ''"></i>
+                                             <span x-text="formattingAI ? 'Formatting...' : 'AI Format'"></span>
+                                         </button>
+                                     </div>
                                  </div>
-                             </div>
-                             <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="6" placeholder="Paste lyrics here — format &amp; font auto-detected on Ctrl+V..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                                 <textarea x-model="editorLyricsText" @input="updateEditorLyricsFromInput()" @paste="handleNativeLyricsPaste($event)" rows="6" placeholder="Paste lyrics here — format &amp; font auto-detected on Ctrl+V..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-sans text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between items-center mb-1.5">
+                                    <label class="block text-xs font-bold text-slate-700">English Transliteration</label>
+                                    <button type="button" @click="autoTransliterateEditor()" class="text-[11px] sm:text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center space-x-1 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200 transition">
+                                        <i data-lucide="languages" class="w-3.5 h-3.5"></i>
+                                        <span>Auto-Transliterate</span>
+                                    </button>
+                                </div>
+                                <textarea x-model="editorLyrics2Text" @input="updateEditorLyrics2FromInput()" rows="5" placeholder="English Romanized transliteration..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                            </div>
                         </div>
 
-                        <div>
-                            <div class="flex justify-between items-center mb-1.5">
-                                <label class="block text-xs font-bold text-slate-700">English Transliteration</label>
-                                <button type="button" @click="autoTransliterateEditor()" class="text-[11px] sm:text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center space-x-1 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200 transition">
-                                    <i data-lucide="languages" class="w-3.5 h-3.5"></i>
-                                    <span>Auto-Transliterate</span>
+                        <!-- Live Styled Display Column -->
+                        <div class="space-y-2 flex flex-col">
+                            <div class="flex justify-between items-center">
+                                <label class="text-xs font-bold text-emerald-700 flex items-center space-x-1">
+                                    <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+                                    <span x-text="editorPreviewTab === 'translit' ? 'Live Transliteration Display' : (editorPreviewTab === 'dual' ? 'Live Dual Script Display' : 'Live Native Script Display')"></span>
+                                </label>
+                                <button type="button" @click="copyLyricsToClipboard()" class="text-[11px] text-slate-500 hover:text-slate-800 flex items-center space-x-1 font-semibold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                    <i data-lucide="copy" class="w-3 h-3"></i>
+                                    <span x-text="copiedTooltip ? 'Copied!' : 'Copy Lyrics'"></span>
                                 </button>
                             </div>
-                            <textarea x-model="editorLyrics2Text" @input="updateEditorLyrics2FromInput()" rows="5" placeholder="English Romanized transliteration..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
-                        </div>
-                    </div>
-
-                    <!-- Live Styled Display Column -->
-                    <div class="space-y-2 flex flex-col">
-                        <div class="flex justify-between items-center">
-                            <label class="text-xs font-bold text-emerald-700 flex items-center space-x-1">
-                                <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
-                                <span x-text="editorPreviewTab === 'translit' ? 'Live Transliteration Display' : (editorPreviewTab === 'dual' ? 'Live Dual Script Display' : 'Live Native Script Display')"></span>
-                            </label>
-                            <button type="button" @click="copyLyricsToClipboard()" class="text-[11px] text-slate-500 hover:text-slate-800 flex items-center space-x-1 font-semibold bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                                <i data-lucide="copy" class="w-3 h-3"></i>
-                                <span x-text="copiedTooltip ? 'Copied!' : 'Copy Lyrics'"></span>
-                            </button>
-                        </div>
-                        <div class="p-3.5 sm:p-5 bg-slate-900 text-slate-100 rounded-xl sm:rounded-2xl min-h-[160px] max-h-[300px] sm:max-h-[380px] sm:h-[380px] overflow-y-auto border border-slate-800 shadow-inner flex-1">
-                            <div x-show="editorPreviewTab === 'native'" class="lyrics-preview" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
-                            <div x-show="editorPreviewTab === 'translit'" class="lyrics-preview text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
-                            <div x-show="editorPreviewTab === 'dual'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800">
-                                <div class="lyrics-preview pr-2" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
-                                <div class="lyrics-preview pt-3 sm:pt-0 sm:pl-4 text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
+                            <div class="p-3.5 sm:p-5 bg-slate-900 text-slate-100 rounded-xl sm:rounded-2xl min-h-[160px] max-h-[300px] sm:max-h-[380px] sm:h-[380px] overflow-y-auto border border-slate-800 shadow-inner flex-1">
+                                <div x-show="editorPreviewTab === 'native'" class="lyrics-preview" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
+                                <div x-show="editorPreviewTab === 'translit'" class="lyrics-preview text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
+                                <div x-show="editorPreviewTab === 'dual'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800">
+                                    <div class="lyrics-preview pr-2" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
+                                    <div class="lyrics-preview pt-3 sm:pt-0 sm:pl-4 text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Modal Footer (Sticky on Mobile with safe padding) -->
-            <div class="flex justify-between items-center pt-3 pb-2 sm:pb-0 border-t border-slate-100 bg-white sticky bottom-0 z-10">
-                <button type="button" @click="editingSong = null" class="px-4 sm:px-5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
-                    Cancel
-                </button>
-                <button @click="saveEditingSong()" class="px-5 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all duration-200 flex items-center space-x-2 shadow-md shadow-indigo-600/20 hover:scale-105 active:scale-95">
-                    <i data-lucide="save" class="w-4 h-4"></i>
-                    <span>Save & Sync</span>
-                </button>
+                <!-- Modal Footer (Sticky on Mobile with safe padding) -->
+                <div class="flex justify-between items-center pt-3 pb-2 sm:pb-0 border-t border-slate-100 bg-white sticky bottom-0 z-10">
+                    <button type="button" @click="editingSong = null" class="px-4 sm:px-5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+                        Cancel
+                    </button>
+                    <button @click="saveEditingSong()" class="px-5 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all duration-200 flex items-center space-x-2 shadow-md shadow-indigo-600/20 hover:scale-105 active:scale-95">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Save & Sync</span>
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
+    </template>
 
     <!-- ==================== BATCH AUTO-SEARCH WEB & FIX MODAL (LIGHT THEME & MOBILE RESPONSIVE) ==================== -->
     <div x-show="batchFixModalOpen" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
