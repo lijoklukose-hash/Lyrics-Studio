@@ -301,40 +301,52 @@ def background_supabase_pull():
         sync_state["message"] = f"Populating {len(all_downloaded):,} songs into local database..."
         
         # Replace local sqlite DB
-        conn = db_manager.get_connection()
-        cur = conn.cursor()
-        cur.execute("BEGIN IMMEDIATE")
-        cur.execute("DELETE FROM songs")
-        
-        cur.execute("SELECT COALESCE(MAX(id), 0) FROM songs")
-        max_id = cur.fetchone()[0] or 0
-        
-        rows = []
-        for item in all_downloaded:
-            raw_id = item.get('id')
-            if str(raw_id).strip().isdigit():
-                song_id = int(raw_id)
-            else:
-                max_id += 1
-                song_id = max_id
+        inserted_db = False
+        for attempt in range(5):
+            try:
+                conn = db_manager.get_connection()
+                cur = conn.cursor()
+                cur.execute("BEGIN IMMEDIATE")
+                cur.execute("DELETE FROM songs")
                 
-            rows.append((
-                song_id,
-                item.get('title'),
-                item.get('category'),
-                item.get('subcategory') or item.get('subcat') or '',
-                item.get('key'),
-                item.get('tags'),
-                item.get('lyrics'),
-                item.get('lyrics2'),
-                item.get('notes'),
-                item.get('yvideo'),
-                item.get('author')
-            ))
-            
-        cur.executemany("INSERT OR REPLACE INTO songs VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
-        conn.commit()
-        conn.close()
+                cur.execute("SELECT COALESCE(MAX(id), 0) FROM songs")
+                max_id = cur.fetchone()[0] or 0
+                
+                rows = []
+                for item in all_downloaded:
+                    raw_id = item.get('id')
+                    if str(raw_id).strip().isdigit():
+                        song_id = int(raw_id)
+                    else:
+                        max_id += 1
+                        song_id = max_id
+                        
+                    rows.append((
+                        song_id,
+                        item.get('title'),
+                        item.get('category'),
+                        item.get('subcategory') or item.get('subcat') or '',
+                        item.get('key'),
+                        item.get('tags'),
+                        item.get('lyrics'),
+                        item.get('lyrics2'),
+                        item.get('notes'),
+                        item.get('yvideo'),
+                        item.get('author')
+                    ))
+                    
+                cur.executemany("INSERT OR REPLACE INTO songs VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+                conn.commit()
+                conn.close()
+                inserted_db = True
+                break
+            except Exception as db_err:
+                try: conn.close()
+                except Exception: pass
+                if "locked" in str(db_err).lower() and attempt < 4:
+                    time.sleep(2)
+                else:
+                    raise db_err
 
         # Export CSV, Excel, JSON
         sync_state["message"] = "Updating local CSV, Excel and JSON export files..."
