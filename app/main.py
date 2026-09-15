@@ -31,6 +31,19 @@ sync_state = {
     "message": "Ready to sync"
 }
 
+@app.on_event("startup")
+def auto_pull_on_startup():
+    """Automatically pull and sync full song database from Supabase Cloud on app startup."""
+    if cloud_is_configured():
+        def _initial_pull():
+            try:
+                print("App Startup: Initializing automatic sync from Supabase Cloud...")
+                background_supabase_pull()
+                print("App Startup: Supabase Cloud auto-sync completed successfully!")
+            except Exception as e:
+                print(f"App Startup: Cloud auto-sync notice ({e})")
+        threading.Thread(target=_initial_pull, daemon=True).start()
+
 # --- Page Routes ---
 @app.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
