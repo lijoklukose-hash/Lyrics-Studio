@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 
-from app.db_manager import db_manager
+from app.db_manager import db_manager, cloud_is_configured
 from app.dom_lyrics_extractor import DOMStructureExtractor
 from app.title_extractor import extract_and_clean_title
 from app.confidence_scorer import compute_song_confidence
@@ -216,11 +216,41 @@ def run_preset_auto_scraper(source="all", allowed_languages=None):
     auto_scraper_state["stop_requested"] = False
 
     try:
-        conn = db_manager.get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id, title, category, lyrics FROM songs")
-        existing_rows = cur.fetchall()
-        conn.close()
+        # Load existing songs cache directly from Supabase Cloud (or local DB as fallback)
+        existing_rows = []
+        if cloud_is_configured():
+            try:
+                from app.db_manager import SUPABASE_URL, TABLE_NAME, HEADERS, safe_request
+                auto_scraper_state["message"] = "Fetching verified song fingerprints directly from Supabase Cloud..."
+                
+                url_count = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id"
+                headers = dict(HEADERS)
+                headers["Prefer"] = "count=exact"
+                headers["Range-Unit"] = "items"
+                headers["Range"] = "0-0"
+                res_count = safe_request("GET", url_count, headers=headers)
+                count_str = res_count.headers.get("content-range", "").split("/")[-1]
+                remote_count = int(count_str) if count_str.isdigit() else 0
+
+                batch_size = 1000
+                for offset in range(0, remote_count, batch_size):
+                    end_offset = min(offset + batch_size - 1, remote_count - 1)
+                    fetch_headers = dict(HEADERS)
+                    fetch_headers["Range-Unit"] = "items"
+                    fetch_headers["Range"] = f"{offset}-{end_offset}"
+                    fetch_url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,lyrics&order=id.asc"
+                    r = safe_request("GET", fetch_url, headers=fetch_headers)
+                    for item in r.json():
+                        existing_rows.append((item.get('id'), item.get('title'), item.get('category'), item.get('lyrics')))
+            except Exception as cloud_err:
+                print(f"Notice: Supabase cache load fallback to local DB ({cloud_err})")
+
+        if not existing_rows:
+            conn = db_manager.get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, category, lyrics FROM songs")
+            existing_rows = cur.fetchall()
+            conn.close()
 
         existing_songs_cache = [
             {
@@ -362,7 +392,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None):
                         "author": '',
                         "key": ''
                     }
-                    db_manager.save_song(song_data, sync_cloud=False)
+                    db_manager.save_song(song_data, sync_cloud=True)
                     imported_count += 1
                     auto_scraper_state["imported"] = imported_count
 
