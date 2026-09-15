@@ -306,10 +306,20 @@ def background_supabase_pull():
         cur.execute("BEGIN IMMEDIATE")
         cur.execute("DELETE FROM songs")
         
+        cur.execute("SELECT COALESCE(MAX(id), 0) FROM songs")
+        max_id = cur.fetchone()[0] or 0
+        
         rows = []
         for item in all_downloaded:
+            raw_id = item.get('id')
+            if str(raw_id).strip().isdigit():
+                song_id = int(raw_id)
+            else:
+                max_id += 1
+                song_id = max_id
+                
             rows.append((
-                int(item['id']) if str(item.get('id', '')).isdigit() else item.get('id'),
+                song_id,
                 item.get('title'),
                 item.get('category'),
                 item.get('subcategory') or item.get('subcat') or '',
