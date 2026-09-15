@@ -10,15 +10,14 @@ env/
 __pycache__/
 *.pyc
 
-# Database and Large Export Files
+# Export Files
+Joyful noise_supabase_utf8.csv
+Joyful noise_supabase_utf8.json
+Joyful noise_supabase_utf8.xlsx
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
-*.xlsx
-*.csv
-*.json
-scraped_data/
 
 # IDE / System
 .vscode/
