@@ -277,7 +277,7 @@ def background_supabase_pull():
         if not cloud_is_configured():
             raise RuntimeError("Cloudflare D1 is not configured.")
             
-        url = f"{CLOUDFLARE_D1_URL}/songs"
+        url = f"{CLOUDFLARE_D1_URL}/songs?since=0"
         r = requests.get(url, timeout=30)
         r.raise_for_status()
         all_downloaded = r.json()
@@ -315,7 +315,7 @@ def background_supabase_pull():
                         song_id,
                         item.get('title'),
                         item.get('category'),
-                        item.get('subcategory') or item.get('subcat') or '',
+                        item.get('subcategory') if item.get('subcategory') is not None else item.get('subcat', ''),
                         item.get('key'),
                         item.get('tags'),
                         item.get('lyrics'),
@@ -330,13 +330,11 @@ def background_supabase_pull():
                 conn.close()
                 inserted_db = True
                 break
-            except Exception as db_err:
-                try: conn.close()
-                except Exception: pass
-                if "locked" in str(db_err).lower() and attempt < 4:
-                    time.sleep(2)
-                else:
-                    raise db_err
+            except Exception:
+                time.sleep(1)
+
+        if not inserted_db:
+            raise RuntimeError("Could not acquire database lock to update songs table.")
 
         # Export CSV, Excel, JSON
         sync_state["message"] = "Updating local CSV, Excel and JSON export files..."
@@ -344,7 +342,7 @@ def background_supabase_pull():
 
         sync_state["status"] = "completed"
         sync_state["progress"] = len(all_downloaded)
-        sync_state["message"] = f"Successfully synced {len(all_downloaded):,} songs from Supabase Cloud ('Joyful Noise') into local app!"
+        sync_state["message"] = f"Successfully synced {len(all_downloaded):,} songs from Cloudflare D1 into local app!"
 
     except Exception as e:
         sync_state["status"] = "error"
@@ -353,43 +351,37 @@ def background_supabase_pull():
 def background_supabase_sync():
     global sync_state
     sync_state["status"] = "syncing"
-    sync_state["message"] = "Preparing dataset & refreshing local cache..."
+    sync_state["message"] = "Preparing dataset & pushing to Cloudflare D1..."
     
     try:
         db_manager.export_all_local_files()
         with open(JSON_FILE, 'r', encoding='utf-8') as f:
             raw_data = json.load(f)
 
-        from app.db_manager import sanitize_for_supabase
-        data = [sanitize_for_supabase(item) for item in raw_data]
-
-        total_songs = len(data)
+        total_songs = len(raw_data)
         sync_state["total"] = total_songs
         sync_state["progress"] = 0
         if not cloud_is_configured():
-            raise RuntimeError("Supabase is not configured. Set SUPABASE_URL and SUPABASE_API_KEY before syncing.")
+            raise RuntimeError("Cloudflare D1 is not configured.")
 
-        sync_state["message"] = "Uploading clean songs to Supabase..."
+        sync_state["message"] = "Uploading clean songs to Cloudflare D1..."
 
-        endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?on_conflict=id"
+        from app.db_manager import CLOUDFLARE_D1_URL
+        endpoint = f"{CLOUDFLARE_D1_URL}/songs/upsert"
 
-        batch_size = 250
-        batches = [data[i:i + batch_size] for i in range(0, total_songs, batch_size)]
-        
         uploaded = 0
-        headers = dict(HEADERS)
-        headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
-
-        for batch in batches:
-            safe_request("POST", endpoint, headers=headers, json=batch)
-            uploaded += len(batch)
-            sync_state["progress"] = uploaded
-            percent = (uploaded / total_songs * 100) if total_songs else 100
-            sync_state["message"] = f"Uploaded {uploaded:,} of {total_songs:,} songs ({percent:.1f}%)..."
+        for item in raw_data:
+            r = requests.post(endpoint, json=item, timeout=10)
+            if r.status_code == 200:
+                uploaded += 1
+                sync_state["progress"] = uploaded
+                if uploaded % 100 == 0 or uploaded == total_songs:
+                    percent = (uploaded / total_songs * 100) if total_songs else 100
+                    sync_state["message"] = f"Uploaded {uploaded:,} of {total_songs:,} songs ({percent:.1f}%)..."
 
         sync_state["status"] = "completed"
         sync_state["progress"] = total_songs
-        sync_state["message"] = f"Successfully synced all {total_songs:,} songs to Supabase ('Joyful Noise')."
+        sync_state["message"] = f"Successfully synced all {total_songs:,} songs to Cloudflare D1."
 
     except Exception as e:
         sync_state["status"] = "error"
@@ -403,7 +395,7 @@ async def trigger_supabase_pull(background_tasks: BackgroundTasks):
         return {"status": "busy", "message": "Synchronization is already in progress"}
     
     background_tasks.add_task(background_supabase_pull)
-    return {"status": "started", "message": "Downloading full database from Supabase Cloud..."}
+    return {"status": "started", "message": "Downloading full database from Cloudflare D1..."}
 
 @app.post("/api/sync/supabase")
 @app.post("/api/sync/push")
@@ -423,34 +415,30 @@ async def get_sync_status():
 @app.get("/api/sync/test-connection")
 async def test_supabase_connection():
     try:
-        from app.db_manager import get_supabase_headers, cloud_is_configured, get_default_supabase_key
-        key = os.environ.get("SUPABASE_API_KEY") or get_default_supabase_key()
-        if not key:
+        from app.db_manager import cloud_is_configured, CLOUDFLARE_D1_URL
+        if not cloud_is_configured():
             return {
                 "success": False,
-                "error": "Missing SUPABASE_API_KEY",
-                "message": "Supabase API key is missing. Please ensure SUPABASE_API_KEY is configured in your environment or .env file."
+                "error": "Missing Cloudflare D1 configuration",
+                "message": "Cloudflare D1 is not configured."
             }
-        headers = get_supabase_headers()
-        headers["Prefer"] = "count=exact"
-        headers["Range-Unit"] = "items"
-        headers["Range"] = "0-0"
-        url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id"
-        res = safe_request("GET", url, headers=headers)
-        count_str = res.headers.get("content-range", "").split("/")[-1]
-        remote_count = int(count_str) if count_str.isdigit() else 0
+        url = f"{CLOUDFLARE_D1_URL}/songs?since=0"
+        res = requests.get(url, timeout=15)
+        res.raise_for_status()
+        items = res.json()
+        remote_count = len(items)
         return {
             "success": True,
-            "supabase_url": SUPABASE_URL,
-            "table_name": "Joyful Noise",
+            "cloudflare_url": CLOUDFLARE_D1_URL,
+            "table_name": "Joyful_Noise",
             "remote_count": remote_count,
-            "message": f"Connected to Supabase! Remote table 'Joyful Noise' has {remote_count:,} songs."
+            "message": f"Connected to Cloudflare D1! Remote table 'Joyful_Noise' has {remote_count:,} songs."
         }
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
-            "message": f"Could not connect to Supabase: {str(e)}"
+            "message": f"Cloudflare D1 connection error: {str(e)}"
         }
 
 @app.get("/api/sync/config")
