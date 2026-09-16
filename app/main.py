@@ -13,7 +13,7 @@ import re
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 
-from app.db_manager import db_manager, CSV_FILE, EXCEL_FILE, JSON_FILE, SUPABASE_URL, TABLE_NAME, HEADERS, safe_request, cloud_is_configured
+from app.db_manager import db_manager, CSV_FILE, EXCEL_FILE, JSON_FILE, cloud_is_configured
 from app.duplicate_engine import find_duplicates, generate_diff
 from app.scraper import scrape_url, clean_and_format_lyrics
 from fastapi.middleware.gzip import GZipMiddleware
@@ -268,50 +268,27 @@ async def export_json():
 def background_supabase_pull():
     global sync_state
     sync_state["status"] = "syncing"
-    sync_state["message"] = "Connecting to Supabase table 'Joyful Noise'..."
+    sync_state["message"] = "Connecting to Cloudflare D1 database..."
     sync_state["progress"] = 0
     sync_state["total"] = 0
 
     try:
-        from app.db_manager import get_supabase_headers, cloud_is_configured
+        from app.db_manager import cloud_is_configured, CLOUDFLARE_D1_URL
         if not cloud_is_configured():
-            raise RuntimeError("Supabase is not configured. Set SUPABASE_URL and SUPABASE_API_KEY.")
+            raise RuntimeError("Cloudflare D1 is not configured.")
             
-        headers = get_supabase_headers()
-        headers["Prefer"] = "count=exact"
-        headers["Range-Unit"] = "items"
-        headers["Range"] = "0-0"
-        
-        url_count = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id"
-        res_count = safe_request("GET", url_count, headers=headers)
-        count_str = res_count.headers.get("content-range", "").split("/")[-1]
-        remote_count = int(count_str) if count_str.isdigit() else 0
+        url = f"{CLOUDFLARE_D1_URL}/songs"
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        all_downloaded = r.json()
+        remote_count = len(all_downloaded)
         
         if remote_count == 0:
-            raise RuntimeError("Remote table 'Joyful Noise' is empty or could not retrieve count.")
+            raise RuntimeError("Cloudflare D1 database returned 0 records.")
 
         sync_state["total"] = remote_count
-        sync_state["message"] = f"Downloading {remote_count:,} songs from Supabase table 'Joyful Noise'..."
-
-        all_downloaded = []
-        batch_size = 1000
-        
-        for offset in range(0, remote_count, batch_size):
-            end_offset = min(offset + batch_size - 1, remote_count - 1)
-            fetch_headers = get_supabase_headers()
-            fetch_headers["Range-Unit"] = "items"
-            fetch_headers["Range"] = f"{offset}-{end_offset}"
-            
-            fetch_url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,subcategory,key,tags,lyrics,lyrics2,notes,yvideo,author&order=id.asc"
-            r = safe_request("GET", fetch_url, headers=fetch_headers)
-            items = r.json()
-            all_downloaded.extend(items)
-            
-            sync_state["progress"] = len(all_downloaded)
-            percent = (len(all_downloaded) / remote_count * 100) if remote_count else 100
-            sync_state["message"] = f"Downloaded {len(all_downloaded):,} of {remote_count:,} songs ({percent:.1f}%)..."
-
-        sync_state["message"] = f"Populating {len(all_downloaded):,} songs into local database..."
+        sync_state["progress"] = remote_count
+        sync_state["message"] = f"Downloaded {remote_count:,} songs from Cloudflare D1. Populating local database..."
         
         # Replace local sqlite DB
         inserted_db = False

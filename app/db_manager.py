@@ -47,57 +47,11 @@ try:
 except ImportError:
     pass
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supabase.co").rstrip("/")
-API_KEY = os.environ.get("SUPABASE_API_KEY") or get_default_supabase_key()
-TABLE_NAME = os.environ.get("SUPABASE_TABLE", "Joyful%20Noise")
-
-def get_supabase_headers():
-    key = os.environ.get("SUPABASE_API_KEY") or API_KEY or get_default_supabase_key()
-    return {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-    }
-
-HEADERS = get_supabase_headers()
-
-VALID_SUPABASE_FIELDS = ['id', 'title', 'category', 'subcategory', 'key', 'tags', 'lyrics', 'lyrics2', 'notes', 'yvideo', 'author']
-
-def sanitize_for_supabase(item):
-    d = {}
-    for k in VALID_SUPABASE_FIELDS:
-        if k == 'subcategory':
-            val = item.get('subcategory') if item.get('subcategory') is not None else item.get('subcat', '')
-        elif k == 'id':
-            val = str(item.get('id', ''))
-        else:
-            val = item.get(k, '')
-            
-        if isinstance(val, str):
-            val = val.replace('\x00', '').replace('\u0000', '')
-        d[k] = val if val is not None else ''
-    return d
-
-def safe_request(method, url, **kwargs):
-    if "headers" not in kwargs:
-        kwargs["headers"] = get_supabase_headers()
-    max_retries = 3
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            r = requests.request(method, url, timeout=15, **kwargs)
-            r.raise_for_status()
-            return r
-        except Exception as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                time.sleep(1 + attempt)
-    raise RuntimeError(f"Supabase {method} request failed: {last_error}") from last_error
+CLOUDFLARE_D1_URL = os.environ.get("CLOUDFLARE_D1_URL", "https://joyful-noise-api.lijoklukose42.workers.dev").rstrip("/")
+CLOUDFLARE_D1_TABLE = os.environ.get("CLOUDFLARE_D1_TABLE", "Joyful_Noise")
 
 def cloud_is_configured():
-    key = os.environ.get("SUPABASE_API_KEY") or API_KEY or get_default_supabase_key()
-    return bool(SUPABASE_URL and key)
+    return bool(CLOUDFLARE_D1_URL)
 
 class DatabaseManager:
     def __init__(self, db_path=DB_PATH):
@@ -520,11 +474,10 @@ class DatabaseManager:
             return
         def _upsert():
             try:
-                headers = dict(HEADERS)
-                headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
-                safe_request("POST", f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?on_conflict=id", headers=headers, json=[sanitize_for_supabase(song_data)])
+                url = f"{CLOUDFLARE_D1_URL}/songs/upsert"
+                requests.post(url, json=song_data, timeout=15)
             except Exception as e:
-                print(f"Warning syncing to Supabase: {e}")
+                print(f"Notice: Cloudflare D1 sync deferred ({e})")
         self.bg_executor.submit(_upsert)
 
     def schedule_cloud_delete(self, song_id):
@@ -532,9 +485,10 @@ class DatabaseManager:
             return
         def _delete():
             try:
-                safe_request("DELETE", f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?id=eq.{song_id}", headers=HEADERS)
+                url = f"{CLOUDFLARE_D1_URL}/songs/{song_id}"
+                requests.delete(url, timeout=15)
             except Exception as e:
-                print(f"Warning deleting from Supabase: {e}")
+                print(f"Notice: Cloudflare D1 delete deferred ({e})")
         self.bg_executor.submit(_delete)
 
     def export_all_local_files(self):

@@ -220,30 +220,16 @@ def run_preset_auto_scraper(source="all", allowed_languages=None):
         existing_rows = []
         if cloud_is_configured():
             try:
-                from app.db_manager import SUPABASE_URL, TABLE_NAME, HEADERS, safe_request
-                auto_scraper_state["message"] = "Fetching verified song fingerprints directly from Supabase Cloud..."
+                from app.db_manager import CLOUDFLARE_D1_URL
+                auto_scraper_state["message"] = "Fetching verified song fingerprints directly from Cloudflare D1..."
                 
-                url_count = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id"
-                headers = dict(HEADERS)
-                headers["Prefer"] = "count=exact"
-                headers["Range-Unit"] = "items"
-                headers["Range"] = "0-0"
-                res_count = safe_request("GET", url_count, headers=headers)
-                count_str = res_count.headers.get("content-range", "").split("/")[-1]
-                remote_count = int(count_str) if count_str.isdigit() else 0
-
-                batch_size = 1000
-                for offset in range(0, remote_count, batch_size):
-                    end_offset = min(offset + batch_size - 1, remote_count - 1)
-                    fetch_headers = dict(HEADERS)
-                    fetch_headers["Range-Unit"] = "items"
-                    fetch_headers["Range"] = f"{offset}-{end_offset}"
-                    fetch_url = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,lyrics&order=id.asc"
-                    r = safe_request("GET", fetch_url, headers=fetch_headers)
+                fetch_url = f"{CLOUDFLARE_D1_URL}/songs"
+                r = requests.get(fetch_url, timeout=30)
+                if r.status_code == 200:
                     for item in r.json():
                         existing_rows.append((item.get('id'), item.get('title'), item.get('category'), item.get('lyrics')))
             except Exception as cloud_err:
-                print(f"Notice: Supabase cache load fallback to local DB ({cloud_err})")
+                print(f"Notice: Cloudflare D1 cache load fallback to local DB ({cloud_err})")
 
         if not existing_rows:
             conn = db_manager.get_connection()
