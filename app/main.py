@@ -8,8 +8,8 @@ import sys
 import json
 import sqlite3
 import threading
-import time
 import re
+import requests
 from indic_transliteration import sanscript
 from indic_transliteration.sanscript import transliterate
 
