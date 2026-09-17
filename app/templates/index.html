@@ -1303,9 +1303,25 @@
                             </div>
                         </div>
 
-                        <!-- Lyrics Snippet Box -->
-                        <div class="p-3 bg-white rounded-xl border border-slate-200 max-h-48 overflow-y-auto">
-                            <div class="lyrics-preview text-xs text-slate-800 font-mono leading-relaxed" x-text="renderBreaks(item.cleaned_lyrics || item.raw_lyrics)"></div>
+                        <!-- Lyrics Snippet / Editor Box -->
+                        <div class="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-inner">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Lyrics & Stanza Formatting</span>
+                                <button type="button" @click="item.editing = !item.editing; if(item.editing && !item.editText) item.editText = formatFromBrTags(item.cleaned_lyrics || item.raw_lyrics);" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-[11px] font-bold transition flex items-center space-x-1">
+                                    <i data-lucide="edit-3" class="w-3 h-3"></i>
+                                    <span x-text="item.editing ? 'Preview Stanzas' : 'Edit Lyrics'"></span>
+                                </button>
+                            </div>
+
+                            <template x-if="!item.editing">
+                                <div class="lyrics-preview text-xs text-slate-900 font-mono leading-relaxed max-h-56 overflow-y-auto whitespace-pre-line bg-slate-50 p-3 rounded-xl border border-slate-100" x-text="renderBreaks(item.cleaned_lyrics || item.raw_lyrics)"></div>
+                            </template>
+
+                            <template x-if="item.editing">
+                                <div class="space-y-2">
+                                    <textarea x-model="item.editText" @input="item.cleaned_lyrics = formatToBrTags(item.editText)" rows="6" placeholder="Edit lyrics with blank lines separating stanzas..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
+                                </div>
+                            </template>
                         </div>
                     </div>
                 </template>
@@ -1464,6 +1480,7 @@
 
                 closeAllModals() {
                     this.editingSong = null;
+                    this.reviewQueueModalOpen = false;
                     if (!this.batchFixRunning) this.batchFixModalOpen = false;
                 },
 
@@ -2022,10 +2039,18 @@
 
                 async resolveReviewItem(id, action, index) {
                     try {
+                        const item = this.reviewQueueItems[index];
+                        const payload = {
+                            id: id,
+                            action: action,
+                            title: item.title_cleaned || item.title_original,
+                            category: item.language,
+                            lyrics: item.cleaned_lyrics || item.raw_lyrics
+                        };
                         const res = await fetch('/api/scraper/review-resolve', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: id, action: action })
+                            body: JSON.stringify(payload)
                         });
                         const data = await res.json();
                         if (data.success) {

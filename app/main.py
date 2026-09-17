@@ -535,15 +535,20 @@ async def resolve_scraped_review(data: dict = Body(...)):
         conn.close()
         raise HTTPException(status_code=404, detail="Scrape record not found")
     
-    title, lang, lyrics = row[0], row[1], row[2]
+    title = data.get("title") or row[0]
+    lang = data.get("category") or row[1]
+    lyrics = data.get("lyrics") or row[2]
+    lyrics2 = data.get("lyrics2", "")
+
     if action == 'approve':
         db_manager.save_song({
             "title": title,
             "category": lang,
             "lyrics": lyrics,
+            "lyrics2": lyrics2,
             "tags": "Approved from Scrape Review"
         })
-        cur.execute("UPDATE raw_scrapes SET status = 'approved' WHERE id = ?", (raw_id,))
+        cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ? WHERE id = ?", (title, lyrics, raw_id))
     else:
         cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))
     conn.commit()
