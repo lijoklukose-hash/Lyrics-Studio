@@ -432,12 +432,32 @@
             <div class="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden transition-all">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
-                        <thead class="bg-slate-50/80 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                        <thead class="bg-slate-50/80 text-slate-500 text-xs font-bold uppercase tracking-wider select-none">
                             <tr>
-                                <th class="px-6 py-4">ID</th>
-                                <th class="px-6 py-4">Title</th>
-                                <th class="px-6 py-4">Language</th>
-                                <th class="px-6 py-4">Author</th>
+                                <th @click="toggleSort('id')" class="px-6 py-4 cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition">
+                                    <div class="flex items-center space-x-1">
+                                        <span>ID</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400" :class="sortBy === 'id' ? 'text-indigo-600 font-bold' : ''"></i>
+                                    </div>
+                                </th>
+                                <th @click="toggleSort('title')" class="px-6 py-4 cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition">
+                                    <div class="flex items-center space-x-1">
+                                        <span>Title</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400" :class="sortBy === 'title' ? 'text-indigo-600 font-bold' : ''"></i>
+                                    </div>
+                                </th>
+                                <th @click="toggleSort('category')" class="px-6 py-4 cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition">
+                                    <div class="flex items-center space-x-1">
+                                        <span>Language</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400" :class="sortBy === 'category' ? 'text-indigo-600 font-bold' : ''"></i>
+                                    </div>
+                                </th>
+                                <th @click="toggleSort('author')" class="px-6 py-4 cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition">
+                                    <div class="flex items-center space-x-1">
+                                        <span>Author</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400" :class="sortBy === 'author' ? 'text-indigo-600 font-bold' : ''"></i>
+                                    </div>
+                                </th>
                                 <th class="px-6 py-4" x-text="libraryViewMode === 'translit' ? 'English Transliteration Snippet' : (libraryViewMode === 'dual' ? 'Native & Transliteration Snippets' : 'Native Lyrics Snippet')"></th>
                                 <th class="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -1469,6 +1489,16 @@
                     finally {
                         this.loadingSongs = false;
                     }
+                },
+
+                toggleSort(field) {
+                    if (this.sortBy === field) {
+                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortBy = field;
+                        this.sortOrder = 'asc';
+                    }
+                    this.loadSongs(1);
                 },
 
                 getSnippet(text) {
