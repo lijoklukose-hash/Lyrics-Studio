@@ -305,19 +305,23 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
         imported_count = 0
         review_count = 0
+        chunk_size = 100
 
-        with ThreadPoolExecutor(max_workers=35) as executor:
-            future_to_cand = {executor.submit(scrape_url, cand['url'], cand.get('language')): cand for cand in candidate_items}
-            for future in as_completed(future_to_cand):
-                if auto_scraper_state.get("stop_requested"):
-                    auto_scraper_state["status"] = "stopped"
-                    auto_scraper_state["message"] = f"Auto-Scraper stopped by user. {imported_count} imported, {review_count} in review."
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    return
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            for i in range(0, len(candidate_items), chunk_size):
+                chunk = candidate_items[i:i + chunk_size]
+                future_to_cand = {executor.submit(scrape_url, cand['url'], cand.get('language')): cand for cand in chunk}
 
-                cand = future_to_cand[future]
-                auto_scraper_state["scanned"] += 1
-                auto_scraper_state["current_song"] = cand['title']
+                for future in as_completed(future_to_cand):
+                    if auto_scraper_state.get("stop_requested"):
+                        auto_scraper_state["status"] = "stopped"
+                        auto_scraper_state["message"] = f"Auto-Scraper stopped by user. {imported_count} imported, {review_count} in review."
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        return
+
+                    cand = future_to_cand[future]
+                    auto_scraper_state["scanned"] += 1
+                    auto_scraper_state["current_song"] = cand['title']
 
                 try:
                     res = future.result()
