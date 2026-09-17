@@ -397,7 +397,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         "category": category,
                         "lyrics": lyrics,
                         "lyrics2": lyrics2,
-                        "tags": f"AutoScraped {cand['source_name']}",
+                        "tags": '',
                         "author": '',
                         "key": ''
                     }

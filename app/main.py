@@ -546,7 +546,7 @@ async def resolve_scraped_review(data: dict = Body(...)):
             "category": lang,
             "lyrics": lyrics,
             "lyrics2": lyrics2,
-            "tags": "Approved from Scrape Review"
+            "tags": data.get("tags", "")
         })
         cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ? WHERE id = ?", (title, lyrics, raw_id))
     else:
