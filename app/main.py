@@ -326,8 +326,16 @@ def background_supabase_pull():
                     ))
                     
                 cur.executemany("INSERT OR REPLACE INTO songs VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+                
+                # Rebuild FTS index to ensure search works immediately
+                try:
+                    cur.execute("INSERT INTO songs_fts(songs_fts) VALUES('rebuild')")
+                except Exception:
+                    pass
+                    
                 conn.commit()
                 conn.close()
+                db_manager.invalidate_stats_cache()
                 inserted_db = True
                 break
             except Exception:
