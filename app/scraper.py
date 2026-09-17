@@ -204,7 +204,7 @@ def scrape_url(url, language_hint=None):
     except Exception as e:
         return {"success": False, "url": url, "error": str(e)}
 
-def run_preset_auto_scraper(source="all", allowed_languages=None):
+def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual_review=True):
     global auto_scraper_state
     auto_scraper_state["status"] = "running"
     auto_scraper_state["source"] = source
@@ -359,9 +359,28 @@ def run_preset_auto_scraper(source="all", allowed_languages=None):
                         auto_scraper_state["duplicates_skipped"] += 1
                         continue
 
-                    if archive_status == 'review':
+                    # If strict review mode is ON (require_manual_review=True),
+                    # or if candidate scored in review threshold, send to Review Queue.
+                    if require_manual_review or archive_status == 'review':
                         review_count += 1
                         auto_scraper_state["needs_review"] = review_count
+                        # Update archive status to 'review' if it was auto-flagged approved
+                        if require_manual_review:
+                            save_raw_scrape({
+                                'source_url': cand['url'],
+                                'source_website': cand['source_name'],
+                                'raw_html': res.get('raw_html', '')[:50000],
+                                'raw_lyrics': lyrics,
+                                'cleaned_lyrics': lyrics,
+                                'title_original': cand['title'],
+                                'title_cleaned': title,
+                                'language': category,
+                                'overall_confidence': overall_conf,
+                                'duplicate_score': sim,
+                                'matched_id': dup_res.get('matched_id'),
+                                'status': 'review'
+                            })
+                        auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
                         continue
 
                     if archive_status == 'rejected':

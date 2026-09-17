@@ -495,12 +495,13 @@ async def trigger_preset_scraper(background_tasks: BackgroundTasks, data: dict =
     from app.scraper import auto_scraper_state, run_preset_auto_scraper
     source = data.get("source", "all")
     languages = data.get("languages", None)
+    require_review = data.get("require_review", True)
     if source not in {"all", "waytochurch", "madely"}:
         raise HTTPException(status_code=400, detail="Unsupported scraper source")
     if auto_scraper_state["status"] == "running":
         return {"status": "busy", "message": "Auto-scraper is already running"}
     
-    background_tasks.add_task(run_preset_auto_scraper, source=source, allowed_languages=languages)
+    background_tasks.add_task(run_preset_auto_scraper, source=source, allowed_languages=languages, require_manual_review=require_review)
     return {"status": "started", "message": f"Auto-scraping for source '{source}' started in background"}
 
 @app.post("/api/scrape/preset/stop")
