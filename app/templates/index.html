@@ -1476,8 +1476,20 @@
                     this.$nextTick(() => lucide.createIcons());
                 },
 
-                editSong(song) {
-                    this.editingSong = JSON.parse(JSON.stringify(song));
+                async editSong(song) {
+                    if (!song) return;
+                    let targetSong = song;
+                    if (!song.lyrics || song.lyrics.length < 5) {
+                        try {
+                            const res = await fetch(`/api/songs/${song.id}`);
+                            if (res.ok) {
+                                targetSong = await res.json();
+                            }
+                        } catch (e) {
+                            console.error("Failed to fetch full song details:", e);
+                        }
+                    }
+                    this.editingSong = JSON.parse(JSON.stringify(targetSong));
                     this.editorTextMode = 'natural';
                     this.editorLyricsText = this.formatFromBrTags(this.editingSong.lyrics || '');
                     this.editorLyrics2Text = this.formatFromBrTags(this.editingSong.lyrics2 || '');
