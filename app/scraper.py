@@ -323,53 +323,51 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                     auto_scraper_state["scanned"] += 1
                     auto_scraper_state["current_song"] = cand['title']
 
-                try:
-                    res = future.result()
-                    if not res.get('success') or not res.get('title') or not res.get('lyrics'):
-                        auto_scraper_state["duplicates_skipped"] += 1
-                        continue
+                    try:
+                        res = future.result()
+                        if not res.get('success') or not res.get('title') or not res.get('lyrics'):
+                            auto_scraper_state["duplicates_skipped"] += 1
+                            continue
 
-                    title = res['title']
-                    lyrics = res['lyrics']
-                    lyrics2 = res.get('lyrics2', '')
-                    category = res.get('category') or cand['language']
-                    conf = res.get('confidence', {})
-                    overall_conf = conf.get('overall_confidence', 0.0)
+                        title = res['title']
+                        lyrics = res['lyrics']
+                        lyrics2 = res.get('lyrics2', '')
+                        category = res.get('category') or cand['language']
+                        conf = res.get('confidence', {})
+                        overall_conf = conf.get('overall_confidence', 0.0)
 
-                    # Principle 5, 6, 7: Duplicate Check (Deep Chord & Title Invariant)
-                    dup_res = check_duplicate_candidate(lyrics, category, existing_songs_cache, new_title=title)
-                    dup_status = dup_res['status']
-                    sim = dup_res['similarity']
+                        # Principle 5, 6, 7: Duplicate Check (Deep Chord & Title Invariant)
+                        dup_res = check_duplicate_candidate(lyrics, category, existing_songs_cache, new_title=title)
+                        dup_status = dup_res['status']
+                        sim = dup_res['similarity']
 
-                    # Save to Raw Scrape Archive (Principle 10)
-                    archive_status = 'approved' if (overall_conf >= 85.0 and sim < 0.80) else ('review' if (overall_conf >= 75.0 and sim < 0.98) else 'rejected')
-                    save_raw_scrape({
-                        'source_url': cand['url'],
-                        'source_website': cand['source_name'],
-                        'raw_html': res.get('raw_html', '')[:50000],
-                        'raw_lyrics': lyrics,
-                        'cleaned_lyrics': lyrics,
-                        'title_original': cand['title'],
-                        'title_cleaned': title,
-                        'language': category,
-                        'overall_confidence': overall_conf,
-                        'duplicate_score': sim,
-                        'matched_id': dup_res.get('matched_id'),
-                        'status': archive_status
-                    })
+                        # Save to Raw Scrape Archive (Principle 10)
+                        archive_status = 'approved' if (overall_conf >= 85.0 and sim < 0.80) else ('review' if (overall_conf >= 75.0 and sim < 0.98) else 'rejected')
 
-                    # Threshold Action:
-                    if dup_status in ['exact_duplicate', 'near_duplicate']:
-                        auto_scraper_state["duplicates_skipped"] += 1
-                        continue
+                        # Threshold Action:
+                        if dup_status in ['exact_duplicate', 'near_duplicate']:
+                            auto_scraper_state["duplicates_skipped"] += 1
+                            save_raw_scrape({
+                                'source_url': cand['url'],
+                                'source_website': cand['source_name'],
+                                'raw_html': res.get('raw_html', '')[:50000],
+                                'raw_lyrics': lyrics,
+                                'cleaned_lyrics': lyrics,
+                                'title_original': cand['title'],
+                                'title_cleaned': title,
+                                'language': category,
+                                'overall_confidence': overall_conf,
+                                'duplicate_score': sim,
+                                'matched_id': dup_res.get('matched_id'),
+                                'status': 'rejected'
+                            })
+                            continue
 
-                    # If strict review mode is ON (require_manual_review=True),
-                    # or if candidate scored in review threshold, send to Review Queue.
-                    if require_manual_review or archive_status == 'review':
-                        review_count += 1
-                        auto_scraper_state["needs_review"] = review_count
-                        # Update archive status to 'review' if it was auto-flagged approved
-                        if require_manual_review:
+                        # If strict review mode is ON (require_manual_review=True),
+                        # or if candidate scored in review threshold, send to Review Queue.
+                        if require_manual_review or archive_status == 'review':
+                            review_count += 1
+                            auto_scraper_state["needs_review"] = review_count
                             save_raw_scrape({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
@@ -384,41 +382,70 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'matched_id': dup_res.get('matched_id'),
                                 'status': 'review'
                             })
-                        auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
-                        continue
+                            auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
+                            continue
 
-                    if archive_status == 'rejected':
-                        auto_scraper_state["duplicates_skipped"] += 1
-                        continue
+                        if archive_status == 'rejected':
+                            auto_scraper_state["duplicates_skipped"] += 1
+                            save_raw_scrape({
+                                'source_url': cand['url'],
+                                'source_website': cand['source_name'],
+                                'raw_html': res.get('raw_html', '')[:50000],
+                                'raw_lyrics': lyrics,
+                                'cleaned_lyrics': lyrics,
+                                'title_original': cand['title'],
+                                'title_cleaned': title,
+                                'language': category,
+                                'overall_confidence': overall_conf,
+                                'duplicate_score': sim,
+                                'matched_id': dup_res.get('matched_id'),
+                                'status': 'rejected'
+                            })
+                            continue
 
-                    # High Quality Clean Song -> Ingest into Master Database
-                    song_data = {
-                        "title": title,
-                        "category": category,
-                        "lyrics": lyrics,
-                        "lyrics2": lyrics2,
-                        "tags": '',
-                        "author": '',
-                        "key": ''
-                    }
-                    db_manager.save_song(song_data, sync_cloud=True)
-                    imported_count += 1
-                    auto_scraper_state["imported"] = imported_count
+                        save_raw_scrape({
+                            'source_url': cand['url'],
+                            'source_website': cand['source_name'],
+                            'raw_html': res.get('raw_html', '')[:50000],
+                            'raw_lyrics': lyrics,
+                            'cleaned_lyrics': lyrics,
+                            'title_original': cand['title'],
+                            'title_cleaned': title,
+                            'language': category,
+                            'overall_confidence': overall_conf,
+                            'duplicate_score': sim,
+                            'matched_id': dup_res.get('matched_id'),
+                            'status': 'approved'
+                        })
 
-                    # Append to memory cache for subsequent candidates
-                    existing_songs_cache.append({
-                        "id": None,
-                        "title": title,
-                        "category": category,
-                        "lyrics": lyrics,
-                        "sha256": compute_lyrics_sha256(lyrics),
-                        "ngrams": get_char_ngrams(lyrics, 3)
-                    })
+                        # High Quality Clean Song -> Ingest into Master Database
+                        song_data = {
+                            "title": title,
+                            "category": category,
+                            "lyrics": lyrics,
+                            "lyrics2": lyrics2,
+                            "tags": '',
+                            "author": '',
+                            "key": ''
+                        }
+                        db_manager.save_song(song_data, sync_cloud=True)
+                        imported_count += 1
+                        auto_scraper_state["imported"] = imported_count
 
-                    auto_scraper_state["message"] = f"Imported: {title} ({imported_count} saved, {review_count} in review queue)"
+                        # Append to memory cache for subsequent candidates
+                        existing_songs_cache.append({
+                            "id": None,
+                            "title": title,
+                            "category": category,
+                            "lyrics": lyrics,
+                            "sha256": compute_lyrics_sha256(lyrics),
+                            "ngrams": get_char_ngrams(lyrics, 3)
+                        })
 
-                except Exception as e:
-                    print(f"Error processing {cand['title']}: {e}")
+                        auto_scraper_state["message"] = f"Imported: {title} ({imported_count} saved, {review_count} in review queue)"
+
+                    except Exception as e:
+                        print(f"Error processing {cand['title']}: {e}")
 
         auto_scraper_state["status"] = "completed"
         auto_scraper_state["message"] = f"Auto-Scrape Complete! {imported_count} pristine songs imported, {review_count} queued for review, {auto_scraper_state['duplicates_skipped']} duplicates skipped."
