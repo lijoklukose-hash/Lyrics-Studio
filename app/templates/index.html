@@ -2020,12 +2020,12 @@
                 },
 
                 async triggerCloudPull() {
-                    if (!confirm('Download and sync all songs from Supabase table "Joyful Noise" into this app? (This will populate and refresh your local database with all verified cloud songs)')) return;
+                    if (!confirm('Download and sync all songs from Cloudflare D1 into this app? (This will populate and refresh your local database with all verified cloud songs)')) return;
                     this.syncing = true;
                     try {
                         await fetch('/api/sync/pull-from-cloud', { method: 'POST' });
                         this.pollSyncStatus();
-                        this.showToast('Downloading all songs from Supabase Cloud...', 'info');
+                        this.showToast('Downloading all songs from Cloudflare D1...', 'info');
                     } catch (e) {
                         this.showToast('Pull failed: ' + e, 'error');
                         this.syncing = false;
@@ -2033,7 +2033,7 @@
                 },
 
                 async triggerCloudSync() {
-                    if (!confirm('Start full cloud sync to Supabase table "Joyful Noise"?')) return;
+                    if (!confirm('Start full cloud sync to Cloudflare D1?')) return;
                     this.syncing = true;
                     try {
                         await fetch('/api/sync/supabase', { method: 'POST' });
@@ -2114,9 +2114,9 @@
                         const data = await res.json();
                         if (data.success) {
                             this.supabaseRemoteCount = data.remote_count;
-                            if (showToast) this.showToast(`Connected to Supabase! Remote has ${data.remote_count.toLocaleString()} songs.`, 'success');
+                            if (showToast) this.showToast(`Connected to Cloudflare D1! Remote has ${data.remote_count.toLocaleString()} songs.`, 'success');
                         } else {
-                            if (showToast) this.showToast('Supabase connection error: ' + data.message, 'error');
+                            if (showToast) this.showToast('Cloudflare D1 connection error: ' + data.message, 'error');
                         }
                     } catch (e) {
                         if (showToast) this.showToast('Could not test connection: ' + e, 'error');
