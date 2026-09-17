@@ -16,6 +16,7 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
             raw_html TEXT,
             raw_lyrics TEXT,
             cleaned_lyrics TEXT,
+            lyrics2 TEXT,
             title_original TEXT,
             title_cleaned TEXT,
             language TEXT,
@@ -25,6 +26,10 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
             status TEXT DEFAULT 'pending'
         )
     ''')
+    try:
+        cur.execute("ALTER TABLE raw_scrapes ADD COLUMN lyrics2 TEXT")
+    except Exception:
+        pass
     cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_url ON raw_scrapes(source_url)')
     cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
     conn.commit()
@@ -32,16 +37,18 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
 
 def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
     try:
+        init_raw_archive(db_path)
         conn = sqlite3.connect(db_path, timeout=60.0)
         cur = conn.cursor()
         cur.execute('''
             INSERT INTO raw_scrapes (
                 source_url, source_website, raw_html, raw_lyrics,
-                cleaned_lyrics, title_original, title_cleaned,
+                cleaned_lyrics, lyrics2, title_original, title_cleaned,
                 language, overall_confidence, duplicate_score, matched_id, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_url) DO UPDATE SET
                 cleaned_lyrics = excluded.cleaned_lyrics,
+                lyrics2 = excluded.lyrics2,
                 title_cleaned = excluded.title_cleaned,
                 overall_confidence = excluded.overall_confidence,
                 duplicate_score = excluded.duplicate_score,
@@ -52,6 +59,7 @@ def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
             data.get('raw_html', ''),
             data.get('raw_lyrics', ''),
             data.get('cleaned_lyrics', ''),
+            data.get('lyrics2', ''),
             data.get('title_original', ''),
             data.get('title_cleaned', ''),
             data.get('language', ''),

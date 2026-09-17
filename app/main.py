@@ -530,7 +530,7 @@ async def resolve_scraped_review(data: dict = Body(...)):
     
     conn = sqlite3.connect('scraped_raw_archive.db')
     cur = conn.cursor()
-    cur.execute("SELECT title_cleaned, language, cleaned_lyrics FROM raw_scrapes WHERE id = ?", (raw_id,))
+    cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -539,7 +539,7 @@ async def resolve_scraped_review(data: dict = Body(...)):
     title = data.get("title") or row[0]
     lang = data.get("category") or row[1]
     lyrics = data.get("lyrics") or row[2]
-    lyrics2 = data.get("lyrics2", "")
+    lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else (row[3] or "")
 
     if action == 'approve':
         db_manager.save_song({
@@ -549,7 +549,7 @@ async def resolve_scraped_review(data: dict = Body(...)):
             "lyrics2": lyrics2,
             "tags": data.get("tags", "")
         })
-        cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ? WHERE id = ?", (title, lyrics, raw_id))
+        cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id))
     else:
         cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))
     conn.commit()
