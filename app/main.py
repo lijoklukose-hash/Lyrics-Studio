@@ -305,8 +305,9 @@ def background_supabase_pull():
                 rows = []
                 for item in all_downloaded:
                     raw_id = item.get('id')
-                    if str(raw_id).strip().isdigit():
-                        song_id = int(raw_id)
+                    raw_str = str(raw_id).strip()
+                    if raw_str.replace('.', '', 1).isdigit():
+                        song_id = int(float(raw_str))
                     else:
                         max_id += 1
                         song_id = max_id
