@@ -228,9 +228,13 @@ def scrape_url(url, language_hint=None):
                 if url_lang and url_lang != 'English':
                     category = url_lang
 
-        # 4. Transliteration fallback: only generate if lyrics contains native Indic Unicode and lyrics2 is empty
-        if not lyrics2 and category not in ('English', None) and lyrics and has_indic_unicode(lyrics):
-            lyrics2 = generate_natural_transliteration(lyrics, category)
+        # 4. Transliteration fallback: generate if lyrics2 is empty and category is non-English
+        if not lyrics2 and category not in ('English', None) and lyrics:
+            if has_indic_unicode(lyrics):
+                lyrics2 = generate_natural_transliteration(lyrics, category)
+            else:
+                # Source lyrics were already scraped in Roman/English script (e.g. Romanized Tamil/Malayalam)
+                lyrics2 = lyrics
 
         # Transliterate native script title to English (Proper) Romanization
         if re.search(r'[\u0900-\u0D7F]', title):

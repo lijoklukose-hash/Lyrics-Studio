@@ -2073,12 +2073,17 @@
                         const res = await fetch('/api/scraper/review-queue');
                         const data = await res.json();
                         const queue = data.queue || [];
-                        this.reviewQueueItems = queue.map(item => ({
-                            ...item,
-                            editing: false,
-                            editText: this.formatFromBrTags(item.cleaned_lyrics || item.raw_lyrics || ''),
-                            editText2: this.formatFromBrTags(item.lyrics2 || '')
-                        }));
+                        this.reviewQueueItems = queue.map(item => {
+                            const l1 = item.cleaned_lyrics || item.raw_lyrics || '';
+                            const l2 = item.lyrics2 && item.lyrics2.trim() ? item.lyrics2 : l1;
+                            return {
+                                ...item,
+                                lyrics2: l2,
+                                editing: false,
+                                editText: this.formatFromBrTags(l1),
+                                editText2: this.formatFromBrTags(l2)
+                            };
+                        });
                         this.reviewQueueCount = this.reviewQueueItems.length;
                         if (this.reviewCurrentIndex >= this.reviewQueueItems.length) {
                             this.reviewCurrentIndex = Math.max(0, this.reviewQueueItems.length - 1);
