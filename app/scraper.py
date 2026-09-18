@@ -73,13 +73,8 @@ def reset_preset_auto_scraper(clear_queue=False):
 
     if clear_queue:
         try:
-            import sqlite3
-            from app.raw_archive_manager import ARCHIVE_DB_PATH
-            conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
-            cur = conn.cursor()
-            cur.execute("DELETE FROM raw_scrapes WHERE status = 'review'")
-            conn.commit()
-            conn.close()
+            from app.raw_archive_manager import clear_review_queue
+            clear_review_queue()
         except Exception as e:
             print(f"Error clearing review queue: {e}")
 

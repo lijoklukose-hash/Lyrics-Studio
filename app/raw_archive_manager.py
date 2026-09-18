@@ -91,3 +91,14 @@ def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH):
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
+
+def clear_review_queue(db_path=ARCHIVE_DB_PATH):
+    """Mark all pending review queue items as rejected so they won't pop up again."""
+    init_raw_archive(db_path)
+    conn = sqlite3.connect(db_path, timeout=60.0)
+    cur = conn.cursor()
+    cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE status = 'review'")
+    count = cur.rowcount
+    conn.commit()
+    conn.close()
+    return count
