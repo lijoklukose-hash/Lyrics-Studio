@@ -2097,6 +2097,7 @@
                 async resolveReviewItem(id, action, index) {
                     try {
                         const item = this.reviewQueueItems[index];
+                        if (!item) return;
                         const payload = {
                             id: id,
                             action: action,
@@ -2110,19 +2111,28 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
-                        const data = await res.json();
-                        if (data.success) {
-                            this.reviewQueueItems.splice(index, 1);
-                            this.reviewQueueCount = this.reviewQueueItems.length;
-                            if (this.reviewCurrentIndex >= this.reviewQueueItems.length) {
-                                this.reviewCurrentIndex = Math.max(0, this.reviewQueueItems.length - 1);
-                            }
-                            this.loadStats();
-                            this.loadSongs(this.currentPage);
-                            this.showToast(`Song ${action === 'approve' ? 'Approved & Saved to Cloud' : 'Rejected'}`, action === 'approve' ? 'success' : 'info');
-                            this.$nextTick(() => lucide.createIcons());
+                        let data = {};
+                        try {
+                            const text = await res.text();
+                            data = text ? JSON.parse(text) : {};
+                        } catch (err) {
+                            throw new Error(`Server returned non-JSON response (${res.status})`);
                         }
-                    } catch (e) { this.showToast('Resolution error: ' + e, 'error'); }
+                        if (!res.ok || data.success === false) {
+                            throw new Error(data.error || data.detail || `Request failed with status ${res.status}`);
+                        }
+                        this.reviewQueueItems.splice(index, 1);
+                        this.reviewQueueCount = this.reviewQueueItems.length;
+                        if (this.reviewCurrentIndex >= this.reviewQueueItems.length) {
+                            this.reviewCurrentIndex = Math.max(0, this.reviewQueueItems.length - 1);
+                        }
+                        this.loadStats();
+                        this.loadSongs(this.currentPage);
+                        this.showToast(`Song ${action === 'approve' ? 'Approved & Saved to Cloud' : 'Rejected'}`, action === 'approve' ? 'success' : 'info');
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (e) {
+                        this.showToast('Resolution error: ' + (e.message || e), 'error');
+                    }
                 },
 
                 pollAutoScraperStatus() {

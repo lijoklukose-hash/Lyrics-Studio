@@ -523,38 +523,42 @@ async def get_scraped_review_queue():
 @app.post("/api/scraper/review-resolve")
 async def resolve_scraped_review(data: dict = Body(...)):
     import sqlite3
-    raw_id = data.get("id")
-    action = data.get("action") # 'approve' or 'reject'
-    if not raw_id or action not in {'approve', 'reject'}:
-        raise HTTPException(status_code=400, detail="Valid raw ID and action ('approve'/'reject') required")
-    
-    conn = sqlite3.connect('scraped_raw_archive.db')
-    cur = conn.cursor()
-    cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id,))
-    row = cur.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Scrape record not found")
-    
-    title = data.get("title") or row[0]
-    lang = data.get("category") or row[1]
-    lyrics = data.get("lyrics") or row[2]
-    lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else (row[3] or "")
+    from app.raw_archive_manager import ARCHIVE_DB_PATH
+    try:
+        raw_id = data.get("id")
+        action = data.get("action") # 'approve' or 'reject'
+        if not raw_id or action not in {'approve', 'reject'}:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Valid raw ID and action ('approve'/'reject') required"})
+        
+        conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
+        cur = conn.cursor()
+        cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id,))
+        row = cur.fetchone()
+        
+        title = data.get("title") or (row[0] if row else "Untitled")
+        lang = data.get("category") or (row[1] if row else "Hindi")
+        lyrics = data.get("lyrics") or (row[2] if row else "")
+        lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else ((row[3] or "") if row else "")
 
-    if action == 'approve':
-        db_manager.save_song({
-            "title": title,
-            "category": lang,
-            "lyrics": lyrics,
-            "lyrics2": lyrics2,
-            "tags": data.get("tags", "")
-        }, sync_cloud=True)
-        cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id))
-    else:
-        cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))
-    conn.commit()
-    conn.close()
-    return {"success": True, "action": action}
+        if action == 'approve':
+            db_manager.save_song({
+                "title": title,
+                "category": lang,
+                "lyrics": lyrics,
+                "lyrics2": lyrics2,
+                "tags": data.get("tags", "")
+            }, sync_cloud=True)
+            if row:
+                cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id))
+        else:
+            if row:
+                cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True, "action": action}
+    except Exception as e:
+        print(f"Error in resolve_scraped_review: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 @app.post("/api/format-helper")
 async def format_lyrics_helper(data: dict = Body(...)):

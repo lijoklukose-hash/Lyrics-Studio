@@ -2,7 +2,8 @@ import sqlite3
 import os
 import datetime
 
-ARCHIVE_DB_PATH = 'scraped_raw_archive.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ARCHIVE_DB_PATH = os.path.join(os.path.dirname(BASE_DIR), 'scraped_raw_archive.db')
 
 def init_raw_archive(db_path=ARCHIVE_DB_PATH):
     conn = sqlite3.connect(db_path, timeout=60.0)
