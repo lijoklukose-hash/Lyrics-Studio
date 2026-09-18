@@ -601,12 +601,31 @@
                 <!-- Live Review Mode & Progress Log -->
                 <div class="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-200">
-                        <label class="flex items-center space-x-2.5 cursor-pointer">
-                            <input type="checkbox" x-model="autoScrapeRequireReview" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
-                            <span class="text-xs font-bold text-slate-800">
-                                🛡️ Verify & Approve Each Song Individually (Review Mode)
-                            </span>
-                        </label>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <label class="flex items-center space-x-2.5 cursor-pointer">
+                                <input type="checkbox" x-model="autoScrapeRequireReview" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+                                <span class="text-xs font-bold text-slate-800">
+                                    🛡️ Verify & Approve Each Song Individually (Review Mode)
+                                </span>
+                            </label>
+
+                            <div class="flex items-center space-x-2 border-l border-slate-200 pl-4">
+                                <label class="text-xs font-extrabold text-slate-600 flex items-center space-x-1">
+                                    <i data-lucide="filter" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                    <span>Target Language:</span>
+                                </label>
+                                <select x-model="autoScrapeLanguage" class="px-3 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs">
+                                    <option value="All">🌐 All Languages (6)</option>
+                                    <option value="Malayalam">Malayalam</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Hindi">Hindi</option>
+                                    <option value="Telugu">Telugu</option>
+                                    <option value="Kannada">Kannada</option>
+                                    <option value="English">English</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <button x-show="reviewQueueCount > 0" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm animate-pulse">
                             <i data-lucide="shield-check" class="w-4 h-4"></i>
                             <span>Review Pending Songs (<strong x-text="reviewQueueCount">0</strong>)</span>
@@ -1444,6 +1463,7 @@
 
                 // 1-Click Auto Scraper State
                 autoScrapeRequireReview: true,
+                autoScrapeLanguage: 'All',
                 reviewQueueModalOpen: false,
                 reviewQueueItems: [],
                 reviewQueueCount: 0,
@@ -2054,14 +2074,20 @@
                     if (this.autoScrapingActive) return;
                     this.autoScrapingActive = true;
                     try {
+                        const langs = this.autoScrapeLanguage === 'All' ? null : [this.autoScrapeLanguage];
                         await fetch('/api/scrape/preset/run', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ source: source, require_review: this.autoScrapeRequireReview })
+                            body: JSON.stringify({ 
+                                source: source, 
+                                languages: langs,
+                                require_review: this.autoScrapeRequireReview 
+                            })
                         });
                         this.pollAutoScraperStatus();
-                        const modeMsg = this.autoScrapeRequireReview ? ' (Review Mode ON: songs will queue for manual approval)' : ' (Auto Import Mode)';
-                        this.showToast(`Auto-scraper started for '${source}'${modeMsg}`, 'info');
+                        const langMsg = this.autoScrapeLanguage === 'All' ? 'All Languages' : this.autoScrapeLanguage;
+                        const modeMsg = this.autoScrapeRequireReview ? ' (Review Mode ON)' : ' (Auto Import Mode)';
+                        this.showToast(`Auto-scraper started for '${source}' - ${langMsg}${modeMsg}`, 'info');
                     } catch (e) {
                         this.showToast('Failed to start scraper: ' + e, 'error');
                         this.autoScrapingActive = false;
