@@ -343,13 +343,14 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
         scraped_urls = set()
         try:
             import sqlite3
-            conn_raw = sqlite3.connect('scraped_raw_archive.db')
+            from app.raw_archive_manager import ARCHIVE_DB_PATH
+            conn_raw = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
             cur_raw = conn_raw.cursor()
-            cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes")
-            scraped_urls = {row[0] for row in cur_raw.fetchall()}
+            cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status IN ('approved', 'rejected')")
+            scraped_urls = {row[0] for row in cur_raw.fetchall() if row[0]}
             conn_raw.close()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning fetching scraped_urls: {e}")
 
         if scraped_urls:
             candidate_items = [c for c in candidate_items if c.get('url') not in scraped_urls]

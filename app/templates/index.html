@@ -2141,7 +2141,16 @@
                         try {
                             const res = await fetch('/api/scrape/preset/status');
                             this.autoScraperState = await res.json();
-                            this.loadReviewQueue();
+                            // Do not stomp reviewQueueItems while the user is actively viewing/editing them in modal
+                            if (!this.reviewQueueModalOpen) {
+                                this.loadReviewQueue();
+                            } else {
+                                // Just update review count unobtrusively
+                                fetch('/api/scraper/review-queue')
+                                    .then(r => r.json())
+                                    .then(d => { if (d.queue) this.reviewQueueCount = d.queue.length; })
+                                    .catch(() => {});
+                            }
                             if (this.autoScraperState.status === 'running') {
                                 this.autoScrapingActive = true;
                             } else {

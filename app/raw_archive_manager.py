@@ -53,7 +53,10 @@ def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
                 title_cleaned = excluded.title_cleaned,
                 overall_confidence = excluded.overall_confidence,
                 duplicate_score = excluded.duplicate_score,
-                status = excluded.status
+                status = CASE 
+                    WHEN raw_scrapes.status IN ('approved', 'rejected') THEN raw_scrapes.status 
+                    ELSE excluded.status 
+                END
         ''', (
             data.get('source_url', ''),
             data.get('source_website', ''),

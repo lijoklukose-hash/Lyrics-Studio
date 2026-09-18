@@ -530,9 +530,10 @@ async def resolve_scraped_review(data: dict = Body(...)):
         if not raw_id or action not in {'approve', 'reject'}:
             return JSONResponse(status_code=400, content={"success": False, "error": "Valid raw ID and action ('approve'/'reject') required"})
         
+        raw_id_val = int(raw_id) if str(raw_id).isdigit() else raw_id
         conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
         cur = conn.cursor()
-        cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id,))
+        cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
         row = cur.fetchone()
         
         title = data.get("title") or (row[0] if row else "Untitled")
@@ -548,11 +549,9 @@ async def resolve_scraped_review(data: dict = Body(...)):
                 "lyrics2": lyrics2,
                 "tags": data.get("tags", "")
             }, sync_cloud=True)
-            if row:
-                cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id))
+            cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id_val))
         else:
-            if row:
-                cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))
+            cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id_val,))
         conn.commit()
         conn.close()
         return {"success": True, "action": action}
