@@ -75,6 +75,57 @@ def detect_language(text):
     else:
         return "English"
 
+def separate_mixed_script_lyrics(lyrics, lyrics2='', title=''):
+    """
+    If lyrics contains mixed native Indic script and Roman transliteration
+    (often packed together in a single container on some sites),
+    partition them cleanly so native Indic script goes to lyrics and
+    Roman transliteration goes to lyrics2.
+    """
+    if not lyrics:
+        return lyrics, lyrics2
+
+    stanzas = [s.strip() for s in lyrics.split('<BR><BR>') if s.strip()]
+    if not stanzas:
+        return lyrics, lyrics2
+
+    has_indic = has_indic_unicode(lyrics)
+    has_roman = bool(re.search(r'[a-zA-Z]', lyrics))
+
+    if not (has_indic and has_roman):
+        return lyrics, lyrics2
+
+    indic_stanzas = []
+    roman_stanzas = []
+
+    title_clean = re.sub(r'[^a-zA-Z0-9]', '', (title or '')).lower()
+
+    for st in stanzas:
+        lines = [l.strip() for l in st.split('<BR>') if l.strip()]
+        if not lines:
+            continue
+
+        # Skip stanzas that are solely an echo of the song title at the top
+        if len(lines) == 1 and title_clean:
+            first_clean = re.sub(r'[^a-zA-Z0-9]', '', lines[0]).lower()
+            if first_clean and first_clean == title_clean:
+                continue
+
+        indic_chars = len(re.findall(r'[\u0900-\u0D7F]', st))
+        roman_chars = len(re.findall(r'[a-zA-Z]', st))
+
+        if indic_chars >= roman_chars and indic_chars > 0:
+            indic_stanzas.append(st)
+        elif roman_chars > indic_chars:
+            roman_stanzas.append(st)
+
+    if indic_stanzas:
+        lyrics = '<BR><BR>'.join(indic_stanzas)
+        if not lyrics2 and roman_stanzas:
+            lyrics2 = '<BR><BR>'.join(roman_stanzas)
+
+    return lyrics, lyrics2
+
 def clean_and_format_lyrics(raw_html_or_text, title="", category=""):
     if not raw_html_or_text:
         return ""
@@ -157,6 +208,9 @@ def scrape_url(url, language_hint=None):
         if not lyrics:
             extractor = DOMStructureExtractor(soup)
             lyrics = extractor.extract_structured_stanzas()
+
+        # Unmix any dual native/roman lyrics packed in the same container
+        lyrics, lyrics2 = separate_mixed_script_lyrics(lyrics, lyrics2, title=title)
 
         # 3. Detect Language
         category = detect_language(lyrics)

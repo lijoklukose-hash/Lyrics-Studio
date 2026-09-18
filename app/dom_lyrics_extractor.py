@@ -28,6 +28,11 @@ UI_NOISE_PATTERNS = [
 ]
 UI_NOISE_REGEX = re.compile('|'.join(UI_NOISE_PATTERNS), re.IGNORECASE)
 
+VERSE_START_REGEX = re.compile(
+    r'^(?:[1-9]\d{0,1}[.)]?$|[1-9]\d{0,1}[.)\s]+[A-Za-z\u0900-\u0D7F]|(?:verse|chorus|stanza|refrain|bridge|intro|outro|pallavi|anupallavi|charanam|சரணம்|பல்லவி|చరణం|పల్లవి|ചരണം|പല്ലവി|चरण|पल्लवी)\b)',
+    re.IGNORECASE
+)
+
 CHORD_REGEX = re.compile(
     r'\[\s*[A-G][b#]?(?:m|maj|min|dim|aug|sus\d*|\d+)?(?:\/[A-G][b#]?)?\s*\]'
 )
@@ -123,8 +128,8 @@ class DOMStructureExtractor:
                 for idx, line in enumerate(lines):
                     cleaned = clean_chords(line).strip()
                     if cleaned:
-                        # If the line is a standalone verse/stanza number (e.g. '1', '2.', 'Verse 1:'), start a new stanza
-                        if re.match(r'^(?:[0-9]+[.)]?|(?:verse|chorus|stanza|refrain)\s*[0-9]*:?)$', cleaned, re.IGNORECASE):
+                        # If the line begins with a verse/stanza number or section label, start a new stanza
+                        if VERSE_START_REGEX.match(cleaned):
                             if current_lines:
                                 flush_stanza()
                         current_lines.append(cleaned)
