@@ -510,6 +510,12 @@ async def stop_preset_scraper():
     from app.scraper import stop_preset_auto_scraper
     return stop_preset_auto_scraper()
 
+@app.post("/api/scrape/preset/reset")
+async def reset_preset_scraper(data: dict = Body(...)):
+    from app.scraper import reset_preset_auto_scraper
+    clear_queue = data.get("clear_queue", False)
+    return reset_preset_auto_scraper(clear_queue=clear_queue)
+
 @app.get("/api/scrape/preset/status")
 async def get_preset_scraper_status():
     from app.scraper import auto_scraper_state

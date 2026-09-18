@@ -58,6 +58,33 @@ def stop_preset_auto_scraper():
         return {"success": True, "message": "Stop requested"}
     return {"success": False, "message": "Scraper is not running"}
 
+def reset_preset_auto_scraper(clear_queue=False):
+    global auto_scraper_state
+    auto_scraper_state["status"] = "idle"
+    auto_scraper_state["source"] = ""
+    auto_scraper_state["total_candidates"] = 0
+    auto_scraper_state["scanned"] = 0
+    auto_scraper_state["duplicates_skipped"] = 0
+    auto_scraper_state["needs_review"] = 0
+    auto_scraper_state["imported"] = 0
+    auto_scraper_state["current_song"] = ""
+    auto_scraper_state["message"] = "Ready to auto-scrape"
+    auto_scraper_state["stop_requested"] = False
+
+    if clear_queue:
+        try:
+            import sqlite3
+            from app.raw_archive_manager import ARCHIVE_DB_PATH
+            conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
+            cur = conn.cursor()
+            cur.execute("DELETE FROM raw_scrapes WHERE status = 'review'")
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error clearing review queue: {e}")
+
+    return {"success": True, "message": "Auto-scraper state reset"}
+
 def detect_language(text):
     if not text:
         return "English"
