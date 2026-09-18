@@ -2104,6 +2104,8 @@
                             })
                         });
                         this.pollAutoScraperStatus();
+                        const langMsg = this.autoScrapeLanguage === 'All' ? 'All Languages' : this.autoScrapeLanguage;
+                        const modeMsg = this.autoScrapeRequireReview ? ' (Review Mode ON)' : ' (Auto Import Mode)';
                         this.showToast(`Auto-scraper started for '${source}' - ${langMsg}${modeMsg}`, 'info');
                     } catch (e) {
                         this.showToast('Failed to start scraper: ' + e, 'error');
