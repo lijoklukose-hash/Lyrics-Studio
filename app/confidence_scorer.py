@@ -32,8 +32,8 @@ def compute_song_confidence(title: str, lyrics: str, category: str, source_domai
         else:
             lyrics_score = 50
             
-        # Check for residual HTML or script tags
-        if re.search(r'<[^B>][^R>]*>', lyrics, re.IGNORECASE):
+        # Check for residual HTML or script tags (excluding <BR> and <BR><BR>)
+        if re.search(r'<(?!/?br\s*/?>)[^>]+>', lyrics, re.IGNORECASE):
             lyrics_score -= 25
     else:
         lyrics_score = 0
@@ -51,8 +51,12 @@ def compute_song_confidence(title: str, lyrics: str, category: str, source_domai
         else:
             structure_score = 65
     elif len(stanzas) == 1:
-        # Single monolithic block
-        structure_score = 55
+        # Single stanza: if it's a short 4-8 line chorus, give it 70-75; monolithic block gets 55
+        st_lines = len(stanzas[0].split('<BR>'))
+        if 3 <= st_lines <= 8:
+            structure_score = 75
+        else:
+            structure_score = 55
     else:
         structure_score = 0
 

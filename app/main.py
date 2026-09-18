@@ -548,7 +548,7 @@ async def resolve_scraped_review(data: dict = Body(...)):
             "lyrics": lyrics,
             "lyrics2": lyrics2,
             "tags": data.get("tags", "")
-        })
+        }, sync_cloud=True)
         cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id))
     else:
         cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id,))

@@ -228,8 +228,8 @@ def scrape_url(url, language_hint=None):
                 if url_lang and url_lang != 'English':
                     category = url_lang
 
-        # 4. Transliteration fallback (auto-generate only when not already set)
-        if not lyrics2 and category not in ('English', None) and lyrics:
+        # 4. Transliteration fallback: only generate if lyrics contains native Indic Unicode and lyrics2 is empty
+        if not lyrics2 and category not in ('English', None) and lyrics and has_indic_unicode(lyrics):
             lyrics2 = generate_natural_transliteration(lyrics, category)
 
         # Transliterate native script title to English (Proper) Romanization
