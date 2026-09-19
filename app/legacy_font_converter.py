@@ -74,10 +74,10 @@ KARTHIKA_RULES = [
 def convert_karthika_to_malayalam(text: str) -> str:
     if not text:
         return ''
-    # Protect HTML tags
+    # Protect HTML tags using Private Use Area characters (\uE000...) that ASCII rules won't match
     placeholders = {}
     def repl_tag(m):
-        key = f"___HTML_TAG_{len(placeholders)}___"
+        key = f"\uE000\uE001{len(placeholders)}\uE002"
         placeholders[key] = m.group(0)
         return key
     t = re.sub(r'<[^>]+>', repl_tag, text)
@@ -85,6 +85,10 @@ def convert_karthika_to_malayalam(text: str) -> str:
         t = t.replace(src, dst)
     for key, orig in placeholders.items():
         t = t.replace(key, orig)
+    # Post-cleaner fallback: purge any residual corrupted placeholder tags or leftover PUA markers
+    t = re.sub(r'___[^\s_]+___', '', t)
+    t = re.sub(r'[\uE000-\uE00F][^\s<\>]*[\uE000-\uE00F]', '', t)
+    t = re.sub(r'[\uE000-\uE00F]', '', t)
     return t
 
 # ── Bamini → Tamil ─────────────────────────────────────────────────────────────

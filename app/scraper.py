@@ -20,6 +20,7 @@ from app.legacy_font_converter import (
     has_indic_unicode, looks_like_legacy_font,
     convert_legacy_lyrics, detect_category_from_url
 )
+from app.online_lyrics_search import smart_reconstruct_stanzas
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG_DIR = os.path.join(BASE_DIR, 'scraped_data')
@@ -238,6 +239,12 @@ def scrape_url(url, language_hint=None):
 
         # Unmix any dual native/roman lyrics packed in the same container
         lyrics, lyrics2 = separate_mixed_script_lyrics(lyrics, lyrics2, title=title)
+
+        # Ensure lyrics has proper stanza breaks (<BR><BR>) if missing
+        if lyrics and '<BR><BR>' not in lyrics:
+            reconstructed, _ = smart_reconstruct_stanzas(lyrics, category=language_hint or "Malayalam", title=title)
+            if reconstructed:
+                lyrics = reconstructed
 
         # 3. Detect Language
         category = detect_language(lyrics)
