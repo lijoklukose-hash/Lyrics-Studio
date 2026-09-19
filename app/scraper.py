@@ -391,9 +391,9 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
         imported_count = 0
         review_count = 0
-        chunk_size = 100
+        chunk_size = 20
 
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             for i in range(0, len(candidate_items), chunk_size):
                 chunk = candidate_items[i:i + chunk_size]
                 future_to_cand = {executor.submit(scrape_url, cand['url'], cand.get('language')): cand for cand in chunk}
@@ -436,7 +436,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             save_raw_scrape({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
-                                'raw_html': res.get('raw_html', '')[:50000],
+                                'raw_html': res.get('raw_html', '')[:1000],
                                 'raw_lyrics': lyrics,
                                 'cleaned_lyrics': lyrics,
                                 'lyrics2': lyrics2,
@@ -458,7 +458,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             save_raw_scrape({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
-                                'raw_html': res.get('raw_html', '')[:50000],
+                                'raw_html': res.get('raw_html', '')[:1000],
                                 'raw_lyrics': lyrics,
                                 'cleaned_lyrics': lyrics,
                                 'lyrics2': lyrics2,

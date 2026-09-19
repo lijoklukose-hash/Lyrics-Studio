@@ -83,7 +83,7 @@ def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH):
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute('''
-        SELECT * FROM raw_scrapes 
+        SELECT id, source_url, source_website, scraped_at, raw_lyrics, cleaned_lyrics, lyrics2, title_original, title_cleaned, language, overall_confidence, duplicate_score, matched_id, status FROM raw_scrapes 
         WHERE status = 'review' 
         ORDER BY overall_confidence DESC 
         LIMIT ?
