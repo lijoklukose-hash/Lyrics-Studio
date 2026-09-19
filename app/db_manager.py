@@ -3,7 +3,6 @@ import re
 import os
 import json
 import csv
-import openpyxl
 import requests
 import time
 import threading
