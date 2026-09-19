@@ -641,16 +641,18 @@ def generate_natural_transliteration(text, category):
                     cleaned_words.append(wt)
                 l = ' '.join(cleaned_words)
 
-        # Cleanup stray accents and Indic residual codepoints
-        l = re.sub(r'[èéòóàá^~`]', '', l)
+        # Global cleanup across all languages: strip residual Indic codepoints, accents, and broken web font glyphs
+        l = re.sub(r'[èéòóàá^~`\u00a0\u00ad\ufffd\u200b\u200c\u200d\u25cc]', '', l)
         l = re.sub(r'[\u0900-\u0D7F]', '', l)
 
         words = l.split()
         natural_words = []
         for w in words:
-            if not (w.isupper() and len(w) <= 3):
-                w = w.lower()
-            natural_words.append(w)
+            # Fix common phonetic spelling oddities across Romanized lyrics
+            w_clean = w
+            if not (w_clean.isupper() and len(w_clean) <= 3):
+                w_clean = w_clean.lower()
+            natural_words.append(w_clean)
 
         line_str = " ".join(natural_words)
         if line_str:

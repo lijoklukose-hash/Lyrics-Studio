@@ -202,18 +202,23 @@ def scrape_url(url, language_hint=None):
                 if eng_div:
                     extractor2 = DOMStructureExtractor(eng_div)
                     lyrics2 = extractor2.extract_structured_stanzas(eng_div)
-            elif is_waytochurch:
-                # Karthika legacy font (WayToChurch Malayalam and some others) –
-                # div#original contains garbled ASCII, not convertible.
-                # Use div#english (Manglish/Roman) as primary lyrics.
-                if eng_div:
+            elif looks_like_legacy_font(orig_text):
+                # Legacy ASCII font (Karthika, Bamini, KrutiDev, Baraha) – convert to native Unicode
+                extractor = DOMStructureExtractor(orig_div)
+                raw_extracted = extractor.extract_structured_stanzas(orig_div)
+                det_lang = language_hint or detect_category_from_url(url) or 'Malayalam'
+                converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
+                if has_indic_unicode(converted_native):
+                    lyrics = converted_native
+                    if eng_div:
+                        extractor2 = DOMStructureExtractor(eng_div)
+                        lyrics2 = extractor2.extract_structured_stanzas(eng_div)
+                elif eng_div:
                     extractor = DOMStructureExtractor(eng_div)
                     lyrics = extractor.extract_structured_stanzas(eng_div)
-                    # lyrics2 stays '' (lyrics IS already romanised)
-            else:
-                # Non-WayToChurch site with div#original but no Unicode – try full extraction
-                extractor = DOMStructureExtractor(soup)
-                lyrics = extractor.extract_structured_stanzas()
+            elif eng_div:
+                extractor = DOMStructureExtractor(eng_div)
+                lyrics = extractor.extract_structured_stanzas(eng_div)
 
         else:
             # No div#original – Madely, other sites
