@@ -26,7 +26,9 @@ def looks_like_legacy_font(text: str) -> bool:
     legacy_count = len(LEGACY_CHAR_RE.findall(text))
     if legacy_count >= 1:
         return True
-    # Also check if text has heavy non-standard ASCII sequences
+    # Also check if text has heavy non-standard ASCII sequences or bracketed font noise
+    if re.search(r'[a-zA-Z0-9\s]*[\[\]\{\}\\\/][a-zA-Z0-9\s]*', text):
+        return True
     words = text.split()
     odd_words = [w for w in words if re.search(r'[A-Za-z]+[0-9%`~^&[\]{}<>|\\_]+[A-Za-z]*', w)]
     return len(odd_words) >= 1
@@ -89,6 +91,9 @@ def convert_karthika_to_malayalam(text: str) -> str:
     t = re.sub(r'___[^\s_]+___', '', t)
     t = re.sub(r'[\uE000-\uE00F][^\s<\>]*[\uE000-\uE00F]', '', t)
     t = re.sub(r'[\uE000-\uE00F]', '', t)
+    # If conversion produced no Indic Unicode characters, purge non-Indic ASCII glyph artifacts
+    if not has_indic_unicode(t):
+        return ''
     return t
 
 # ── Bamini → Tamil ─────────────────────────────────────────────────────────────
@@ -142,6 +147,8 @@ def convert_bamini_to_tamil(text: str) -> str:
     res = text
     for src, dst in BAMINI_RULES:
         res = res.replace(src, dst)
+    if not has_indic_unicode(res):
+        return ''
     return res
 
 # ── Baraha → Kannada ──────────────────────────────────────────────────────────
@@ -173,6 +180,8 @@ def convert_baraha_to_kannada(text: str) -> str:
     res = text
     for src, dst in BARAHA_RULES:
         res = res.replace(src, dst)
+    if not has_indic_unicode(res):
+        return ''
     return res
 
 # ── Shusha & KrutiDev → Hindi ────────────────────────────────────────────────
@@ -235,6 +244,8 @@ def convert_shusha_to_hindi(text: str) -> str:
     res = text.replace('`', '`')
     for src, dst in SHUSHA_RULES:
         res = res.replace(src, dst)
+    if not has_indic_unicode(res):
+        return ''
     return res
 
 def convert_krutidev_to_hindi(text: str) -> str:
@@ -245,6 +256,8 @@ def convert_krutidev_to_hindi(text: str) -> str:
         res = res.replace(src, dst)
     for src, dst in SHUSHA_RULES:
         res = res.replace(src, dst)
+    if not has_indic_unicode(res):
+        return ''
     return res
 
 # ── Main dispatcher ────────────────────────────────────────────────────────────

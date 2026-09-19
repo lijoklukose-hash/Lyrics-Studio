@@ -215,8 +215,11 @@ def scrape_url(url, language_hint=None):
                         extractor2 = DOMStructureExtractor(eng_div)
                         lyrics2 = extractor2.extract_structured_stanzas(eng_div)
                 elif eng_div:
+                    # If Karthika/legacy font conversion fails to produce Indic Unicode,
+                    # use clean English/Manglish transliteration as main lyrics instead of garbled text
                     extractor = DOMStructureExtractor(eng_div)
                     lyrics = extractor.extract_structured_stanzas(eng_div)
+                    lyrics2 = ''
             elif eng_div:
                 extractor = DOMStructureExtractor(eng_div)
                 lyrics = extractor.extract_structured_stanzas(eng_div)
