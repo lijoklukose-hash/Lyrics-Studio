@@ -110,6 +110,8 @@ def check_duplicate_candidate(new_lyrics: str, new_category: str, existing_songs
             continue
         
         # 1. Exact canonical lyrics hash match (chord & script invariant)
+        if not song.get('sha256') and song.get('lyrics'):
+            song['sha256'] = compute_lyrics_sha256(song['lyrics'])
         if song.get('sha256') == new_hash and new_hash:
             return {
                 'status': 'exact_duplicate',

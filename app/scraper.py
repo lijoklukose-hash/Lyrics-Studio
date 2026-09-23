@@ -312,27 +312,12 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
     auto_scraper_state["stop_requested"] = False
 
     try:
-        # Load existing songs cache directly from Cloudflare D1 (or local DB as fallback)
-        existing_rows = []
-        if cloud_is_configured():
-            try:
-                from app.db_manager import CLOUDFLARE_D1_URL
-                auto_scraper_state["message"] = "Fetching verified song fingerprints directly from Cloudflare D1..."
-                
-                fetch_url = f"{CLOUDFLARE_D1_URL}/songs"
-                r = requests.get(fetch_url, timeout=30)
-                if r.status_code == 200:
-                    for item in r.json():
-                        existing_rows.append((item.get('id'), item.get('title'), item.get('category'), item.get('lyrics')))
-            except Exception as cloud_err:
-                print(f"Notice: Cloudflare D1 cache load fallback to local DB ({cloud_err})")
-
-        if not existing_rows:
-            conn = db_manager.get_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT id, title, category, lyrics FROM songs")
-            existing_rows = cur.fetchall()
-            conn.close()
+        # Load existing songs cache instantly from local database
+        conn = db_manager.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, category, lyrics FROM songs")
+        existing_rows = cur.fetchall()
+        conn.close()
 
         existing_songs_cache = [
             {
@@ -340,7 +325,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                 "title": r[1],
                 "category": r[2] or "Unknown",
                 "lyrics": r[3] or "",
-                "sha256": compute_lyrics_sha256(r[3] or ""),
+                "sha256": None,
                 "ngrams": None
             }
             for r in existing_rows
@@ -348,7 +333,9 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
         # Valid allowed 6 languages:
         valid_6_languages = {'Malayalam', 'Hindi', 'English', 'Tamil', 'Telugu', 'Kannada'}
-        if allowed_languages:
+        if source == "madely":
+            target_langs = ["Malayalam"]
+        elif allowed_languages:
             target_langs = [l for l in allowed_languages if l in valid_6_languages]
         else:
             target_langs = list(valid_6_languages)

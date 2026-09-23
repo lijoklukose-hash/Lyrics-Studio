@@ -586,14 +586,14 @@
                     </button>
 
                     <!-- MADELY ONLY -->
-                    <button @click="triggerPresetAutoScrape('madely')" :disabled="autoScrapingActive" class="p-5 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-3xl font-bold text-left transition-all duration-300 transform hover:-translate-y-1 shadow-xs flex flex-col justify-between space-y-4 disabled:opacity-50 border border-slate-300 group">
+                    <button @click="triggerPresetAutoScrape('madely')" :disabled="autoScrapingActive" class="p-5 bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-3xl font-bold text-left transition-all duration-300 transform hover:-translate-y-1 shadow-xs flex flex-col justify-between space-y-4 disabled:opacity-50 border border-amber-200 group">
                         <div class="flex items-center justify-between">
-                            <span class="p-2.5 bg-slate-800 text-white rounded-2xl group-hover:scale-110 transition-transform shadow-xs"><i data-lucide="music" class="w-5 h-5"></i></span>
-                            <span class="text-[10px] bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-bold border border-slate-300">Malayalam</span>
+                            <span class="p-2.5 bg-amber-600 text-white rounded-2xl group-hover:scale-110 transition-transform shadow-xs"><i data-lucide="music" class="w-5 h-5"></i></span>
+                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full font-bold border border-amber-200">Malayalam (7,835)</span>
                         </div>
                         <div>
-                            <h4 class="text-base font-extrabold text-slate-900">Madely Portal</h4>
-                            <p class="text-xs text-slate-600 font-medium mt-0.5">Malayalam & Manglish</p>
+                            <h4 class="text-base font-extrabold text-amber-950">Madely Portal</h4>
+                            <p class="text-xs text-amber-700 font-medium mt-0.5">Malayalam & Manglish</p>
                         </div>
                     </button>
                 </div>
@@ -2093,8 +2093,8 @@
                     if (this.autoScrapingActive) return;
                     this.autoScrapingActive = true;
                     try {
-                        const langs = this.autoScrapeLanguage === 'All' ? null : [this.autoScrapeLanguage];
-                        await fetch('/api/scrape/preset/run', {
+                        const langs = source === 'madely' ? ['Malayalam'] : (this.autoScrapeLanguage === 'All' ? null : [this.autoScrapeLanguage]);
+                        const res = await fetch('/api/scrape/preset/run', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ 
@@ -2103,10 +2103,12 @@
                                 require_review: this.autoScrapeRequireReview 
                             })
                         });
+                        const data = await res.json();
                         this.pollAutoScraperStatus();
-                        const langMsg = this.autoScrapeLanguage === 'All' ? 'All Languages' : this.autoScrapeLanguage;
+                        const langMsg = source === 'madely' ? 'Malayalam' : (this.autoScrapeLanguage === 'All' ? 'All Languages' : this.autoScrapeLanguage);
                         const modeMsg = this.autoScrapeRequireReview ? ' (Review Mode ON)' : ' (Auto Import Mode)';
-                        this.showToast(`Auto-scraper started for '${source}' - ${langMsg}${modeMsg}`, 'info');
+                        const srcName = source === 'madely' ? 'Madely Portal' : (source === 'waytochurch' ? 'WayToChurch' : 'All Sources');
+                        this.showToast(data.message || `Auto-scraper started for ${srcName} - ${langMsg}${modeMsg}`, 'info');
                     } catch (e) {
                         this.showToast('Failed to start scraper: ' + e, 'error');
                         this.autoScrapingActive = false;

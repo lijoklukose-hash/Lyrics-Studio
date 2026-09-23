@@ -5,75 +5,92 @@ import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ARCHIVE_DB_PATH = os.path.join(os.path.dirname(BASE_DIR), 'scraped_raw_archive.db')
 
+import threading
+
+_ARCHIVE_LOCK = threading.Lock()
+_INIT_DONE = False
+
 def init_raw_archive(db_path=ARCHIVE_DB_PATH):
-    conn = sqlite3.connect(db_path, timeout=60.0)
-    cur = conn.cursor()
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS raw_scrapes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_url TEXT UNIQUE,
-            source_website TEXT,
-            scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            raw_html TEXT,
-            raw_lyrics TEXT,
-            cleaned_lyrics TEXT,
-            lyrics2 TEXT,
-            title_original TEXT,
-            title_cleaned TEXT,
-            language TEXT,
-            overall_confidence REAL,
-            duplicate_score REAL,
-            matched_id INTEGER,
-            status TEXT DEFAULT 'pending'
-        )
-    ''')
-    try:
-        cur.execute("ALTER TABLE raw_scrapes ADD COLUMN lyrics2 TEXT")
-    except Exception:
-        pass
-    cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_url ON raw_scrapes(source_url)')
-    cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
-    conn.commit()
-    conn.close()
+    global _INIT_DONE
+    if _INIT_DONE:
+        return
+    with _ARCHIVE_LOCK:
+        if _INIT_DONE:
+            return
+        conn = sqlite3.connect(db_path, timeout=60.0)
+        cur = conn.cursor()
+        cur.execute("PRAGMA journal_mode = WAL")
+        cur.execute("PRAGMA synchronous = NORMAL")
+        cur.execute("PRAGMA busy_timeout = 60000")
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS raw_scrapes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_url TEXT UNIQUE,
+                source_website TEXT,
+                scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                raw_html TEXT,
+                raw_lyrics TEXT,
+                cleaned_lyrics TEXT,
+                lyrics2 TEXT,
+                title_original TEXT,
+                title_cleaned TEXT,
+                language TEXT,
+                overall_confidence REAL,
+                duplicate_score REAL,
+                matched_id INTEGER,
+                status TEXT DEFAULT 'pending'
+            )
+        ''')
+        try:
+            cur.execute("ALTER TABLE raw_scrapes ADD COLUMN lyrics2 TEXT")
+        except Exception:
+            pass
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_url ON raw_scrapes(source_url)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
+        conn.commit()
+        conn.close()
+        _INIT_DONE = True
 
 def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
     try:
         init_raw_archive(db_path)
-        conn = sqlite3.connect(db_path, timeout=60.0)
-        cur = conn.cursor()
-        cur.execute('''
-            INSERT INTO raw_scrapes (
-                source_url, source_website, raw_html, raw_lyrics,
-                cleaned_lyrics, lyrics2, title_original, title_cleaned,
-                language, overall_confidence, duplicate_score, matched_id, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(source_url) DO UPDATE SET
-                cleaned_lyrics = excluded.cleaned_lyrics,
-                lyrics2 = excluded.lyrics2,
-                title_cleaned = excluded.title_cleaned,
-                overall_confidence = excluded.overall_confidence,
-                duplicate_score = excluded.duplicate_score,
-                status = CASE 
-                    WHEN raw_scrapes.status IN ('approved', 'rejected') THEN raw_scrapes.status 
-                    ELSE excluded.status 
-                END
-        ''', (
-            data.get('source_url', ''),
-            data.get('source_website', ''),
-            data.get('raw_html', ''),
-            data.get('raw_lyrics', ''),
-            data.get('cleaned_lyrics', ''),
-            data.get('lyrics2', ''),
-            data.get('title_original', ''),
-            data.get('title_cleaned', ''),
-            data.get('language', ''),
-            data.get('overall_confidence', 0.0),
-            data.get('duplicate_score', 0.0),
-            data.get('matched_id'),
-            data.get('status', 'pending')
-        ))
-        conn.commit()
-        conn.close()
+        with _ARCHIVE_LOCK:
+            conn = sqlite3.connect(db_path, timeout=60.0)
+            cur = conn.cursor()
+            cur.execute("PRAGMA busy_timeout = 60000")
+            cur.execute('''
+                INSERT INTO raw_scrapes (
+                    source_url, source_website, raw_html, raw_lyrics,
+                    cleaned_lyrics, lyrics2, title_original, title_cleaned,
+                    language, overall_confidence, duplicate_score, matched_id, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(source_url) DO UPDATE SET
+                    cleaned_lyrics = excluded.cleaned_lyrics,
+                    lyrics2 = excluded.lyrics2,
+                    title_cleaned = excluded.title_cleaned,
+                    overall_confidence = excluded.overall_confidence,
+                    duplicate_score = excluded.duplicate_score,
+                    status = CASE 
+                        WHEN raw_scrapes.status IN ('approved', 'rejected') THEN raw_scrapes.status 
+                        ELSE excluded.status 
+                    END
+            ''', (
+                data.get('source_url', ''),
+                data.get('source_website', ''),
+                data.get('raw_html', ''),
+                data.get('raw_lyrics', ''),
+                data.get('cleaned_lyrics', ''),
+                data.get('lyrics2', ''),
+                data.get('title_original', ''),
+                data.get('title_cleaned', ''),
+                data.get('language', ''),
+                data.get('overall_confidence', 0.0),
+                data.get('duplicate_score', 0.0),
+                data.get('matched_id'),
+                data.get('status', 'pending')
+            ))
+            conn.commit()
+            conn.close()
     except Exception as e:
         print(f"Warning saving raw scrape: {e}")
 
