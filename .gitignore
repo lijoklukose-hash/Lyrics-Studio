@@ -10,14 +10,38 @@ env/
 __pycache__/
 *.pyc
 
-# Export Files
-Joyful noise_supabase_utf8.csv
-Joyful noise_supabase_utf8.json
-Joyful noise_supabase_utf8.xlsx
+# Export / Large Data Files (not for git)
+Joyful noise_supabase_utf8.*
+Joyful_noise_lyrics_corrected.csv
+songs_pre_clean_*.csv
+verseview_*.xlsx
+verseview_*.csv
+verseview_*.json
+scraped_data/scraped_songs.jsonl
+*.jsonl
+*.csv
+*.xlsx
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Firebase / Google Credentials (SECRETS — never commit)
+*firebase-adminsdk*.json
+*service-account*.json
+google-credentials*.json
+*.json.secret
+
+# Scripts containing Supabase/API secrets
+check_count_quick.py
+check_current_supabase_count.py
+inspect_joyful_noise.py
+inspect_raw_supabase_breaks.py
+test_supabase_connection.py
+test_supabase_upsert.py
+test_requests_supabase.py
+verify_live_supabase.py
+verify_live_supabase_clean.py
 
 # IDE / System
 .vscode/

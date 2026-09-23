@@ -1011,10 +1011,13 @@
                 </button>
             </div>
 
+            <!-- Modal Body + Footer: guarded with x-if so Alpine never evaluates editingSong.xxx when it's null -->
+            <template x-if="editingSong">
+                <div class="contents">
             <!-- Modal Body Content -->
             <div class="space-y-3.5 sm:space-y-6 py-3 sm:py-4 flex-1 overflow-y-auto">
                 <!-- Meta Details Grid -->
-                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4" x-if="editingSong">
+                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
                     <div class="col-span-2 md:col-span-2">
                         <label class="block text-xs font-bold text-slate-700 mb-1">Title</label>
                         <input type="text" x-model="editingSong.title" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500">
@@ -1091,7 +1094,7 @@
                                      </button>
                                      <button type="button" @click="pasteAndAutoDetectBreaks()" class="text-[10px] sm:text-[11px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 transition" title="Paste from clipboard & auto-format stanzas">
                                          <i data-lucide="clipboard-paste" class="w-3 h-3 text-indigo-600"></i>
-                                         <span>Paste & Format</span>
+                                         <span>Paste &amp; Format</span>
                                      </button>
                                      <button type="button" @click="convertFontToUnicode()" :disabled="convertingFont" class="text-[10px] sm:text-[11px] text-amber-700 hover:text-amber-900 font-bold flex items-center space-x-1 disabled:opacity-50 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200 transition" title="Convert legacy font (Karthika/Bamini/KrutiDev) to Unicode">
                                          <i data-lucide="type" class="w-3 h-3" :class="convertingFont ? 'animate-pulse' : ''"></i>
@@ -1135,11 +1138,11 @@
                             </button>
                         </div>
                         <div class="p-3.5 sm:p-5 bg-slate-900 text-slate-100 rounded-xl sm:rounded-2xl min-h-[160px] max-h-[300px] sm:max-h-[380px] sm:h-[380px] overflow-y-auto border border-slate-800 shadow-inner flex-1">
-                            <div x-show="editorPreviewTab === 'native'" class="lyrics-preview" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
-                            <div x-show="editorPreviewTab === 'translit'" class="lyrics-preview text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
+                            <div x-show="editorPreviewTab === 'native'" class="lyrics-preview" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong.lyrics || '')"></div>
+                            <div x-show="editorPreviewTab === 'translit'" class="lyrics-preview text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong.lyrics2 || '(No Transliteration)')"></div>
                             <div x-show="editorPreviewTab === 'dual'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800">
-                                <div class="lyrics-preview pr-2" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? editingSong.lyrics : '')"></div>
-                                <div class="lyrics-preview pt-3 sm:pt-0 sm:pl-4 text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong ? (editingSong.lyrics2 || '(No Transliteration)') : '')"></div>
+                                <div class="lyrics-preview pr-2" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong.lyrics || '')"></div>
+                                <div class="lyrics-preview pt-3 sm:pt-0 sm:pl-4 text-indigo-300 font-mono" :style="'font-size: ' + previewFontSize + 'px'" x-text="renderBreaks(editingSong.lyrics2 || '(No Transliteration)')"></div>
                             </div>
                         </div>
                     </div>
@@ -1153,9 +1156,11 @@
                 </button>
                 <button @click="saveEditingSong()" class="px-5 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all duration-200 flex items-center space-x-2 shadow-md shadow-indigo-600/20 hover:scale-105 active:scale-95">
                     <i data-lucide="save" class="w-4 h-4"></i>
-                    <span>Save & Sync</span>
+                    <span>Save &amp; Sync</span>
                 </button>
             </div>
+                </div>
+            </template>
         </div>
     </div>
 
@@ -1758,48 +1763,7 @@
                     this.$nextTick(() => lucide.createIcons());
                 },
 
-                async startBatchWebFix() {
-                    this.batchFixRunning = true;
-                    try {
-                        const res = await fetch('/api/batch-auto-fix/start', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                category: this.batchFixCategory,
-                                limit: parseInt(this.batchFixLimit) || 100,
-                                search_q: this.batchFixSearchQ || ''
-                            })
-                        });
-                        this.pollBatchFixStatus();
-                    } catch (e) {
-                        this.showToast('Start batch fix error: ' + e, 'error');
-                        this.batchFixRunning = false;
-                    }
-                },
 
-                async stopBatchWebFix() {
-                    try {
-                        await fetch('/api/batch-auto-fix/stop', { method: 'POST' });
-                    } catch (e) { console.error(e); }
-                },
-
-                pollBatchFixStatus() {
-                    if (this.batchFixTimer) clearInterval(this.batchFixTimer);
-                    this.batchFixTimer = setInterval(async () => {
-                        try {
-                            const res = await fetch('/api/batch-auto-fix/status');
-                            this.batchFixState = await res.json();
-                            if (this.batchFixState.status === 'completed' || this.batchFixState.status === 'stopped' || this.batchFixState.status === 'error') {
-                                clearInterval(this.batchFixTimer);
-                                this.batchFixRunning = false;
-                                this.loadSongs(this.currentPage);
-                                this.loadStats();
-                                this.showToast(this.batchFixState.message, this.batchFixState.status === 'completed' ? 'success' : 'info');
-                                this.$nextTick(() => lucide.createIcons());
-                            }
-                        } catch (e) { console.error(e); }
-                    }, 1000);
-                },
 
                 searchingWeb: false,
                 formattingAI: false,
