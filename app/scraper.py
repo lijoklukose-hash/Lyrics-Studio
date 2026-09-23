@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 
 from app.db_manager import db_manager, cloud_is_configured
-from app.dom_lyrics_extractor import DOMStructureExtractor
+from app.dom_lyrics_extractor import DOMStructureExtractor, clean_chords, is_ui_noise_line
 from app.title_extractor import extract_and_clean_title
 from app.confidence_scorer import compute_song_confidence
 from app.dedup_engine import check_duplicate_candidate, compute_lyrics_sha256, get_char_ngrams
@@ -98,10 +98,101 @@ def detect_language(text):
     else:
         return "English"
 
+def extract_madely_lyrics(soup):
+    """
+    Dedicated pristine extractor for Madely Portal (madely.us).
+    Extracts Malayalam native lyrics from table.LyricsTable, stripping singer role indicators (M/F/A).
+    Extracts Manglish transliteration from span.spanManglish.
+    """
+    native_stanzas = []
+    current_native_lines = []
+
+    # 1. Native Malayalam Extraction from table.LyricsTable inside div-lyric-text or PrintLyrics
+    lyrics_table = soup.find('table', class_='LyricsTable')
+    if lyrics_table:
+        for d in lyrics_table.find_all(['div', 'span'], style=re.compile(r'display:\s*none', re.IGNORECASE)):
+            d.decompose()
+        
+        for tr in lyrics_table.find_all('tr'):
+            tds = tr.find_all('td')
+            if not tds:
+                continue
+            
+            # The lyrics text is in the last cell (td.c2 or td:last-child)
+            lyr_td = tds[-1] if len(tds) > 1 else tds[0]
+            
+            # Replace <br> and <p> with \n
+            for br in lyr_td.find_all(['br', 'p']):
+                br.replace_with('\n')
+            
+            row_text = lyr_td.get_text()
+            lines = [l.strip() for l in row_text.split('\n') if l.strip()]
+            
+            for line in lines:
+                if re.match(r'^[—–\-_=~*#\s]{2,}$', line) or line in {'-----', '—', '-'}:
+                    if current_native_lines:
+                        native_stanzas.append('<BR>'.join(current_native_lines))
+                        current_native_lines = []
+                    continue
+                
+                cleaned = clean_chords(line).strip()
+                if re.match(r'^[MFAR]\s*$', cleaned, re.IGNORECASE):
+                    continue
+                if is_ui_noise_line(cleaned):
+                    continue
+                if cleaned:
+                    current_native_lines.append(cleaned)
+        
+        if current_native_lines:
+            native_stanzas.append('<BR>'.join(current_native_lines))
+
+    native_lyrics = '<BR><BR>'.join(native_stanzas) if native_stanzas else ''
+
+    # 2. Manglish Extraction from span.spanManglish / MangFont
+    manglish_stanzas = []
+    current_mang_lines = []
+    
+    mang_span = soup.find('span', class_=re.compile(r'spanManglish|MangFont'))
+    if mang_span:
+        for d in mang_span.find_all(['div', 'span'], style=re.compile(r'display:\s*none', re.IGNORECASE)):
+            d.decompose()
+        
+        for br in mang_span.find_all(['br', 'p']):
+            br.replace_with('\n')
+            
+        mang_text = mang_span.get_text()
+        for line in mang_text.split('\n'):
+            line_str = line.strip()
+            if not line_str:
+                if current_mang_lines:
+                    manglish_stanzas.append('<BR>'.join(current_mang_lines))
+                    current_mang_lines = []
+                continue
+            
+            if re.match(r'^[—–\-_=~*#\s]{2,}$', line_str) or line_str in {'-----', '—', '-'}:
+                if current_mang_lines:
+                    manglish_stanzas.append('<BR>'.join(current_mang_lines))
+                    current_mang_lines = []
+                continue
+                
+            cleaned = clean_chords(line_str).strip()
+            if re.match(r'^[MFAR]\s*$', cleaned, re.IGNORECASE):
+                continue
+            if is_ui_noise_line(cleaned):
+                continue
+            if cleaned:
+                current_mang_lines.append(cleaned)
+                
+        if current_mang_lines:
+            manglish_stanzas.append('<BR>'.join(current_mang_lines))
+
+    manglish_lyrics = '<BR><BR>'.join(manglish_stanzas) if manglish_stanzas else ''
+
+    return native_lyrics, manglish_lyrics
+
 def separate_mixed_script_lyrics(lyrics, lyrics2='', title=''):
     """
-    If lyrics contains mixed native Indic script and Roman transliteration
-    (often packed together in a single container on some sites),
+    If lyrics contains mixed native Indic script and Roman transliteration,
     partition them cleanly so native Indic script goes to lyrics and
     Roman transliteration goes to lyrics2.
     """
@@ -128,7 +219,6 @@ def separate_mixed_script_lyrics(lyrics, lyrics2='', title=''):
         if not lines:
             continue
 
-        # Skip stanzas that are solely an echo of the song title at the top
         if len(lines) == 1 and title_clean:
             first_clean = re.sub(r'[^a-zA-Z0-9]', '', lines[0]).lower()
             if first_clean and first_clean == title_clean:
@@ -173,75 +263,62 @@ def scrape_url(url, language_hint=None):
         # 1. Title Extraction with scoring
         title, t_score = extract_and_clean_title(soup, url=url)
 
-        # 2. DOM-Aware Hierarchical Extraction
-        #
-        # WayToChurch page anatomy:
-        #   div#original – native script tab (Malayalam uses legacy Karthika ASCII font,
-        #                  NOT Unicode; other langs use proper Unicode there)
-        #   div#english  – Roman/Manglish transliteration (always ASCII, always clean)
-        #
-        # Strategy:
-        #   • If div#original exists AND has Indic Unicode → use it as lyrics
-        #   • If div#original exists but has NO Indic Unicode (Karthika legacy) →
-        #       use div#english as lyrics (Manglish), set lyrics2 = '' (it is already roman)
-        #   • Otherwise (Madely / other sites) → full-page DOM extraction
-
-        orig_div = soup.find('div', id='original')
-        eng_div  = soup.find('div', id='english')
-
         lyrics  = ''
         lyrics2 = ''
-        is_waytochurch = 'waytochurch.com' in url
 
-        if orig_div:
-            orig_text = orig_div.get_text()
-            if has_indic_unicode(orig_text):
-                # Good Unicode in orig_div (Hindi, Tamil, Telugu, Kannada on WayToChurch)
-                extractor = DOMStructureExtractor(orig_div)
-                lyrics = extractor.extract_structured_stanzas(orig_div)
-                # Also pull English/Manglish transliteration
-                if eng_div:
-                    extractor2 = DOMStructureExtractor(eng_div)
-                    lyrics2 = extractor2.extract_structured_stanzas(eng_div)
-            elif looks_like_legacy_font(orig_text):
-                # Legacy ASCII font (Karthika, Bamini, KrutiDev, Baraha) – convert to native Unicode
-                extractor = DOMStructureExtractor(orig_div)
-                raw_extracted = extractor.extract_structured_stanzas(orig_div)
-                det_lang = language_hint or detect_category_from_url(url) or 'Malayalam'
-                converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
-                if has_indic_unicode(converted_native):
-                    lyrics = converted_native
+        # 2. Site-Specific High-Fidelity Extraction
+        if 'madely.us' in url.lower():
+            native_l, mang_l = extract_madely_lyrics(soup)
+            lyrics = native_l
+            lyrics2 = mang_l
+            category = 'Malayalam'
+
+        elif 'waytochurch.com' in url.lower():
+            orig_div = soup.find('div', id='original')
+            eng_div  = soup.find('div', id='english')
+
+            if orig_div:
+                orig_text = orig_div.get_text()
+                if has_indic_unicode(orig_text):
+                    extractor = DOMStructureExtractor(orig_div)
+                    lyrics = extractor.extract_structured_stanzas(orig_div)
                     if eng_div:
                         extractor2 = DOMStructureExtractor(eng_div)
                         lyrics2 = extractor2.extract_structured_stanzas(eng_div)
+                elif looks_like_legacy_font(orig_text):
+                    extractor = DOMStructureExtractor(orig_div)
+                    raw_extracted = extractor.extract_structured_stanzas(orig_div)
+                    det_lang = language_hint or detect_category_from_url(url) or 'Malayalam'
+                    converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
+                    if has_indic_unicode(converted_native):
+                        lyrics = converted_native
+                        if eng_div:
+                            extractor2 = DOMStructureExtractor(eng_div)
+                            lyrics2 = extractor2.extract_structured_stanzas(eng_div)
+                    elif eng_div:
+                        extractor = DOMStructureExtractor(eng_div)
+                        lyrics2 = extractor.extract_structured_stanzas(eng_div)
+                        lyrics = ''
                 elif eng_div:
-                    # If Karthika/legacy font conversion fails to produce Indic Unicode,
-                    # use clean English/Manglish transliteration as main lyrics instead of garbled text
                     extractor = DOMStructureExtractor(eng_div)
-                    lyrics = extractor.extract_structured_stanzas(eng_div)
-                    lyrics2 = ''
+                    lyrics2 = extractor.extract_structured_stanzas(eng_div)
             elif eng_div:
                 extractor = DOMStructureExtractor(eng_div)
-                lyrics = extractor.extract_structured_stanzas(eng_div)
+                lyrics2 = extractor.extract_structured_stanzas(eng_div)
 
-        else:
-            # No div#original – Madely, other sites
+        # Fallback for other portals or missed containers:
+        if not lyrics and not lyrics2:
             extractor = DOMStructureExtractor(soup)
             lyrics = extractor.extract_structured_stanzas()
 
-            # Some portals expose a separate transliteration span
             trans_div = soup.find('span', class_=re.compile(r'spanManglish|MangFont'))
             if trans_div:
                 extractor2 = DOMStructureExtractor(trans_div)
                 lyrics2 = extractor2.extract_structured_stanzas(trans_div)
 
-        # Final fallback: if we still have nothing, brute-force the full page
-        if not lyrics:
-            extractor = DOMStructureExtractor(soup)
-            lyrics = extractor.extract_structured_stanzas()
-
         # Unmix any dual native/roman lyrics packed in the same container
-        lyrics, lyrics2 = separate_mixed_script_lyrics(lyrics, lyrics2, title=title)
+        if lyrics:
+            lyrics, lyrics2 = separate_mixed_script_lyrics(lyrics, lyrics2, title=title)
 
         # Ensure lyrics has proper stanza breaks (<BR><BR>) if missing
         if lyrics and '<BR><BR>' not in lyrics:
@@ -249,12 +326,13 @@ def scrape_url(url, language_hint=None):
             if reconstructed:
                 lyrics = reconstructed
 
-        # 3. Detect Language
-        category = detect_language(lyrics)
+        # 3. Detect / Enforce Language
+        if not lyrics and lyrics2:
+            # If only Romanized lyrics exist, category comes from hint or URL
+            category = language_hint or detect_category_from_url(url) or 'Malayalam'
+        else:
+            category = detect_language(lyrics)
 
-        # Strictly enforce catalog language hint if provided and valid:
-        # If candidate came from a specific catalog (e.g. Malayalam, Tamil, Hindi, Telugu, Kannada),
-        # never let Romanized/Manglish/ASCII lyrics mistakenly flip the category to English.
         if language_hint and language_hint in {'Malayalam', 'Hindi', 'Tamil', 'Telugu', 'Kannada'}:
             category = language_hint
         elif category == 'English' or not category:
@@ -270,8 +348,11 @@ def scrape_url(url, language_hint=None):
             if has_indic_unicode(lyrics):
                 lyrics2 = generate_natural_transliteration(lyrics, category)
             else:
-                # Source lyrics were already scraped in Roman/English script (e.g. Romanized Tamil/Malayalam)
                 lyrics2 = lyrics
+
+        # If lyrics is empty but lyrics2 is present (pure transliteration source):
+        if not lyrics and lyrics2:
+            lyrics = lyrics2
 
         # Transliterate native script title to English (Proper) Romanization
         if re.search(r'[\u0900-\u0D7F]', title):
@@ -311,10 +392,10 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
     auto_scraper_state["stop_requested"] = False
 
     try:
-        # Load existing songs cache instantly from local database
+        # Load existing songs cache with both lyrics and lyrics2 for cross-script deduplication
         conn = db_manager.get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, title, category, lyrics FROM songs")
+        cur.execute("SELECT id, title, category, lyrics, lyrics2 FROM songs")
         existing_rows = cur.fetchall()
         conn.close()
 
@@ -324,8 +405,11 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                 "title": r[1],
                 "category": r[2] or "Unknown",
                 "lyrics": r[3] or "",
+                "lyrics2": r[4] or "",
                 "sha256": None,
-                "ngrams": None
+                "sha256_2": None,
+                "ngrams": None,
+                "ngrams2": None
             }
             for r in existing_rows
         ]
@@ -419,17 +503,30 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         conf = res.get('confidence', {})
                         overall_conf = conf.get('overall_confidence', 0.0)
 
-                        # Principle 5, 6, 7: Duplicate Check (Deep Chord & Title Invariant)
-                        dup_res = check_duplicate_candidate(lyrics, category, existing_songs_cache, new_title=title)
+                        # Principle 5, 6, 7: Multi-Vector Cross-Script Duplicate Check
+                        dup_res = check_duplicate_candidate(lyrics, category, existing_songs_cache, new_title=title, new_lyrics2=lyrics2)
                         dup_status = dup_res['status']
                         sim = dup_res['similarity']
+                        matched_id = dup_res.get('matched_id')
 
-                        # Save to Raw Scrape Archive (Principle 10)
-                        archive_status = 'approved' if (overall_conf >= 85.0 and sim < 0.80) else ('review' if (overall_conf >= 75.0 and sim < 0.98) else 'rejected')
-
-                        # Threshold Action:
+                        # Duplicate Action:
                         if dup_status in ['exact_duplicate', 'near_duplicate']:
                             auto_scraper_state["duplicates_skipped"] += 1
+                            
+                            # If existing song lacks lyrics2 and candidate has clean lyrics2, enrich it!
+                            if matched_id and lyrics2 and lyrics2.strip():
+                                try:
+                                    conn_enr = db_manager.get_connection()
+                                    cur_enr = conn_enr.cursor()
+                                    cur_enr.execute("SELECT lyrics2 FROM songs WHERE id = ?", (matched_id,))
+                                    r_enr = cur_enr.fetchone()
+                                    if r_enr and (not r_enr[0] or not r_enr[0].strip()):
+                                        cur_enr.execute("UPDATE songs SET lyrics2 = ? WHERE id = ?", (lyrics2, matched_id))
+                                        conn_enr.commit()
+                                    conn_enr.close()
+                                except Exception:
+                                    pass
+
                             save_raw_scrape({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
@@ -442,13 +539,14 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'language': category,
                                 'overall_confidence': overall_conf,
                                 'duplicate_score': sim,
-                                'matched_id': dup_res.get('matched_id'),
+                                'matched_id': matched_id,
                                 'status': 'rejected'
                             })
                             continue
 
-                        # If strict review mode is ON (require_manual_review=True),
-                        # or if candidate scored in review threshold, send to Review Queue.
+                        # Save to Raw Scrape Archive
+                        archive_status = 'approved' if (overall_conf >= 85.0 and sim < 0.80) else ('review' if (overall_conf >= 70.0 and sim < 0.95) else 'rejected')
+
                         if require_manual_review or archive_status == 'review':
                             review_count += 1
                             auto_scraper_state["needs_review"] = review_count
@@ -464,7 +562,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'language': category,
                                 'overall_confidence': overall_conf,
                                 'duplicate_score': sim,
-                                'matched_id': dup_res.get('matched_id'),
+                                'matched_id': matched_id,
                                 'status': 'review'
                             })
                             auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
@@ -475,7 +573,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             save_raw_scrape({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
-                                'raw_html': res.get('raw_html', '')[:50000],
+                                'raw_html': res.get('raw_html', '')[:10000],
                                 'raw_lyrics': lyrics,
                                 'cleaned_lyrics': lyrics,
                                 'lyrics2': lyrics2,
@@ -484,7 +582,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'language': category,
                                 'overall_confidence': overall_conf,
                                 'duplicate_score': sim,
-                                'matched_id': dup_res.get('matched_id'),
+                                'matched_id': matched_id,
                                 'status': 'rejected'
                             })
                             continue
@@ -492,7 +590,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         save_raw_scrape({
                             'source_url': cand['url'],
                             'source_website': cand['source_name'],
-                            'raw_html': res.get('raw_html', '')[:50000],
+                            'raw_html': res.get('raw_html', '')[:10000],
                             'raw_lyrics': lyrics,
                             'cleaned_lyrics': lyrics,
                             'lyrics2': lyrics2,
@@ -501,7 +599,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             'language': category,
                             'overall_confidence': overall_conf,
                             'duplicate_score': sim,
-                            'matched_id': dup_res.get('matched_id'),
+                            'matched_id': matched_id,
                             'status': 'approved'
                         })
 
@@ -525,8 +623,11 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             "title": title,
                             "category": category,
                             "lyrics": lyrics,
+                            "lyrics2": lyrics2,
                             "sha256": compute_lyrics_sha256(lyrics),
-                            "ngrams": get_char_ngrams(lyrics, 3)
+                            "sha256_2": compute_lyrics_sha256(lyrics2) if lyrics2 else None,
+                            "ngrams": get_char_ngrams(lyrics, 3),
+                            "ngrams2": get_char_ngrams(lyrics2, 3) if lyrics2 else None
                         })
 
                         auto_scraper_state["message"] = f"Imported: {title} ({imported_count} saved, {review_count} in review queue)"
