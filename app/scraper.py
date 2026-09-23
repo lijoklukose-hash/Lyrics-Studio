@@ -343,15 +343,19 @@ def scrape_url(url, language_hint=None):
                 if url_lang and url_lang != 'English':
                     category = url_lang
 
-        # 4. Transliteration fallback: generate if lyrics2 is empty and category is non-English
-        if not lyrics2 and category not in ('English', None) and lyrics:
+        # 4. Transliteration fallback: generate or fix if lyrics2 is empty or truncated
+        lyr1_lines = len([l for l in (lyrics or '').replace('<BR><BR>', '<BR>').split('<BR>') if l.strip()])
+        lyr2_lines = len([l for l in (lyrics2 or '').replace('<BR><BR>', '<BR>').split('<BR>') if l.strip()])
+
+        # If lyrics2 has only 1-2 lines while native lyrics has full stanzas (e.g. 6+ lines), regenerate full transliteration
+        if (not lyrics2 or (lyr1_lines >= 4 and lyr2_lines <= 2)) and category not in ('English', None) and lyrics:
             if has_indic_unicode(lyrics):
                 lyrics2 = generate_natural_transliteration(lyrics, category)
-            else:
+            elif not lyrics2:
                 lyrics2 = lyrics
 
-        # If lyrics is empty but lyrics2 is present (pure transliteration source):
-        if not lyrics and lyrics2:
+        # If lyrics is empty or 1-2 line stub while lyrics2 is full:
+        if (not lyrics or (lyr2_lines >= 4 and lyr1_lines <= 2)) and lyrics2:
             lyrics = lyrics2
 
         # Transliterate native script title to English (Proper) Romanization

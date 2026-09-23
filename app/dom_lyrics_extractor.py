@@ -53,10 +53,12 @@ def clean_chords(text: str) -> str:
     if not text:
         return ''
     text = CHORD_REGEX.sub('', text)
+    # Strip emojis including musical notes 🎵 🎶 🎸 🎹 🎤 etc.
+    text = re.sub(r'[\U00010000-\U0010ffff\ud800-\udbff\udc00-\udfff]', '', text)
     # Clean broken web character encodings, soft hyphens, and dangling font artifacts (e.g. ோ, ிீ)
-    text = re.sub(r'[\u00a0\u00ad\ufffd\u200b\u200c\u200d\u25cc]', '', text)
+    text = re.sub(r'[\u00a0\u00ad\ufffd\u200b\u200c\u200d\u25cc\u266a-\u266f]', '', text)
     text = re.sub(r'[\u0b82\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc]\u0bbf|\u0bbf\u0bc6|[\u0b82-\u0bcd]{3,}', '', text)
-    return text
+    return text.strip()
 
 class DOMStructureExtractor:
     def __init__(self, soup_or_html):
