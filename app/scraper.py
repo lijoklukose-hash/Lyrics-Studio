@@ -72,14 +72,15 @@ def reset_preset_auto_scraper(clear_queue=False):
     auto_scraper_state["message"] = "Ready to auto-scrape"
     auto_scraper_state["stop_requested"] = False
 
+    cleared_count = 0
     if clear_queue:
         try:
             from app.raw_archive_manager import clear_review_queue
-            clear_review_queue()
+            cleared_count = clear_review_queue()
         except Exception as e:
             print(f"Error clearing review queue: {e}")
 
-    return {"success": True, "message": "Auto-scraper state reset"}
+    return {"success": True, "message": "Auto-scraper state reset", "cleared_count": cleared_count}
 
 def detect_language(text):
     if not text:
@@ -387,7 +388,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
             from app.raw_archive_manager import ARCHIVE_DB_PATH
             conn_raw = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
             cur_raw = conn_raw.cursor()
-            cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status IN ('approved', 'rejected')")
+            cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status IN ('approved', 'rejected', 'review')")
             scraped_urls = {row[0] for row in cur_raw.fetchall() if row[0]}
             conn_raw.close()
         except Exception as e:

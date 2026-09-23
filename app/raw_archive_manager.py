@@ -97,6 +97,8 @@ def clear_review_queue(db_path=ARCHIVE_DB_PATH):
     init_raw_archive(db_path)
     conn = sqlite3.connect(db_path, timeout=60.0)
     cur = conn.cursor()
+    cur.execute("PRAGMA journal_mode = WAL")
+    cur.execute("PRAGMA synchronous = NORMAL")
     cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE status = 'review'")
     count = cur.rowcount
     conn.commit()
