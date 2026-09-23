@@ -157,11 +157,13 @@ def extract_madely_lyrics(soup):
         for d in mang_span.find_all(['div', 'span'], style=re.compile(r'display:\s*none', re.IGNORECASE)):
             d.decompose()
         
-        for br in mang_span.find_all(['br', 'p']):
-            br.replace_with('\n')
+        # Convert internal html representation converting all variations of <br> and <p> to newline
+        inner_html = ''.join(str(c) for c in mang_span.contents)
+        inner_html = re.sub(r'</?(?:p|div|section|tr|li)[^>]*>', '\n\n', inner_html, flags=re.IGNORECASE)
+        inner_html = re.sub(r'<br\s*/?>', '\n', inner_html, flags=re.IGNORECASE)
+        inner_html = re.sub(r'<[^>]+>', '', inner_html)
             
-        mang_text = mang_span.get_text()
-        for line in mang_text.split('\n'):
+        for line in inner_html.split('\n'):
             line_str = line.strip()
             if not line_str:
                 if current_mang_lines:
@@ -256,7 +258,10 @@ def scrape_url(url, language_hint=None):
     try:
         res = session.get(url, headers=HEADERS, timeout=12)
         res.raise_for_status()
-        res.encoding = res.apparent_encoding or 'utf-8'
+        if 'madely.us' in url.lower() or 'waytochurch.com' in url.lower():
+            res.encoding = 'utf-8'
+        else:
+            res.encoding = res.apparent_encoding or 'utf-8'
         raw_html = res.text
         soup = BeautifulSoup(raw_html, 'html.parser')
 
