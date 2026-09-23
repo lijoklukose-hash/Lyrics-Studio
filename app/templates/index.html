@@ -1318,10 +1318,8 @@
                 </button>
             </div>
 
-            <!-- Queue Items List -->
+            <!-- Queue Items List Container -->
             <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-            <!-- Single-Song Review Card Container -->
-            <div class="flex-1 overflow-y-auto pr-1">
                 <template x-if="reviewQueueItems.length > 0 && reviewQueueItems[reviewCurrentIndex]">
                     <div class="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
                         <!-- Top Bar: Progress, Counter & Action Buttons -->
@@ -1554,6 +1552,22 @@
                     setTimeout(() => {
                         this.testCloudConnection(false); // silent check after UI is completely rendered
                     }, 2500);
+
+                    // 3. Auto-wakeup listener when Chrome tab unfreezes/regains focus
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'visible') {
+                            this.loadStats();
+                            this.pollAutoScraperStatus();
+                            this.loadReviewQueue();
+                            if (this.batchFixRunning) this.pollBatchFixStatus();
+                            if (this.syncing) this.pollSyncStatus();
+                        }
+                    });
+                    window.addEventListener('focus', () => {
+                        this.loadStats();
+                        this.pollAutoScraperStatus();
+                        this.loadReviewQueue();
+                    });
 
                     this.$nextTick(() => lucide.createIcons());
                 },
@@ -2134,8 +2148,9 @@
                 async openReviewQueueModal() {
                     this.reviewCurrentIndex = 0;
                     this.reviewScriptTab = 'native';
-                    await this.loadReviewQueue();
                     this.reviewQueueModalOpen = true;
+                    this.$nextTick(() => lucide.createIcons());
+                    await this.loadReviewQueue();
                     this.$nextTick(() => lucide.createIcons());
                 },
 
