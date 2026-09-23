@@ -182,14 +182,14 @@
                 </a>
 
                 <!-- SYNC FROM CLOUD (PULL) -->
-                <button @click="triggerCloudPull()" :disabled="syncing" class="px-2 sm:px-3.5 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Pull all verified songs from Supabase Cloud">
+                <button @click="triggerCloudPull()" :disabled="syncing" class="px-2 sm:px-3.5 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Pull all verified songs from Cloud Database">
                     <i data-lucide="cloud-download" class="w-3.5 h-3.5" :class="syncing ? 'animate-bounce' : ''"></i>
                     <span class="hidden sm:inline">Sync from Cloud</span>
                     <span class="sm:hidden text-[11px]">Pull</span>
                 </button>
 
                 <!-- PUSH TO CLOUD -->
-                <button @click="triggerCloudSync()" :disabled="syncing" class="px-2 sm:px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Upload local songs to Supabase Cloud">
+                <button @click="triggerCloudSync()" :disabled="syncing" class="px-2 sm:px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center space-x-1 sm:space-x-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-105 active:scale-95" title="Upload local songs to Cloud Database">
                     <i data-lucide="cloud-upload" class="w-3.5 h-3.5" :class="syncing ? 'animate-spin' : ''"></i>
                     <span class="hidden sm:inline">Push to Cloud</span>
                     <span class="sm:hidden text-[11px]">Push</span>
@@ -556,7 +556,7 @@
                         <span>1-Click Autonomous Harvester Engine</span>
                     </div>
                     <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Auto-Scrape All Sources & Filter Duplicates</h2>
-                    <p class="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">Single-click automatic scraping from <strong>WayToChurch</strong> (all 6 languages) and <strong>Madely</strong> (Malayalam). Automatically strips chords, formats stanzas into <code>&lt;BR&gt;/&lt;BR&gt;&lt;BR&gt;</code>, translates to English transliteration, <strong>skips existing duplicates</strong>, and syncs directly to your database & Supabase.</p>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">Single-click automatic scraping from <strong>WayToChurch</strong> (all 6 languages) and <strong>Madely</strong> (Malayalam). Automatically strips chords, formats stanzas into <code>&lt;BR&gt;/&lt;BR&gt;&lt;BR&gt;</code>, translates to English transliteration, <strong>skips existing duplicates</strong>, and syncs directly to your database & Cloud.</p>
                 </div>
 
                 <!-- 1-Click Action Cards -->
@@ -861,7 +861,7 @@
         <!-- ==================== TAB 4: CLOUD SYNC & EXPORTS ==================== -->
         <div x-show="currentTab === 'cloud'" x-cloak x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-4 sm:space-y-6 max-w-5xl mx-auto">
             
-            <!-- SUPABASE CLOUD CONNECTION STATUS CARD -->
+            <!-- CLOUD DATABASE CONNECTION STATUS CARD -->
             <div class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200 space-y-5 sm:space-y-6 relative overflow-hidden">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-5">
                     <div class="flex items-center space-x-3.5">
@@ -870,15 +870,15 @@
                         </div>
                         <div>
                             <div class="flex items-center space-x-2">
-                                <h2 class="text-xl font-extrabold text-slate-900">Supabase Cloud Database</h2>
-                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold" :class="supabaseRemoteCount !== null ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'" x-text="supabaseRemoteCount !== null ? '🟢 Connected & Live' : '🟡 Ready to Connect'"></span>
+                                <h2 class="text-xl font-extrabold text-slate-900">Cloud Database (Cloudflare D1)</h2>
+                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold" :class="cloudRemoteCount !== null ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'" x-text="cloudRemoteCount !== null ? '🟢 Connected & Live' : '🟡 Ready to Connect'"></span>
                             </div>
-                            <p class="text-xs text-slate-500 mt-0.5">Table: <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono font-bold">Joyful Noise</code> • Real-time 2-way sync with your mobile app and web clients.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Table: <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono font-bold">Joyful_Noise</code> • Real-time 2-way sync with your mobile app and web clients.</p>
                         </div>
                     </div>
 
                     <div class="flex items-center space-x-2">
-                        <button @click="testSupabaseConnection()" :disabled="testingConnection" class="px-3.5 sm:px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center space-x-2 border border-slate-200 shadow-xs active:scale-95">
+                        <button @click="testCloudConnection()" :disabled="testingConnection" class="px-3.5 sm:px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center space-x-2 border border-slate-200 shadow-xs active:scale-95">
                             <i data-lucide="activity" class="w-4 h-4 text-emerald-600" :class="testingConnection ? 'animate-pulse' : ''"></i>
                             <span x-text="testingConnection ? 'Testing...' : 'Test Connection'"></span>
                         </button>
@@ -892,10 +892,10 @@
                         <div class="space-y-1.5">
                             <div class="flex items-center justify-between">
                                 <span class="p-2 bg-indigo-600 text-white rounded-xl shadow-xs"><i data-lucide="cloud-download" class="w-5 h-5"></i></span>
-                                <span class="text-[10px] bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-indigo-200">Supabase → App</span>
+                                <span class="text-[10px] bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-indigo-200">Cloud → App</span>
                             </div>
                             <h3 class="text-base font-extrabold text-slate-900">Sync from Cloud (Pull / Download)</h3>
-                            <p class="text-xs text-slate-600 leading-relaxed">Download all verified songs from Supabase table <code class="font-bold text-indigo-700">Joyful Noise</code> directly into this web app and update your local SQLite database & export files.</p>
+                            <p class="text-xs text-slate-600 leading-relaxed">Download all verified songs from Cloud database directly into this web app and update your local SQLite database & export files.</p>
                         </div>
                         <button @click="triggerCloudPull()" :disabled="syncing" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
                             <i data-lucide="cloud-download" class="w-4 h-4" :class="syncing ? 'animate-bounce' : ''"></i>
@@ -908,10 +908,10 @@
                         <div class="space-y-1.5">
                             <div class="flex items-center justify-between">
                                 <span class="p-2 bg-emerald-600 text-white rounded-xl shadow-xs"><i data-lucide="cloud-upload" class="w-5 h-5"></i></span>
-                                <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-emerald-200">App → Supabase</span>
+                                <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-emerald-200">App → Cloud</span>
                             </div>
                             <h3 class="text-base font-extrabold text-slate-900">Push to Cloud (Upload)</h3>
-                            <p class="text-xs text-slate-600 leading-relaxed">Upload all verified songs from this web app to remote Supabase table <code class="font-bold text-emerald-700">Joyful Noise</code> with automatic duplicate resolution.</p>
+                            <p class="text-xs text-slate-600 leading-relaxed">Upload all verified songs from this web app to remote Cloud table with automatic duplicate resolution.</p>
                         </div>
                         <button @click="triggerCloudSync()" :disabled="syncing" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
                             <i data-lucide="cloud-upload" class="w-4 h-4" :class="syncing ? 'animate-spin' : ''"></i>
@@ -920,7 +920,7 @@
                     </div>
                 </div>
 
-                <!-- Live Supabase Status Strip -->
+                <!-- Live Cloud Status Strip -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
                         <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Local Verified Songs</span>
@@ -928,11 +928,11 @@
                     </div>
                     <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
                         <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cloud Table Target</span>
-                        <div class="text-2xl font-black text-emerald-700 font-mono mt-1">Joyful Noise</div>
+                        <div class="text-2xl font-black text-emerald-700 font-mono mt-1">Joyful_Noise</div>
                     </div>
                     <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
                         <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Remote Synced Count</span>
-                        <div class="text-2xl font-black text-indigo-700 font-mono mt-1" x-text="supabaseRemoteCount !== null ? supabaseRemoteCount.toLocaleString() : '25,056'"></div>
+                        <div class="text-2xl font-black text-indigo-700 font-mono mt-1" x-text="cloudRemoteCount !== null ? cloudRemoteCount.toLocaleString() : '25,056'"></div>
                     </div>
                 </div>
 
@@ -1526,7 +1526,7 @@
                 // Sync state
                 syncing: false,
                 testingConnection: false,
-                supabaseRemoteCount: null,
+                cloudRemoteCount: null,
                 syncState: { status: 'idle', progress: 0, total: 25056, message: 'Ready to synchronize' },
                 pollTimer: null,
 
@@ -1547,7 +1547,7 @@
                     }, 1200);
                     
                     setTimeout(() => {
-                        this.testSupabaseConnection(false); // silent check after UI is completely rendered
+                        this.testCloudConnection(false); // silent check after UI is completely rendered
                     }, 2500);
 
                     this.$nextTick(() => lucide.createIcons());
@@ -2372,7 +2372,7 @@
                     if (!confirm('Start full cloud sync to Cloudflare D1?')) return;
                     this.syncing = true;
                     try {
-                        await fetch('/api/sync/supabase', { method: 'POST' });
+                        await fetch('/api/sync/push', { method: 'POST' });
                         this.pollSyncStatus();
                         this.showToast('Cloud synchronization started...', 'info');
                     } catch (e) {
@@ -2443,13 +2443,13 @@
                     }, 2000);
                 },
 
-                async testSupabaseConnection(showToast = true) {
+                async testCloudConnection(showToast = true) {
                     this.testingConnection = true;
                     try {
                         const res = await fetch('/api/sync/test-connection');
                         const data = await res.json();
                         if (data.success) {
-                            this.supabaseRemoteCount = data.remote_count;
+                            this.cloudRemoteCount = data.remote_count;
                             if (showToast) this.showToast(`Connected to Cloudflare D1! Remote has ${data.remote_count.toLocaleString()} songs.`, 'success');
                         } else {
                             if (showToast) this.showToast('Cloudflare D1 connection error: ' + data.message, 'error');
@@ -2471,7 +2471,7 @@
                             if (this.syncState.status === 'completed' || this.syncState.status === 'error') {
                                 clearInterval(this.pollTimer);
                                 this.syncing = false;
-                                this.testSupabaseConnection();
+                                this.testCloudConnection();
                                 this.loadStats();
                                 this.loadSongs(1);
                                 this.showToast(this.syncState.message, this.syncState.status === 'completed' ? 'success' : 'error');

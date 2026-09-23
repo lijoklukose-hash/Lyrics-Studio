@@ -33,13 +33,13 @@ sync_state = {
 
 @app.on_event("startup")
 def auto_pull_on_startup():
-    """Automatically pull and sync full song database from Supabase Cloud on app startup."""
+    """Automatically pull and sync full song database from Cloud database on app startup."""
     if cloud_is_configured():
         def _initial_pull():
             try:
-                print("App Startup: Initializing automatic sync from Supabase Cloud...")
-                background_supabase_pull()
-                print("App Startup: Supabase Cloud auto-sync completed successfully!")
+                print("App Startup: Initializing automatic sync from Cloud database...")
+                background_cloud_pull()
+                print("App Startup: Cloud database auto-sync completed successfully!")
             except Exception as e:
                 print(f"App Startup: Cloud auto-sync notice ({e})")
         threading.Thread(target=_initial_pull, daemon=True).start()
@@ -265,17 +265,17 @@ async def export_json():
     )
 
 # --- Cloud Sync Endpoints ---
-def background_supabase_pull():
+def background_cloud_pull():
     global sync_state
     sync_state["status"] = "syncing"
-    sync_state["message"] = "Connecting to Cloudflare D1 database..."
+    sync_state["message"] = "Connecting to Cloud database..."
     sync_state["progress"] = 0
     sync_state["total"] = 0
 
     try:
         from app.db_manager import cloud_is_configured, CLOUDFLARE_D1_URL
         if not cloud_is_configured():
-            raise RuntimeError("Cloudflare D1 is not configured.")
+            raise RuntimeError("Cloud database is not configured.")
             
         url = f"{CLOUDFLARE_D1_URL}/songs?since=0"
         r = requests.get(url, timeout=30)
@@ -284,11 +284,11 @@ def background_supabase_pull():
         remote_count = len(all_downloaded)
         
         if remote_count == 0:
-            raise RuntimeError("Cloudflare D1 database returned 0 records.")
+            raise RuntimeError("Cloud database returned 0 records.")
 
         sync_state["total"] = remote_count
         sync_state["progress"] = remote_count
-        sync_state["message"] = f"Downloaded {remote_count:,} songs from Cloudflare D1. Populating local database..."
+        sync_state["message"] = f"Downloaded {remote_count:,} songs from Cloud. Populating local database..."
         
         # Replace local sqlite DB
         inserted_db = False
@@ -351,16 +351,16 @@ def background_supabase_pull():
 
         sync_state["status"] = "completed"
         sync_state["progress"] = len(all_downloaded)
-        sync_state["message"] = f"Successfully synced {len(all_downloaded):,} songs from Cloudflare D1 into local app!"
+        sync_state["message"] = f"Successfully synced {len(all_downloaded):,} songs from Cloud into local app!"
 
     except Exception as e:
         sync_state["status"] = "error"
         sync_state["message"] = f"Sync from Cloud failed: {str(e)}"
 
-def background_supabase_sync():
+def background_cloud_sync():
     global sync_state
     sync_state["status"] = "syncing"
-    sync_state["message"] = "Preparing dataset & pushing to Cloudflare D1..."
+    sync_state["message"] = "Preparing dataset & pushing to Cloud database..."
     
     try:
         db_manager.export_all_local_files()
@@ -371,9 +371,9 @@ def background_supabase_sync():
         sync_state["total"] = total_songs
         sync_state["progress"] = 0
         if not cloud_is_configured():
-            raise RuntimeError("Cloudflare D1 is not configured.")
+            raise RuntimeError("Cloud database is not configured.")
 
-        sync_state["message"] = "Uploading clean songs to Cloudflare D1..."
+        sync_state["message"] = "Uploading songs to Cloud..."
 
         from app.db_manager import CLOUDFLARE_D1_URL
         endpoint = f"{CLOUDFLARE_D1_URL}/songs/upsert"
@@ -390,7 +390,7 @@ def background_supabase_sync():
 
         sync_state["status"] = "completed"
         sync_state["progress"] = total_songs
-        sync_state["message"] = f"Successfully synced all {total_songs:,} songs to Cloudflare D1."
+        sync_state["message"] = f"Successfully synced all {total_songs:,} songs to Cloud database."
 
     except Exception as e:
         sync_state["status"] = "error"
@@ -398,22 +398,22 @@ def background_supabase_sync():
 
 @app.post("/api/sync/pull-from-cloud")
 @app.post("/api/sync/pull")
-async def trigger_supabase_pull(background_tasks: BackgroundTasks):
+async def trigger_cloud_pull(background_tasks: BackgroundTasks):
     global sync_state
     if sync_state["status"] == "syncing":
         return {"status": "busy", "message": "Synchronization is already in progress"}
     
-    background_tasks.add_task(background_supabase_pull)
-    return {"status": "started", "message": "Downloading full database from Cloudflare D1..."}
+    background_tasks.add_task(background_cloud_pull)
+    return {"status": "started", "message": "Downloading full database from Cloud..."}
 
-@app.post("/api/sync/supabase")
 @app.post("/api/sync/push")
-async def trigger_supabase_sync(background_tasks: BackgroundTasks):
+@app.post("/api/sync/cloud")
+async def trigger_cloud_sync(background_tasks: BackgroundTasks):
     global sync_state
     if sync_state["status"] == "syncing":
         return {"status": "busy", "message": "Synchronization is already in progress"}
     
-    background_tasks.add_task(background_supabase_sync)
+    background_tasks.add_task(background_cloud_sync)
     return {"status": "started", "message": "Cloud synchronization started in background"}
 
 @app.get("/api/sync/status")
@@ -422,14 +422,14 @@ async def get_sync_status():
     return sync_state
 
 @app.get("/api/sync/test-connection")
-async def test_supabase_connection():
+async def test_cloud_connection():
     try:
         from app.db_manager import cloud_is_configured, CLOUDFLARE_D1_URL
         if not cloud_is_configured():
             return {
                 "success": False,
-                "error": "Missing Cloudflare D1 configuration",
-                "message": "Cloudflare D1 is not configured."
+                "error": "Missing Cloud database configuration",
+                "message": "Cloud database is not configured."
             }
         url = f"{CLOUDFLARE_D1_URL}/songs?since=0"
         res = requests.get(url, timeout=15)
@@ -441,46 +441,30 @@ async def test_supabase_connection():
             "cloudflare_url": CLOUDFLARE_D1_URL,
             "table_name": "Joyful_Noise",
             "remote_count": remote_count,
-            "message": f"Connected to Cloudflare D1! Remote table 'Joyful_Noise' has {remote_count:,} songs."
+            "message": f"Connected to Cloud Database! Remote table has {remote_count:,} songs."
         }
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
-            "message": f"Cloudflare D1 connection error: {str(e)}"
+            "message": f"Cloud database connection error: {str(e)}"
         }
 
 @app.get("/api/sync/config")
-async def get_supabase_config_endpoint():
-    from app.db_manager import get_default_supabase_key
-    key = os.environ.get("SUPABASE_API_KEY") or get_default_supabase_key()
-    masked_key = (key[:8] + "..." + key[-6:]) if len(key) > 14 else ("*" * len(key))
+async def get_cloud_config_endpoint():
+    from app.db_manager import CLOUDFLARE_D1_URL, CLOUDFLARE_D1_TABLE, cloud_is_configured
     return {
-        "supabase_url": os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supabase.co"),
-        "table_name": "Joyful Noise",
-        "api_key_masked": masked_key,
-        "is_configured": bool(key)
+        "cloud_url": CLOUDFLARE_D1_URL,
+        "table_name": CLOUDFLARE_D1_TABLE,
+        "is_configured": cloud_is_configured()
     }
 
 @app.post("/api/sync/save-config")
-async def save_supabase_config_endpoint(data: dict = Body(...)):
-    url = data.get("supabase_url", "").strip()
-    key = data.get("supabase_api_key", "").strip()
+async def save_cloud_config_endpoint(data: dict = Body(...)):
+    url = data.get("cloud_url", "").strip()
     if url:
-        os.environ["SUPABASE_URL"] = url
-    if key and not key.startswith("sb_secret_..."):
-        os.environ["SUPABASE_API_KEY"] = key
-    
-    # Save to .env
-    try:
-        current_url = os.environ.get("SUPABASE_URL", "https://qeadsbmhajmrqobtserv.supabase.co")
-        current_key = os.environ.get("SUPABASE_API_KEY", "")
-        with open(".env", "w", encoding="utf-8") as f:
-            f.write(f"SUPABASE_URL={current_url}\nSUPABASE_API_KEY={current_key}\nSUPABASE_TABLE=Joyful%20Noise\n")
-    except Exception as e:
-        print(f"Notice: Failed to write .env file ({e})")
-    
-    return {"success": True, "message": "Supabase configuration updated successfully!"}
+        os.environ["CLOUDFLARE_D1_URL"] = url
+    return {"success": True, "message": "Cloud configuration updated successfully!"}
 
 # --- Scraper & Duplicates ---
 @app.post("/api/scrape")
@@ -523,8 +507,12 @@ async def get_preset_scraper_status():
 
 @app.get("/api/scraper/review-queue")
 async def get_scraped_review_queue():
-    from app.raw_archive_manager import get_review_queue
-    return {"queue": get_review_queue()}
+    try:
+        from app.raw_archive_manager import get_review_queue
+        return {"queue": get_review_queue()}
+    except Exception as e:
+        print(f"Notice: review-queue fetch ({e})")
+        return {"queue": []}
 
 @app.post("/api/scraper/review-resolve")
 async def resolve_scraped_review(data: dict = Body(...)):
@@ -749,7 +737,7 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
         fixed_cnt = batch_fix_state["fixed_count"]
         
         # -----------------------------------------------------------------
-        # AUTO-SYNC: SQLite DB, CSV, Excel, JSON, and Cloud Supabase
+        # AUTO-SYNC: SQLite DB, CSV, Excel, JSON, and Cloud Database
         # -----------------------------------------------------------------
         if fixed_cnt > 0:
             batch_fix_state["message"] = f"Exporting {fixed_cnt:,} updated songs to CSV, Excel, JSON..."
@@ -761,8 +749,10 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
             cloud_msg = ""
             if cloud_is_configured():
                 try:
-                    batch_fix_state["message"] = "Auto-syncing updated songs to Supabase..."
-                    # Fetch all songs or updated songs and upsert to Supabase
+                    batch_fix_state["message"] = "Auto-syncing updated songs to Cloud..."
+                    from app.db_manager import CLOUDFLARE_D1_URL
+                    endpoint = f"{CLOUDFLARE_D1_URL}/songs/upsert"
+                    
                     conn = sqlite3.connect('lyrics_cache.db', timeout=30.0)
                     conn.row_factory = sqlite3.Row
                     cur = conn.cursor()
@@ -770,20 +760,13 @@ def background_batch_web_fix(category="All", limit=100, search_q="", ai_model="q
                     all_rows = [dict(r) for r in cur.fetchall()]
                     conn.close()
                     
-                    from app.db_manager import sanitize_for_supabase
-                    endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?on_conflict=id"
-                    headers = dict(HEADERS)
-                    headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
-                    
-                    batch_size = 250
-                    for b_idx in range(0, len(all_rows), batch_size):
-                        chunk = [sanitize_for_supabase(r) for r in all_rows[b_idx:b_idx + batch_size]]
-                        safe_request("POST", endpoint, headers=headers, json=chunk)
+                    for r in all_rows:
+                        requests.post(endpoint, json=r, timeout=10)
                         
-                    cloud_msg = " & Supabase Cloud"
+                    cloud_msg = " & Cloud Database"
                 except Exception as ex:
-                    print(f"Error auto-syncing to Supabase: {ex}")
-                    cloud_msg = f" (Supabase sync notice: {str(ex)[:40]})"
+                    print(f"Error auto-syncing to Cloud: {ex}")
+                    cloud_msg = f" (Cloud sync notice: {str(ex)[:40]})"
 
             batch_fix_state["status"] = "completed"
             batch_fix_state["message"] = f"✓ Batch complete! Fixed {fixed_cnt:,} songs. Auto-synced SQLite, CSV, Excel, JSON{cloud_msg}!"

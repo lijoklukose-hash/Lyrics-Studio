@@ -13,15 +13,6 @@ JSON_FILE = "Joyful noise_supabase_utf8.json"
 EXCEL_FILE = "Joyful noise_supabase_utf8.xlsx"
 CSV_FILE = "Joyful noise_supabase_utf8.csv"
 
-_DEFAULT_B64_KEY = "c2Jfc2VjcmV0X21sV3JfTlBuVy16STZJQUk2N0dTNEFfNlNfUzJ0QnA="
-import base64
-
-def get_default_supabase_key():
-    try:
-        return base64.b64decode(_DEFAULT_B64_KEY).decode("utf-8")
-    except Exception:
-        return ""
-
 # Load environment variables if .env exists
 try:
     from dotenv import load_dotenv
@@ -30,19 +21,10 @@ try:
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     ]
-    loaded = False
     for p in env_paths:
         if os.path.exists(p):
             load_dotenv(p, override=True)
-            loaded = True
             break
-    if not loaded:
-        try:
-            with open(".env", "w", encoding="utf-8") as f:
-                f.write(f"SUPABASE_URL=https://qeadsbmhajmrqobtserv.supabase.co\nSUPABASE_API_KEY={get_default_supabase_key()}\nSUPABASE_TABLE=Joyful%20Noise\n")
-            load_dotenv(".env", override=True)
-        except Exception:
-            pass
 except ImportError:
     pass
 
@@ -164,7 +146,7 @@ class DatabaseManager:
 
         conn.commit()
 
-        # Check if table is empty; if so, populate from JSON or Supabase Cloud
+        # Check if table is empty; if so, populate from JSON or Cloud Database
         cur.execute("SELECT COUNT(*) FROM songs")
         count = cur.fetchone()[0]
         if count == 0:
@@ -175,13 +157,13 @@ class DatabaseManager:
                     data = json.load(f)
             elif cloud_is_configured():
                 try:
-                    print("Fetching songs dataset from Supabase cloud database...")
-                    endpoint = f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=id,title,category,subcat,key,tags,lyrics,lyrics2,notes,yvideo,author&order=id.asc"
-                    res = safe_request("GET", endpoint, headers=HEADERS)
+                    print("Fetching songs dataset from Cloudflare D1 database...")
+                    endpoint = f"{CLOUDFLARE_D1_URL}/songs?since=0"
+                    res = requests.get(endpoint, timeout=30)
                     if res.status_code == 200:
                         data = res.json()
                 except Exception as ex:
-                    print(f"Failed to fetch from Supabase: {ex}")
+                    print(f"Failed to fetch from Cloudflare D1: {ex}")
 
             if data:
                 rows = []

@@ -312,7 +312,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
     auto_scraper_state["stop_requested"] = False
 
     try:
-        # Load existing songs cache directly from Supabase Cloud (or local DB as fallback)
+        # Load existing songs cache directly from Cloudflare D1 (or local DB as fallback)
         existing_rows = []
         if cloud_is_configured():
             try:
