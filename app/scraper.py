@@ -53,14 +53,14 @@ auto_scraper_state = {
 
 def stop_preset_auto_scraper():
     global auto_scraper_state
-    if auto_scraper_state["status"] == "running":
-        auto_scraper_state["stop_requested"] = True
-        auto_scraper_state["message"] = "Stopping auto-scraper..."
-        return {"success": True, "message": "Stop requested"}
-    return {"success": False, "message": "Scraper is not running"}
+    auto_scraper_state["stop_requested"] = True
+    auto_scraper_state["status"] = "stopped"
+    auto_scraper_state["message"] = "Auto-scraper stopped."
+    return {"success": True, "message": "Auto-scraper stopped"}
 
 def reset_preset_auto_scraper(clear_queue=False):
     global auto_scraper_state
+    auto_scraper_state["stop_requested"] = True
     auto_scraper_state["status"] = "idle"
     auto_scraper_state["source"] = ""
     auto_scraper_state["total_candidates"] = 0
@@ -70,7 +70,6 @@ def reset_preset_auto_scraper(clear_queue=False):
     auto_scraper_state["imported"] = 0
     auto_scraper_state["current_song"] = ""
     auto_scraper_state["message"] = "Ready to auto-scrape"
-    auto_scraper_state["stop_requested"] = False
 
     cleared_count = 0
     if clear_queue:
@@ -80,7 +79,7 @@ def reset_preset_auto_scraper(clear_queue=False):
         except Exception as e:
             print(f"Error clearing review queue: {e}")
 
-    return {"success": True, "message": "Auto-scraper state reset", "cleared_count": cleared_count}
+    return {"success": True, "message": "Auto-scraper state reset to Idle", "cleared_count": cleared_count}
 
 def detect_language(text):
     if not text:
