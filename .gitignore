@@ -25,6 +25,17 @@ scraped_data/scraped_songs.jsonl
 *.db-journal
 *.db-wal
 *.db-shm
+*.log
+*.txt
+
+# Debug dumps & logs
+debug_*.json
+debug_*.html
+debug_*.txt
+scraped_data/*_debug.html
+scraped_data/wtc_scrape_log.txt
+scratch/
+scratch_orig.html
 
 # Firebase / Google Credentials (SECRETS — never commit)
 *firebase-adminsdk*.json
@@ -32,16 +43,9 @@ scraped_data/scraped_songs.jsonl
 google-credentials*.json
 *.json.secret
 
-# Scripts containing Supabase/API secrets
-check_count_quick.py
-check_current_supabase_count.py
-inspect_joyful_noise.py
-inspect_raw_supabase_breaks.py
-test_supabase_connection.py
-test_supabase_upsert.py
-test_requests_supabase.py
-verify_live_supabase.py
-verify_live_supabase_clean.py
+# One-off legacy offline processing scripts (not core app)
+*.py
+!app/**/*.py
 
 # IDE / System
 .vscode/
