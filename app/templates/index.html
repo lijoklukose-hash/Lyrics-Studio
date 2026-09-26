@@ -616,6 +616,13 @@
                                 </span>
                             </label>
 
+                            <label class="flex items-center space-x-2 cursor-pointer border-l border-slate-200 pl-4" title="Check the sites' own sitemaps for songs published after the saved catalogs">
+                                <input type="checkbox" x-model="autoScrapeDiscoverNew" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                                <span class="text-xs font-semibold text-slate-700">
+                                    🛰️ Discover New Songs From Live Sitemaps
+                                </span>
+                            </label>
+
                             <div class="flex items-center space-x-2 border-l border-slate-200 pl-4">
                                 <label class="text-xs font-extrabold text-slate-600 flex items-center space-x-1">
                                     <i data-lucide="filter" class="w-3.5 h-3.5 text-indigo-600"></i>
@@ -1493,6 +1500,7 @@
                 // 1-Click Auto Scraper State
                 autoScrapeRequireReview: true,
                 autoScrapeForceRecheck: false,
+                autoScrapeDiscoverNew: true,
                 autoScrapeLanguage: 'All',
                 reviewQueueModalOpen: false,
                 reviewQueueItems: [],
@@ -2087,7 +2095,8 @@
                                 source: source, 
                                 languages: langs,
                                 require_review: this.autoScrapeRequireReview,
-                                force_recheck: this.autoScrapeForceRecheck
+                                force_recheck: this.autoScrapeForceRecheck,
+                                discover_new: this.autoScrapeDiscoverNew
                             })
                         });
                         const data = await res.json();

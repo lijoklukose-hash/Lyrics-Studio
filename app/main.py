@@ -482,12 +482,13 @@ async def trigger_preset_scraper(background_tasks: BackgroundTasks, data: dict =
     languages = data.get("languages", None)
     require_review = data.get("require_review", True)
     force_recheck = data.get("force_recheck", False)
+    discover_new = data.get("discover_new", True)
     if source not in {"all", "waytochurch", "madely"}:
         raise HTTPException(status_code=400, detail="Unsupported scraper source")
     if auto_scraper_state["status"] == "running":
         return {"status": "busy", "message": "Auto-scraper is already running"}
     
-    background_tasks.add_task(run_preset_auto_scraper, source=source, allowed_languages=languages, require_manual_review=require_review, force_recheck=force_recheck)
+    background_tasks.add_task(run_preset_auto_scraper, source=source, allowed_languages=languages, require_manual_review=require_review, force_recheck=force_recheck, discover_new=discover_new)
     return {"status": "started", "message": f"Auto-scraping for source '{source}' started in background"}
 
 @app.post("/api/scrape/preset/stop")
