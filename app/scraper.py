@@ -389,7 +389,7 @@ def scrape_url(url, language_hint=None):
     except Exception as e:
         return {"success": False, "url": url, "error": str(e)}
 
-def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual_review=True):
+def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual_review=True, force_recheck=False):
     global auto_scraper_state
     auto_scraper_state["status"] = "running"
     auto_scraper_state["source"] = source
@@ -467,7 +467,11 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
             from app.raw_archive_manager import ARCHIVE_DB_PATH
             conn_raw = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
             cur_raw = conn_raw.cursor()
-            cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status IN ('approved', 'rejected', 'review')")
+            if force_recheck:
+                # If force recheck is requested, only skip songs already approved/in library
+                cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status = 'approved'")
+            else:
+                cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status IN ('approved', 'rejected', 'review')")
             scraped_urls = {row[0] for row in cur_raw.fetchall() if row[0]}
             conn_raw.close()
         except Exception as e:
