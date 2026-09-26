@@ -1,5 +1,6 @@
 import re
 import hashlib
+import logging
 from collections import defaultdict
 import difflib
 from indic_transliteration import sanscript
@@ -52,31 +53,19 @@ def normalize_for_hash(text: str) -> str:
     # 5. Clean HTML tags
     t = re.sub(r'<[^>]+>', ' ', t)
     # 6. Cross-script transliteration to ASCII Roman so font/script differences match
-    if re.search(r'[\u0900-\u097F]', t):
-        try:
-            t = transliterate(t, sanscript.DEVANAGARI, sanscript.ITRANS)
-        except Exception:
-            pass
-    elif re.search(r'[\u0B80-\u0BFF]', t):
-        try:
-            t = transliterate(t, sanscript.TAMIL, sanscript.ITRANS)
-        except Exception:
-            pass
-    elif re.search(r'[\u0C00-\u0C7F]', t):
-        try:
-            t = transliterate(t, sanscript.TELUGU, sanscript.ITRANS)
-        except Exception:
-            pass
-    elif re.search(r'[\u0C80-\u0CFF]', t):
-        try:
-            t = transliterate(t, sanscript.KANNADA, sanscript.ITRANS)
-        except Exception:
-            pass
-    elif re.search(r'[\u0D00-\u0D7F]', t):
-        try:
-            t = transliterate(t, sanscript.MALAYALAM, sanscript.ITRANS)
-        except Exception:
-            pass
+    # Apply each script independently so mixed-script lyrics don't lose content
+    for pattern, scheme in [
+        (r'[\u0900-\u097F]', sanscript.DEVANAGARI),
+        (r'[\u0B80-\u0BFF]', sanscript.TAMIL),
+        (r'[\u0C00-\u0C7F]', sanscript.TELUGU),
+        (r'[\u0C80-\u0CFF]', sanscript.KANNADA),
+        (r'[\u0D00-\u0D7F]', sanscript.MALAYALAM),
+    ]:
+        if re.search(pattern, t):
+            try:
+                t = transliterate(t, scheme, sanscript.ITRANS)
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"dedup transliterate error: {e}")
     # 7. Normalize characters
     t = t.lower()
     t = re.sub(r'[^a-z0-9]', '', t)
@@ -93,16 +82,16 @@ def normalize_title_for_match(title: str) -> str:
         try:
             if re.search(r'[\u0900-\u097F]', t):
                 t = transliterate(t, sanscript.DEVANAGARI, sanscript.ITRANS)
-            elif re.search(r'[\u0B80-\u0BFF]', t):
+            if re.search(r'[\u0B80-\u0BFF]', t):
                 t = transliterate(t, sanscript.TAMIL, sanscript.ITRANS)
-            elif re.search(r'[\u0C00-\u0C7F]', t):
+            if re.search(r'[\u0C00-\u0C7F]', t):
                 t = transliterate(t, sanscript.TELUGU, sanscript.ITRANS)
-            elif re.search(r'[\u0C80-\u0CFF]', t):
+            if re.search(r'[\u0C80-\u0CFF]', t):
                 t = transliterate(t, sanscript.KANNADA, sanscript.ITRANS)
-            elif re.search(r'[\u0D00-\u0D7F]', t):
+            if re.search(r'[\u0D00-\u0D7F]', t):
                 t = transliterate(t, sanscript.MALAYALAM, sanscript.ITRANS)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"dedup title transliterate error: {e}")
     return phonetic_simplify(t)
 
 def compute_lyrics_sha256(lyrics: str) -> str:
@@ -135,7 +124,7 @@ def check_duplicate_candidate(new_lyrics: str, new_category: str, existing_songs
     if not new_hash and not norm_new_snippet and not new_hash2:
         return {'status': 'invalid', 'similarity': 0.0, 'matched_id': None}
 
-    new_first_lines_raw = ' '.join([l.strip() for l in new_lyrics.replace('<BR>','\n').split('\n') if l.strip() and not l.strip().startswith('[')][:4])
+    new_first_lines_raw = ' '.join([l.strip() for l in re.sub(r'(?i)<BR>', '\n', new_lyrics).split('\n') if l.strip() and not l.strip().startswith('[')][:4])
     new_first_lines_norm = normalize_for_hash(new_first_lines_raw)
     new_first_lines_phonetic = phonetic_simplify(new_first_lines_norm)
 
@@ -216,7 +205,7 @@ def check_duplicate_candidate(new_lyrics: str, new_category: str, existing_songs
         # 3. First 3-4 Lines Fingerprint Match (catches title variations & chord versions)
         s_first_lines_phonetic = song.get('first_lines_phonetic')
         if not s_first_lines_phonetic and s_lyrics:
-            s_fl_raw = ' '.join([l.strip() for l in s_lyrics.replace('<BR>','\n').split('\n') if l.strip() and not l.strip().startswith('[')][:4])
+            s_fl_raw = ' '.join([l.strip() for l in re.sub(r'(?i)<BR>', '\n', s_lyrics).split('\n') if l.strip() and not l.strip().startswith('[')][:4])
             s_first_lines_phonetic = phonetic_simplify(normalize_for_hash(s_fl_raw))
             song['first_lines_phonetic'] = s_first_lines_phonetic
         

@@ -84,19 +84,42 @@ def reset_preset_auto_scraper(clear_queue=False):
 def detect_language(text):
     if not text:
         return "English"
-    indic_text = re.sub(r'[^A-Za-z\u0900-\u0D7F]', '', str(text))
-    if re.search(r'[\u0D00-\u0D7F]', indic_text):
-        return "Malayalam"
-    elif re.search(r'[\u0B80-\u0BFF]', indic_text):
-        return "Tamil"
-    elif re.search(r'[\u0C00-\u0C7F]', indic_text):
-        return "Telugu"
-    elif re.search(r'[\u0C80-\u0CFF]', indic_text):
-        return "Kannada"
-    elif re.search(r'[\u0900-\u097F]', indic_text):
-        return "Hindi"
-    else:
+    # Normalize: collapse whitespace, keep Indic + ASCII only for counting
+    text_str = str(text)
+    # Count Indic script characters per script range (without stripping others)
+    indic_counts = {}
+    # Malayalam: \u0D00-\u0D7F
+    mal_count = len(re.findall(r'[\u0D00-\u0D7F]', text_str))
+    if mal_count > 0:
+        indic_counts['Malayalam'] = mal_count
+    # Tamil: \u0B80-\u0BFF
+    tam_count = len(re.findall(r'[\u0B80-\u0BFF]', text_str))
+    if tam_count > 0:
+        indic_counts['Tamil'] = tam_count
+    # Telugu: \u0C00-\u0C7F
+    tel_count = len(re.findall(r'[\u0C00-\u0C7F]', text_str))
+    if tel_count > 0:
+        indic_counts['Telugu'] = tel_count
+    # Kannada: \u0C80-\u0CFF
+    kan_count = len(re.findall(r'[\u0C80-\u0CFF]', text_str))
+    if kan_count > 0:
+        indic_counts['Kannada'] = kan_count
+    # Hindi/Devanagari: \u0900-\u097F
+    hin_count = len(re.findall(r'[\u0900-\u097F]', text_str))
+    if hin_count > 0:
+        indic_counts['Hindi'] = hin_count
+    # Roman/Latin: a-zA-Z
+    roman_count = len(re.findall(r'[a-zA-Z]', text_str))
+
+    if not indic_counts:
+        return "English" if roman_count > 0 else "English"
+
+    # Return the script with the highest character count
+    detected = max(indic_counts, key=indic_counts.get)
+    # Only return English if significantly more Roman chars than any Indic
+    if roman_count > sum(indic_counts.values()) * 3:
         return "English"
+    return detected
 
 def extract_madely_lyrics(soup):
     """

@@ -642,8 +642,18 @@ def generate_natural_transliteration(text, category):
                 l = ' '.join(cleaned_words)
 
         # Global cleanup across all languages: strip residual Indic codepoints, accents, and broken web font glyphs
-        l = re.sub(r'[èéòóàá^~`\u00a0\u00ad\ufffd\u200b\u200c\u200d\u25cc]', '', l)
-        l = re.sub(r'[\u0900-\u0D7F]', '', l)
+        # Only strip the script matching the target language category
+        if category == 'Hindi':
+            l = re.sub(r'[\u0900-\u097F]', '', l)  # Devanagari only for Hindi
+        elif category in ('Telugu', 'Kannada'):
+            # Strip respective scripts for Dravidian languages
+            script_map = {'Telugu': r'[\u0C00-\u0C7F]', 'Kannada': r'[\u0C80-\u0CFF]'}
+            l = re.sub(script_map[category], '', l)
+        elif category == 'Tamil':
+            l = re.sub(r'[\u0B80-\u0BFF]', '', l)
+        elif category == 'Malayalam':
+            l = re.sub(r'[\u0D00-\u0D7F]', '', l)
+        # English: no Indic stripping needed (already handled above)
 
         words = l.split()
         natural_words = []

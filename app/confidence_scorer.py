@@ -39,7 +39,8 @@ def compute_song_confidence(title: str, lyrics: str, category: str, source_domai
         lyrics_score = 0
 
     # 3. Structure evaluation (0 - 100)
-    stanzas = [s for s in lyrics.split('<BR><BR>') if s.strip()]
+    lyrics_safe = lyrics or ''
+    stanzas = [s for s in lyrics_safe.split('<BR><BR>') if s.strip()]
     if len(stanzas) >= 2:
         # Check average lines per stanza (natural stanzas are usually 2 to 6 lines)
         stanza_line_counts = [len(s.split('<BR>')) for s in stanzas]

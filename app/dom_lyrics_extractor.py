@@ -53,8 +53,9 @@ def clean_chords(text: str) -> str:
     if not text:
         return ''
     text = CHORD_REGEX.sub('', text)
-    # Strip emojis including musical notes 🎵 🎶 🎸 🎹 🎤 etc.
-    text = re.sub(r'[\U00010000-\U0010ffff\ud800-\udbff\udc00-\udfff]', '', text)
+    # Strip emojis including musical notes - astral plane + misc symbols
+    # Note: Python3 strings hold full codepoints, so lone-surrogate range is omitted
+    text = re.sub(r'[\U00010000-\U0010FFFF\u2600-\u27BF\u2B00-\u2BFF\uFE00-\uFE0F]', '', text)
     # Clean broken web character encodings, soft hyphens, and dangling font artifacts (e.g. ோ, ிீ)
     text = re.sub(r'[\u00a0\u00ad\ufffd\u200b\u200c\u200d\u25cc\u266a-\u266f]', '', text)
     text = re.sub(r'[\u0b82\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc]\u0bbf|\u0bbf\u0bc6|[\u0b82-\u0bcd]{3,}', '', text)
@@ -81,7 +82,7 @@ class DOMStructureExtractor:
     def find_lyrics_container(self) -> Tag:
         candidate_selectors = [
             {'id': re.compile(r'^(?:original|div-lyric-text|printlyrics)$', re.IGNORECASE)},
-            {'class_': re.compile(r'(?:song[_-]?lyrics|lyrics?[_-]?body|lyrics?[_-]?text|entry[_-]?content|post[_-]?body)', re.IGNORECASE)},
+            {'class': re.compile(r'(?:song[_-]?lyrics|lyrics?[_-]?body|lyrics?[_-]?text|entry[_-]?content|post[_-]?body)', re.IGNORECASE)},
             {'id': re.compile(r'(?:lyrics?|song[_-]?lyrics|printlyrics|div-lyric-text)', re.IGNORECASE)},
             {'itemprop': 'text'}
         ]

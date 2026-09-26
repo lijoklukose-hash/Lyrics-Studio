@@ -159,7 +159,7 @@ async def convert_font_to_unicode(data: dict = Body(...)):
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     # Detect and convert legacy fonts (or convert directly when user clicks button)
-    was_legacy = looks_like_legacy_font(text) or not has_indic_unicode(text)
+    was_legacy = looks_like_legacy_font(text)
     converted_text = convert_legacy_lyrics(text, category)
     if converted_text != text:
         text = converted_text

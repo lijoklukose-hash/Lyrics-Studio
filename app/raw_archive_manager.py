@@ -8,14 +8,14 @@ ARCHIVE_DB_PATH = os.path.join(os.path.dirname(BASE_DIR), 'scraped_raw_archive.d
 import threading
 
 _ARCHIVE_LOCK = threading.Lock()
-_INIT_DONE = False
+_INIT_DONE_PATHS = set()
 
 def init_raw_archive(db_path=ARCHIVE_DB_PATH):
-    global _INIT_DONE
-    if _INIT_DONE:
+    global _INIT_DONE_PATHS
+    if db_path in _INIT_DONE_PATHS:
         return
     with _ARCHIVE_LOCK:
-        if _INIT_DONE:
+        if db_path in _INIT_DONE_PATHS:
             return
         conn = sqlite3.connect(db_path, timeout=60.0)
         cur = conn.cursor()
@@ -49,7 +49,7 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
         conn.commit()
         conn.close()
-        _INIT_DONE = True
+        _INIT_DONE_PATHS.add(db_path)
 
 def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
     try:

@@ -1,4 +1,5 @@
 import difflib
+import logging
 import re
 import unicodedata
 from collections import defaultdict
@@ -19,22 +20,19 @@ def normalize_title(title):
     t = re.sub(r'[\(\[\{]\s*(?:with\s+)?chords?\s*[\)\]\}]', '', t, flags=re.IGNORECASE)
     t = re.sub(r'[\(\[\{].*?[\)\]\}]', '', t)
     t = re.sub(r'^\s*[\d\.\-\:\)]+\s*', '', t)
-    # Transliterate Indic to Roman for cross-font match
-    if re.search(r'[\u0900-\u097F]', t):
-        try: t = transliterate(t, sanscript.DEVANAGARI, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0B80-\u0BFF]', t):
-        try: t = transliterate(t, sanscript.TAMIL, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0C00-\u0C7F]', t):
-        try: t = transliterate(t, sanscript.TELUGU, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0C80-\u0CFF]', t):
-        try: t = transliterate(t, sanscript.KANNADA, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0D00-\u0D7F]', t):
-        try: t = transliterate(t, sanscript.MALAYALAM, sanscript.ITRANS)
-        except Exception: pass
+    # Transliterate Indic to Roman for cross-font match - each script independently
+    for _pat, _scheme in [
+        (r'[\u0900-\u097F]', sanscript.DEVANAGARI),
+        (r'[\u0B80-\u0BFF]', sanscript.TAMIL),
+        (r'[\u0C00-\u0C7F]', sanscript.TELUGU),
+        (r'[\u0C80-\u0CFF]', sanscript.KANNADA),
+        (r'[\u0D00-\u0D7F]', sanscript.MALAYALAM),
+    ]:
+        if re.search(_pat, t):
+            try:
+                t = transliterate(t, _scheme, sanscript.ITRANS)
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Duplicate engine error: {e}")
     t = t.lower()
     t = re.sub(r'[^a-z0-9]', '', t)
     return t.strip()
@@ -47,22 +45,19 @@ def normalize_lyrics(lyrics):
     t = re.sub(r'[\(\[\{]\s*(?:with\s+)?chords?\s*[\)\]\}]', '', t, flags=re.IGNORECASE)
     t = re.sub(r'(?i)\b(?:verse|chorus|stanza|refrain|pallavi|anupallavi|charanam)\s*\d*:?', ' ', t)
     t = re.sub(r'<[^>]+>', ' ', t)
-    # Transliterate Indic to Roman
-    if re.search(r'[\u0900-\u097F]', t):
-        try: t = transliterate(t, sanscript.DEVANAGARI, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0B80-\u0BFF]', t):
-        try: t = transliterate(t, sanscript.TAMIL, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0C00-\u0C7F]', t):
-        try: t = transliterate(t, sanscript.TELUGU, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0C80-\u0CFF]', t):
-        try: t = transliterate(t, sanscript.KANNADA, sanscript.ITRANS)
-        except Exception: pass
-    elif re.search(r'[\u0D00-\u0D7F]', t):
-        try: t = transliterate(t, sanscript.MALAYALAM, sanscript.ITRANS)
-        except Exception: pass
+    # Transliterate Indic to Roman - each script independently for mixed-script safety
+    for _pat, _scheme in [
+        (r'[\u0900-\u097F]', sanscript.DEVANAGARI),
+        (r'[\u0B80-\u0BFF]', sanscript.TAMIL),
+        (r'[\u0C00-\u0C7F]', sanscript.TELUGU),
+        (r'[\u0C80-\u0CFF]', sanscript.KANNADA),
+        (r'[\u0D00-\u0D7F]', sanscript.MALAYALAM),
+    ]:
+        if re.search(_pat, t):
+            try:
+                t = transliterate(t, _scheme, sanscript.ITRANS)
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Duplicate engine error: {e}")
     t = t.lower()
     t = re.sub(r'[^a-z0-9]', '', t)
     return t.strip()
@@ -70,7 +65,7 @@ def normalize_lyrics(lyrics):
 def extract_first_lines_norm(lyrics: str, n_lines: int = 4) -> str:
     if not lyrics:
         return ""
-    raw = lyrics.replace('<br>', '\n').replace('<BR>', '\n').replace('<br/>', '\n')
+    raw = re.sub(r'(?i)<BR\s*/?>', '\n', lyrics)
     lines = []
     for l in raw.split('\n'):
         cleaned_line = l.strip()

@@ -22,7 +22,7 @@ HEADERS_LIST = [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 ]
 
-GARBAGE_REGEX = re.compile(r'[\}ÐÃâ€\x00-\x09\x0b\x0c\x0e-\x1f\x7f-\x9f]')
+GARBAGE_REGEX = re.compile(r'[\x00-\x09\x0b\x0c\x0e-\x1f\x7f-\x9f]')
 
 CHORD_PATTERN = re.compile(r'\[[A-G][b#]?(?:m|maj|min|dim|aug|sus\d*|\d+)?(?:\/[A-G][b#]?)?\]|\b[A-G]\]|\[[A-G]\b', re.IGNORECASE)
 
@@ -116,6 +116,7 @@ def is_junk_line(l):
 def normalize_text(text):
     if not text: return ""
     t = re.sub(r'[\(\)\[\]\-_,:\.]', ' ', str(text).lower()).strip()
+    if t.lower() == 'none': return ""
     return re.sub(r'\s+', ' ', t)
 
 def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="qwen3.5:0.8b"):
@@ -311,7 +312,7 @@ def is_valid_web_lyrics(scraped_lyrics, title, category="English", scraped_lyric
     has_indic = bool(re.search(r'[\u0900-\u0D7F]', scraped_lyrics))
     if category in ('Telugu', 'Tamil', 'Malayalam', 'Hindi', 'Kannada'):
         if not has_indic:
-            lines = [l.strip() for l in scraped_lyrics.split('<BR>') if l.strip()]
+            lines = [l.strip() for l in re.split(r'(?i)<BR>', scraped_lyrics) if l.strip()]
             numeric_lines = sum(1 for l in lines if re.match(r'^(?:\d+|\(\d+\)|\(\)|\W+)$', l))
             if len(lines) > 0 and (numeric_lines / len(lines)) > 0.15:
                 return False
@@ -330,7 +331,7 @@ def is_valid_web_lyrics(scraped_lyrics, title, category="English", scraped_lyric
             return False
 
     # Check for minimum genuine lines
-    lines = [l.strip() for l in scraped_lyrics.split('<BR>') if len(l.strip()) > 3 and not any(re.search(pat, l.strip(), re.IGNORECASE) for pat in METADATA_HEADER_PATTERNS)]
+    lines = [l.strip() for l in re.split(r'(?i)<BR>', scraped_lyrics) if len(l.strip()) > 3 and not any(re.search(pat, l.strip(), re.IGNORECASE) for pat in METADATA_HEADER_PATTERNS)]
     if len(lines) < 3:
         return False
 
@@ -348,16 +349,15 @@ def find_best_clean_version(song_id, title, category):
     # STEP 1: Search Intra-Database for Higher Quality Clean Match
     # -------------------------------------------------------------
     try:
-        conn = sqlite3.connect('lyrics_cache.db', timeout=5.0)
-        cur = conn.cursor()
-        first_word = title.split()[0] if title.split() else ""
-        cur.execute("SELECT id, title, category, lyrics, lyrics2, author, yvideo FROM songs WHERE id != ? AND category = ? AND (title LIKE ? OR title LIKE ?)", 
-                    (song_id, category, f"{first_word}%", f"%{clean_t[:6]}%"))
-        candidates = cur.fetchall()
-        if not candidates:
-            cur.execute("SELECT id, title, category, lyrics, lyrics2, author, yvideo FROM songs WHERE id != ? AND category = ? LIMIT 500", (song_id, category))
+        first_word = title.split()[0] if title and title.split() else ""
+        with sqlite3.connect('lyrics_cache.db', timeout=5.0) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, category, lyrics, lyrics2, author, yvideo FROM songs WHERE id != ? AND category = ? AND (title LIKE ? OR title LIKE ?)",
+                        (song_id, category, f"{first_word}%", f"%{clean_t[:6]}%"))
             candidates = cur.fetchall()
-        conn.close()
+            if not candidates:
+                cur.execute("SELECT id, title, category, lyrics, lyrics2, author, yvideo FROM songs WHERE id != ? AND category = ? LIMIT 500", (song_id, category))
+                candidates = cur.fetchall()
 
         best_match = None
         best_score = 0.0
@@ -425,11 +425,10 @@ def find_best_clean_version(song_id, title, category):
     # STEP 3: Fallback to Smart AI Stanza Reconstruction
     # -------------------------------------------------------------
     try:
-        conn = sqlite3.connect('lyrics_cache.db', timeout=5.0)
-        cur = conn.cursor()
-        cur.execute("SELECT lyrics FROM songs WHERE id = ?", (song_id,))
-        row = cur.fetchone()
-        conn.close()
+        with sqlite3.connect('lyrics_cache.db', timeout=5.0) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT lyrics FROM songs WHERE id = ?", (song_id,))
+            row = cur.fetchone()
         if row and row[0]:
             if is_valid_web_lyrics(row[0], title, category):
                 clean_l, clean_l2 = smart_reconstruct_stanzas(row[0], category, title)
