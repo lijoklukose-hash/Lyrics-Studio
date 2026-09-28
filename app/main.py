@@ -66,6 +66,11 @@ async def home_page(request: Request):
             return HTMLResponse(content=f"<h3>Lyrics Studio</h3><p>Initialization Error: {str(e)} / {str(inner_e)}</p>", status_code=200)
 
 
+@app.get("/healthz")
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "app": "lyrics-studio"}
+
 # --- API Endpoints ---
 @app.get("/api/stats")
 async def get_stats():

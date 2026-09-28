@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+ENV PORT=1995
 EXPOSE 1995
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "1995"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-1995} --workers 1"]
