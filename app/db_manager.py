@@ -166,13 +166,24 @@ class DatabaseManager:
                     print(f"Failed to fetch from Cloudflare D1: {ex}")
 
             if data:
+                max_id = 0
                 rows = []
                 for item in data:
+                    raw_id = item.get('id')
+                    raw_str = str(raw_id).strip() if raw_id is not None else ''
+                    if raw_str.replace('.', '', 1).isdigit():
+                        song_id = int(float(raw_str))
+                        if song_id > max_id:
+                            max_id = song_id
+                    else:
+                        max_id += 1
+                        song_id = max_id
+
                     rows.append((
-                        item.get('id'),
+                        song_id,
                         item.get('title'),
                         item.get('category'),
-                        item.get('subcat'),
+                        item.get('subcat') or item.get('subcategory', ''),
                         item.get('key'),
                         item.get('tags'),
                         item.get('lyrics'),
@@ -182,6 +193,10 @@ class DatabaseManager:
                         item.get('author')
                     ))
                 cur.executemany("INSERT OR REPLACE INTO songs VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+                try:
+                    cur.execute("INSERT INTO songs_fts(songs_fts) VALUES('rebuild')")
+                except Exception:
+                    pass
                 conn.commit()
                 print(f"Loaded {len(rows):,} songs into SQLite database.")
         conn.close()
