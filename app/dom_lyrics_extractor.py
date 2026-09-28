@@ -29,7 +29,7 @@ UI_NOISE_PATTERNS = [
 UI_NOISE_REGEX = re.compile('|'.join(UI_NOISE_PATTERNS), re.IGNORECASE)
 
 VERSE_START_REGEX = re.compile(
-    r'^(?:[1-9]\d{0,1}[.)]?$|[1-9]\d{0,1}[.)\s]+[A-Za-z\u0900-\u0D7F]|(?:verse|chorus|stanza|refrain|bridge|intro|outro|pallavi|anupallavi|charanam|சரணம்|பல்லவி|చరణం|పల్లవి|ചരണം|പല്ലവി|चरण|पल्लवी)\b)',
+    r'^(?:[1-9]\d{0,1}[.)]?$|[1-9]\d{0,1}[.)\s]+[A-Za-z\u0900-\u0D7F]|(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|pallavi|anupallavi|charanam|சரணம்|பல்லவி|చరణం|పల్లవి|ചരണം|പല്ലവി|चरण|पल्लवी)\b)',
     re.IGNORECASE
 )
 

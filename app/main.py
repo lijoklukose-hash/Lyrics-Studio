@@ -521,6 +521,23 @@ async def get_scraped_review_queue():
         print(f"Notice: review-queue fetch ({e})")
         return {"queue": []}
 
+@app.get("/api/scraper/review-count")
+async def get_scraped_review_count():
+    """Lightweight pending-review count for live progress polling (no lyrics payload)."""
+    try:
+        import sqlite3
+        from app.raw_archive_manager import ARCHIVE_DB_PATH, init_raw_archive
+        init_raw_archive()
+        conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=10.0)
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM raw_scrapes WHERE status = 'review'").fetchone()[0]
+        finally:
+            conn.close()
+        return {"count": count}
+    except Exception as e:
+        print(f"Notice: review-count fetch ({e})")
+        return {"count": 0}
+
 @app.post("/api/scraper/review-resolve")
 async def resolve_scraped_review(data: dict = Body(...)):
     import sqlite3

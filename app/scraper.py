@@ -13,7 +13,7 @@ from app.db_manager import db_manager, cloud_is_configured
 from app.dom_lyrics_extractor import DOMStructureExtractor, clean_chords, is_ui_noise_line
 from app.title_extractor import extract_and_clean_title
 from app.confidence_scorer import compute_song_confidence
-from app.dedup_engine import check_duplicate_candidate, compute_lyrics_sha256, get_char_ngrams
+from app.dedup_engine import check_duplicate_candidate, compute_lyrics_sha256, get_char_ngrams, prepare_dedup_cache
 from app.raw_archive_manager import save_raw_scrape, get_review_queue
 from app.translit_engine import generate_natural_transliteration
 from app.legacy_font_converter import (
@@ -21,7 +21,7 @@ from app.legacy_font_converter import (
     convert_legacy_lyrics, detect_category_from_url,
     detect_unconverted_residue, try_convert_residue
 )
-from app.online_lyrics_search import smart_reconstruct_stanzas, structure_lyrics_into_stanzas
+from app.online_lyrics_search import smart_reconstruct_stanzas, structure_lyrics_into_stanzas, split_on_section_cues
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG_DIR = os.path.join(BASE_DIR, 'scraped_data')
@@ -327,7 +327,7 @@ def _break_mega_stanzas(lyrics, max_lines=8):
     return structure_lyrics_into_stanzas(lines) or lyrics
 
 VERSE_START_FLUSH = re.compile(
-    r'^(?:\(?[1-9]\d{0,1}(?:[.)\]}]\s*|:\s*|$)|(?:verse|chorus|stanza|refrain|bridge|intro|outro|'
+    r'^(?:\(?[1-9]\d{0,1}(?:[.)\]}]\s*|:\s*|$)|(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|'
     r'pallavi|anupallavi|charanam|\u0c9a\u0cb0\u0ca3|\u0caa\u0cb2\u0ccd\u0cb2\u0cb5\u0cbf|'
     r'\u0b9a\u0bb0\u0ba3\u0bae\u0bcd|\u0baa\u0bb2\u0bcd\u0bb2\u0bb5\u0bbf|'
     r'\u0c1a\u0c30\u0c23\u0c02|\u0c2a\u0c32\u0c4d\u0c32\u0c35\u0c3f|'
@@ -428,27 +428,42 @@ def discover_waytochurch_from_sitemap():
 
 def discover_madely_from_sitemap():
     """Fetch Madely's Yoast lyrics sitemaps -> newest-first Malayalam candidates."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     xml_text = _fetch_sitemap_text(MADELY_SITEMAP_INDEX, timeout=30)
     if not xml_text:
         return []
     subs = [loc for loc, _ in _parse_sitemap_xml(xml_text) if 'lyrics-sitemap' in loc]
     cands = []
-    for sub in subs:
+
+    def _fetch_sub(sub):
         if auto_scraper_state.get("stop_requested"):
-            break
+            return []
         sub_xml = _fetch_sitemap_text(sub, timeout=30)
         if not sub_xml:
-            continue
+            return []
+        items = []
         for loc, lastmod in _parse_sitemap_xml(sub_xml):
             if '/lyrics/' not in loc:
                 continue
-            cands.append({
+            items.append({
                 "url": loc.rstrip('/') + '/',
                 "title": _title_from_slug(loc),
                 "language": "Malayalam",
                 "source_name": "Madely",
                 "lastmod": lastmod,
             })
+        return items
+
+    auto_scraper_state["message"] = f"Fetching {len(subs)} Madely sitemaps for new songs..."
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for future in as_completed({executor.submit(_fetch_sub, sub): sub for sub in subs}):
+            if auto_scraper_state.get("stop_requested"):
+                executor.shutdown(wait=False, cancel_futures=True)
+                break
+            try:
+                cands.extend(future.result())
+            except Exception as e:
+                print(f"Madely sitemap notice: {e}")
     cands.sort(key=lambda c: c.get("lastmod") or "", reverse=True)
     return cands
 
@@ -503,8 +518,8 @@ def scrape_url(url, language_hint=None):
         tags = ''
         if 'madely.us' in url.lower():
             native_l, mang_l = extract_madely_lyrics(soup)
-            lyrics = _break_mega_stanzas(native_l)
-            lyrics2 = _break_mega_stanzas(mang_l) if mang_l else ''
+            lyrics = _break_mega_stanzas(split_on_section_cues(native_l))
+            lyrics2 = _break_mega_stanzas(split_on_section_cues(mang_l)) if mang_l else ''
             category = 'Malayalam'
             author, tags = extract_madely_meta(soup)
 
@@ -556,11 +571,13 @@ def scrape_url(url, language_hint=None):
             lyrics, lyrics2 = separate_mixed_script_lyrics(lyrics, lyrics2, title=title)
 
         # Ensure lyrics has proper stanza breaks (<BR><BR>) if missing,
-        # or break up monolithic blocks into verse-sized stanzas
+        # split section labels into their own stanzas, or break up
+        # monolithic blocks into verse-sized stanzas
         if lyrics and '<BR><BR>' not in lyrics:
             reconstructed, _ = smart_reconstruct_stanzas(lyrics, category=language_hint or "Malayalam", title=title)
             if reconstructed:
                 lyrics = reconstructed
+        lyrics = split_on_section_cues(lyrics)
         lyrics = _break_mega_stanzas(lyrics)
 
         # Legacy-font residue guard: raw Bamini/KrutiDev/Karthika text is not
@@ -680,6 +697,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
     try:
         # Load existing songs cache with both lyrics and lyrics2 for cross-script deduplication
+        auto_scraper_state["message"] = "Loading existing songs from database..."
         conn = db_manager.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT id, title, category, lyrics, lyrics2 FROM songs")
@@ -700,6 +718,17 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
             }
             for r in existing_rows
         ]
+
+        # Pre-compute fingerprints once (transliteration-heavy); without this
+        # the first songs each stall for seconds on cold per-song hashing.
+        def _prep_progress(done, total):
+            auto_scraper_state["message"] = f"Indexing {done:,}/{total:,} known songs for duplicate check..."
+        if not prepare_dedup_cache(
+                existing_songs_cache, on_progress=_prep_progress,
+                should_stop=lambda: auto_scraper_state.get("stop_requested")):
+            auto_scraper_state["status"] = "stopped"
+            auto_scraper_state["message"] = "Auto-Scraper stopped by user during indexing."
+            return
 
         # Valid allowed 6 languages:
         valid_6_languages = {'Malayalam', 'Hindi', 'English', 'Tamil', 'Telugu', 'Kannada'}
@@ -832,6 +861,25 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
         review_count = 0
         chunk_size = 20
 
+        # Buffer archive writes: single commits on a GB-scale DB cost ~0.4s
+        # each, so flush in batches instead of per song.
+        pending_saves = []
+
+        def flush_saves():
+            if not pending_saves:
+                return
+            batch, pending_saves[:] = pending_saves[:], []
+            for payload in batch:
+                try:
+                    save_raw_scrape(payload)
+                except Exception as ex:
+                    print(f"Warning flushing raw scrape: {ex}")
+
+        def queue_save(payload):
+            pending_saves.append(payload)
+            if len(pending_saves) >= 25:
+                flush_saves()
+
         with ThreadPoolExecutor(max_workers=10) as executor:
             for i in range(0, len(candidate_items), chunk_size):
                 chunk = candidate_items[i:i + chunk_size]
@@ -839,8 +887,12 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
                 for future in as_completed(future_to_cand):
                     if auto_scraper_state.get("stop_requested"):
+                        flush_saves()
                         auto_scraper_state["status"] = "stopped"
-                        auto_scraper_state["message"] = f"Auto-Scraper stopped by user. {imported_count} imported, {review_count} in review."
+                        if require_manual_review:
+                            auto_scraper_state["message"] = f"Auto-Scraper stopped by user. {imported_count} imported, {review_count} queued for individual review (Review Mode ON)."
+                        else:
+                            auto_scraper_state["message"] = f"Auto-Scraper stopped by user. {imported_count} imported, {review_count} in review."
                         executor.shutdown(wait=False, cancel_futures=True)
                         return
 
@@ -911,7 +963,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                         except Exception:
                                             pass
 
-                            save_raw_scrape({
+                            queue_save({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
                                 'raw_html': res.get('raw_html', '')[:1000],
@@ -938,7 +990,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         if require_manual_review or archive_status == 'review':
                             review_count += 1
                             auto_scraper_state["needs_review"] = review_count
-                            save_raw_scrape({
+                            queue_save({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
                                 'raw_html': res.get('raw_html', '')[:1000],
@@ -960,7 +1012,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
                         if archive_status == 'rejected':
                             auto_scraper_state["duplicates_skipped"] += 1
-                            save_raw_scrape({
+                            queue_save({
                                 'source_url': cand['url'],
                                 'source_website': cand['source_name'],
                                 'raw_html': res.get('raw_html', '')[:10000],
@@ -979,7 +1031,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             })
                             continue
 
-                        save_raw_scrape({
+                        queue_save({
                             'source_url': cand['url'],
                             'source_website': cand['source_name'],
                             'raw_html': res.get('raw_html', '')[:10000],
@@ -1029,9 +1081,17 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                     except Exception as e:
                         print(f"Error processing {cand['title']}: {e}")
 
+        flush_saves()
         auto_scraper_state["status"] = "completed"
-        auto_scraper_state["message"] = f"Auto-Scrape Complete! {imported_count} pristine songs imported, {review_count} queued for review, {auto_scraper_state['duplicates_skipped']} duplicates skipped."
+        if require_manual_review:
+            auto_scraper_state["message"] = f"Auto-Scrape Complete! {review_count} songs queued for individual review (Review Mode ON — nothing auto-imported), {imported_count} imported, {auto_scraper_state['duplicates_skipped']} duplicates skipped."
+        else:
+            auto_scraper_state["message"] = f"Auto-Scrape Complete! {imported_count} pristine songs imported, {review_count} queued for review, {auto_scraper_state['duplicates_skipped']} duplicates skipped."
 
     except Exception as e:
+        try:
+            flush_saves()
+        except Exception:
+            pass
         auto_scraper_state["status"] = "error"
         auto_scraper_state["message"] = f"Auto-scrape failed: {str(e)}"

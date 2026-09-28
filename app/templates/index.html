@@ -2274,18 +2274,13 @@
                             const res = await fetch('/api/scrape/preset/status');
                             this.autoScraperState = await res.json();
                             this.autoScraperPollErrors = 0;
-                            // Do not stomp reviewQueueItems while the user is actively viewing/editing them in modal
-                            if (!this.reviewQueueModalOpen) {
-                                this.loadReviewQueue();
-                            } else {
-                                // Just update review count unobtrusively
-                                fetch('/api/scraper/review-queue')
-                                    .then(r => r.json())
-                                    .then(d => { if (d.queue) this.reviewQueueCount = d.queue.length; })
-                                    .catch(() => {});
-                            }
                             if (this.autoScraperState.status === 'running') {
                                 this.autoScrapingActive = true;
+                                // Cheap count-only refresh while running (full queue loads on finish)
+                                fetch('/api/scraper/review-count')
+                                    .then(r => r.json())
+                                    .then(d => { if (d && typeof d.count === 'number') this.reviewQueueCount = d.count; })
+                                    .catch(() => {});
                             } else {
                                 if (this.autoScrapingActive) {
                                     this.autoScrapingActive = false;
@@ -2293,6 +2288,7 @@
                                     this.autoScraperTimer = null;
                                     this.loadStats();
                                     this.loadSongs(1);
+                                    this.loadReviewQueue();
                                     const endStatus = this.autoScraperState.status;
                                     if (endStatus === 'completed') {
                                         this.showToast('Auto-scraping finished!', 'success');

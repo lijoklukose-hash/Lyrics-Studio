@@ -107,11 +107,73 @@ def get_char_ngrams(text: str, n: int = 3) -> set:
     return {norm[i:i+n] for i in range(len(norm) - n + 1)}
 
 def jaccard_similarity(set1: set, set2: set) -> float:
-    if not set1 or not set2:
+    if not set1 or set2 is None or not set2:
         return 0.0
     intersection = len(set1 & set2)
     union = len(set1 | set2)
     return float(intersection) / float(union) if union > 0 else 0.0
+
+
+def _jaccard_bounded(a: set, na: int, b: set, nb: int, best: float) -> float:
+    """Exact Jaccard, skipping work when the pairing cannot reach 0.80
+    (length-ratio bound) or beat the running best (branch-and-bound).
+
+    Outcome-preserving: every skipped pairing is provably unable to change
+    any >= 0.80 decision; only sub-0.80 informational scores may differ.
+    """
+    if not a or not b:
+        return 0.0
+    lo, hi = (na, nb) if na <= nb else (nb, na)
+    if lo * 5 < hi * 4:  # min < 0.8 * max -> jaccard < 0.8 guaranteed
+        return 0.0
+    if best > 0.0 and lo <= best * hi:
+        # Even perfect containment of the smaller set cannot beat best:
+        # max achievable = lo / hi <= best.
+        return 0.0
+    inter = len(a & b)
+    if inter == 0:
+        return 0.0
+    return float(inter) / float(na + nb - inter)
+
+
+def prepare_dedup_cache(existing_songs_cache: list, on_progress=None, should_stop=None) -> bool:
+    """Precompute every fingerprint used by check_duplicate_candidate so the
+    per-song loop never pays cold transliteration costs. Returns False when
+    stopped early via should_stop."""
+    total = len(existing_songs_cache)
+    for i, song in enumerate(existing_songs_cache):
+        if should_stop is not None and should_stop():
+            return False
+        if on_progress is not None and (i % 500 == 0 or i + 1 == total):
+            on_progress(i + 1, total)
+        s_lyrics = song.get('lyrics') or ''
+        s_lyrics2 = song.get('lyrics2') or ''
+        if not song.get('sha256') and s_lyrics:
+            song['sha256'] = compute_lyrics_sha256(s_lyrics)
+        if not song.get('sha256_2') and s_lyrics2:
+            song['sha256_2'] = compute_lyrics_sha256(s_lyrics2)
+        if not song.get('norm_title') and song.get('title'):
+            song['norm_title'] = normalize_title_for_match(song['title'])
+        if not song.get('phonetic_snip') and s_lyrics:
+            song['phonetic_snip'] = phonetic_simplify(normalize_for_hash(s_lyrics)[:120])
+        if not song.get('phonetic_snip2') and s_lyrics2:
+            song['phonetic_snip2'] = phonetic_simplify(normalize_for_hash(s_lyrics2)[:120])
+        if not song.get('first_lines_phonetic') and s_lyrics:
+            s_fl_raw = ' '.join([l.strip() for l in re.sub(r'(?i)<BR>', '\n', s_lyrics).split('\n') if l.strip() and not l.strip().startswith('[')][:4])
+            song['first_lines_phonetic'] = phonetic_simplify(normalize_for_hash(s_fl_raw))
+        if not song.get('ngrams') and s_lyrics:
+            song['ngrams'] = get_char_ngrams(s_lyrics, 3)
+        if not song.get('ngrams2') and s_lyrics2:
+            song['ngrams2'] = get_char_ngrams(s_lyrics2, 3)
+        ng = song.get('ngrams')
+        if isinstance(ng, set):
+            song['ngrams'] = frozenset(ng)
+            song['ngrams_len'] = len(ng)
+        ng2 = song.get('ngrams2')
+        if isinstance(ng2, set):
+            song['ngrams2'] = frozenset(ng2)
+            song['ngrams2_len'] = len(ng2)
+    return True
 
 def check_duplicate_candidate(new_lyrics: str, new_category: str, existing_songs_cache: list, new_title: str = "", new_lyrics2: str = "") -> dict:
     new_hash = compute_lyrics_sha256(new_lyrics)
@@ -225,6 +287,9 @@ def check_duplicate_candidate(new_lyrics: str, new_category: str, existing_songs
     matched_id = None
     matched_title = ''
 
+    new_len = len(new_ngrams)
+    new2_len = len(new_ngrams2)
+
     for song in existing_songs_cache:
         s_cat = song.get('category') or ''
         if s_cat and new_category and s_cat != new_category and s_cat != 'English' and new_category != 'English':
@@ -237,13 +302,25 @@ def check_duplicate_candidate(new_lyrics: str, new_category: str, existing_songs
 
         s_ngrams = song.get('ngrams') or set()
         s_ngrams2 = song.get('ngrams2') or set()
+        s_len = song.get('ngrams_len')
+        if s_len is None:
+            s_len = len(s_ngrams)
+        s2_len = song.get('ngrams2_len')
+        if s2_len is None:
+            s2_len = len(s_ngrams2)
 
-        sim1 = jaccard_similarity(new_ngrams, s_ngrams) if (new_ngrams and s_ngrams) else 0.0
-        sim2 = jaccard_similarity(new_ngrams, s_ngrams2) if (new_ngrams and s_ngrams2) else 0.0
-        sim3 = jaccard_similarity(new_ngrams2, s_ngrams) if (new_ngrams2 and s_ngrams) else 0.0
-        sim4 = jaccard_similarity(new_ngrams2, s_ngrams2) if (new_ngrams2 and s_ngrams2) else 0.0
+        sim1 = _jaccard_bounded(new_ngrams, new_len, s_ngrams, s_len, best_sim)
+        sim2 = _jaccard_bounded(new_ngrams, new_len, s_ngrams2, s2_len, best_sim)
+        sim3 = _jaccard_bounded(new_ngrams2, new2_len, s_ngrams, s_len, best_sim)
+        sim4 = _jaccard_bounded(new_ngrams2, new2_len, s_ngrams2, s2_len, best_sim)
 
-        max_sim = max(sim1, sim2, sim3, sim4)
+        max_sim = sim1
+        if sim2 > max_sim:
+            max_sim = sim2
+        if sim3 > max_sim:
+            max_sim = sim3
+        if sim4 > max_sim:
+            max_sim = sim4
         if max_sim > best_sim:
             best_sim = max_sim
             matched_id = song.get('id')

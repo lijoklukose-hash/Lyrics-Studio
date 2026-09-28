@@ -184,6 +184,10 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     raw_lines = [l.strip() for l in t.split('\n') if l.strip()]
     filtered_lines = [l for l in raw_lines if not is_junk_line(l)]
 
+    # Rejoin lines split mid-parenthesis (e.g. broken scripture citations)
+    # BEFORE the Indic/Roman split, so fragments can't land on opposite sides.
+    filtered_lines = clean_citation_lines(filtered_lines)
+
     # If song is non-English, check if text has mixed Indic script AND Roman transliteration
     if category != 'English':
         has_indic = any(re.search(r'[\u0900-\u0D7F]', l) for l in filtered_lines)
@@ -250,7 +254,135 @@ Lyrics:
 
     return clean_lyrics, clean_lyrics2
 
+# --- Section-label stanza splitting -------------------------------------------
+# Labels like Verse 1:, Pre-Chorus 2, Intro, Outro, Chorus:, Pallavi must each
+# open a new stanza — including numbered forms WITHOUT a colon, which older
+# cue patterns missed. Codepoints below were verified against the Unicode
+# charts (do not "fix" by eye: Telugu/Kannada/Devanagari look-alikes differ).
+
+_SECTION_WORDS = (
+    r'verses?|stanzas?|chorus|refrain|bridge|intro|outro|interlude|ending|prelude'
+    r'|pre[\s\-]*chorus|prechorus|sthayi|sthaayi|antaraa?|mukhda'
+    r'|pallavi|anupallavi|charanam'
+    r'|పల్లవి|అనుపల్లవి|కోరస్|చరణం|पल्लवी|अनुपल्लवी|कोरस|चरण'
+    r'|பல்லவி|அனுபல்லவி|கோரஸ்|சரணம்|പല്ലവി|അനുപല്ലവി|കോറസ്|ചരണം'
+    r'|ಪಲ್ಲವಿ|ಅನುಪಲ್ಲವಿ|ಕೋರಸ್|ಚರಣ'
+)
+
+_SECTION_HEAD_RE = re.compile(
+    r'^(?:'
+    r'\(?[1-9]\d{0,1}(?:[.)\]}:]\s*|$)'  # 1. / 2: / bare number
+    r'|(?:' + _SECTION_WORDS + r')\s*\d{0,2}\s*[:.]?\s*$'  # bare label line
+    r'|(?:' + _SECTION_WORDS + r')\s+\d{1,2}\b'  # Verse 1 / Pre-Chorus 2 + text
+    r'|(?:' + _SECTION_WORDS + r')\s*(?:[:.]\s*\S|[\-–—]\s*$)'  # Chorus: x / Chorus -
+    r')',
+    re.IGNORECASE)
+
+_REPEAT_ALONE_RE = re.compile(r'^\(\d+\)$')
+_REPEAT_PREFIX_RE = re.compile(r'^\(\d+\)\s+\S')
+
+
+def _is_section_head(line: str) -> bool:
+    if not line:
+        return False
+    s = line.strip()
+    if _REPEAT_ALONE_RE.match(s) or _REPEAT_PREFIX_RE.match(s):
+        return False  # repeat tags stay glued to the lyric flow
+    return bool(_SECTION_HEAD_RE.match(s))
+
+
+def split_on_section_cues(lyrics_br):
+    """Split stanzas at section-label lines (Verse 1:, Pre-Chorus 2, Intro...).
+
+    Works on text that already has stanza breaks: existing breaks are kept,
+    labels inside a stanza open a new one. Idempotent and structure-safe.
+    """
+    if not lyrics_br:
+        return lyrics_br
+    out_stanzas = []
+    current = []
+
+    def flush():
+        if current:
+            out_stanzas.append('<BR>'.join(current))
+            del current[:]
+
+    for stanza in lyrics_br.split('<BR><BR>'):
+        for raw in stanza.split('<BR>'):
+            line = raw.strip()
+            if not line:
+                continue
+            if current and _is_section_head(line):
+                flush()
+            current.append(line)
+        flush()
+    return '<BR><BR>'.join(out_stanzas)
+
+
+def _paren_depth(line: str) -> int:
+    """Unbalanced opener count for (), [], {} (quotes excluded: ambiguous)."""
+    depth = 0
+    for ch in line:
+        if ch in '([{':
+            depth += 1
+        elif ch in ')]}':
+            depth -= 1
+    return depth
+
+
+CITATION_REF_RE = re.compile(r'\([^()]*\d+\s*:\s*\d+[^()]*\)')
+CITATION_ONLY_RE = re.compile(
+    r'^[\s"“”\'‘`\-–—:;()\[\]]*[A-Za-z\u0900-\u0D7F][A-Za-z\u0900-\u0D7F\s.,]*?'
+    r'\d+\s*:\s*\d+[\s"“”\'‘`\-–—:;()\[\]]*$')
+
+
+def _strip_citation(line: str) -> str:
+    """Remove parenthesized scripture references (e.g. '(Hebrews 13:5)').
+
+    Edge punctuation is stripped only when a reference was actually removed,
+    so ordinary lines — '(2)', 'Chorus:', quoted dialogue — pass through
+    byte-identical. Returns '' for citation-only lines so callers drop them.
+    """
+    if not line:
+        return ''
+    s = line.strip()
+    if CITATION_REF_RE.search(s):
+        s = CITATION_REF_RE.sub(' ', s)
+        s = re.sub(r'^[\s"“”\'‘`\-–—:;(\[]+', '', s)
+        s = re.sub(r'[\s"“”\'‘`\-–—:;)\]]+$', '', s)
+        return re.sub(r'\s+', ' ', s).strip()
+    if CITATION_ONLY_RE.match(s) and len(s) < 100:
+        return ''
+    return s
+
+
+def clean_citation_lines(lines):
+    """Rejoin lines split mid-parenthesis and drop scripture-citation lines.
+
+    Fixes artifacts like '" - (Hebrews 13:5 / ... 13:' + '5)' where a verse
+    reference was broken across lines (and stanza breaks) and kept as lyrics.
+    Operates on a flat line list; stanza structure is rebuilt downstream.
+    """
+    if not lines:
+        return []
+    # 1. Rejoin lines left hanging inside unclosed parens/brackets.
+    merged = []
+    for line in lines:
+        stripped = line.strip() if isinstance(line, str) else ''
+        if not stripped:
+            continue
+        if merged and _paren_depth(merged[-1]) > 0:
+            merged[-1] = merged[-1].rstrip() + ' ' + stripped
+        else:
+            merged.append(stripped)
+    # 2. Strip citations; drop emptied lines.
+    return [c for c in (_strip_citation(l) for l in merged) if c]
+
+
 def structure_lyrics_into_stanzas(lines):
+    if not lines:
+        return ""
+    lines = clean_citation_lines(lines)
     if not lines:
         return ""
     t = '\n'.join(lines)
