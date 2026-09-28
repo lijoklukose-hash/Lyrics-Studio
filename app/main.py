@@ -534,13 +534,22 @@ async def resolve_scraped_review(data: dict = Body(...)):
         raw_id_val = int(raw_id) if str(raw_id).isdigit() else raw_id
         conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
         cur = conn.cursor()
-        cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
+        try:
+            cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2, author, tags FROM raw_scrapes WHERE id = ?", (raw_id_val,))
+        except Exception:
+            cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
         row = cur.fetchone()
-        
+
         title = data.get("title") or (row[0] if row else "Untitled")
         lang = data.get("category") or (row[1] if row else "Hindi")
         lyrics = data.get("lyrics") or (row[2] if row else "")
         lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else ((row[3] or "") if row else "")
+        author = data.get("author")
+        if author is None:
+            author = (row[4] if row and len(row) > 4 else "") or ""
+        tags = data.get("tags")
+        if tags is None:
+            tags = (row[5] if row and len(row) > 5 else "") or ""
 
         if action == 'approve':
             db_manager.save_song({
@@ -548,9 +557,13 @@ async def resolve_scraped_review(data: dict = Body(...)):
                 "category": lang,
                 "lyrics": lyrics,
                 "lyrics2": lyrics2,
-                "tags": data.get("tags", "")
+                "tags": tags,
+                "author": author
             }, sync_cloud=True)
-            cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id_val))
+            try:
+                cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ?, author = ?, tags = ? WHERE id = ?", (title, lyrics, lyrics2, author, tags, raw_id_val))
+            except Exception:
+                cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id_val))
         else:
             cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id_val,))
         conn.commit()

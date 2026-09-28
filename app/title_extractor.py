@@ -40,6 +40,23 @@ def extract_and_clean_title(soup: BeautifulSoup, url: str = '') -> tuple:
     if h2_tag:
         candidates.append((h2_tag.get_text(strip=True), 0.70))
 
+    # URL-slug fallback: some pages carry only generic tags like "Lyrics".
+    # The slug (/lyrics/song/14001/Aabragamin-Devan) usually holds the title.
+    if url:
+        try:
+            from urllib.parse import unquote, urlparse as _up
+            segs = [s for s in _up(url).path.split('/') if s]
+            if segs:
+                slug = unquote(segs[-1])
+                # Skip bare numeric ids (/lyrics/song/30395/)
+                if not re.fullmatch(r'\d+', slug):
+                    slug_title = re.sub(r'[-_]+', ' ', slug).strip()
+                    slug_title = re.sub(r'\s+', ' ', slug_title).strip(' -,.:;')
+                    if len(slug_title) >= 2:
+                        candidates.append((slug_title, 0.60))
+        except Exception:
+            pass
+
     if not candidates:
         return ('', 0.0)
 

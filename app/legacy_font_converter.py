@@ -26,12 +26,91 @@ def looks_like_legacy_font(text: str) -> bool:
     legacy_count = len(LEGACY_CHAR_RE.findall(text))
     if legacy_count >= 1:
         return True
+    # Bamini (Tamil) pulli marker: semicolon glued inside words, e.g. th;nd, mk;gu
+    if len(re.findall(r'[A-Za-z];[A-Za-z]', text)) >= 3:
+        return True
     # Also check if text has heavy non-standard ASCII sequences or bracketed font noise
     if re.search(r'[a-zA-Z0-9\s]*[\[\]\{\}\\\/][a-zA-Z0-9\s]*', text):
         return True
     words = text.split()
     odd_words = [w for w in words if re.search(r'[A-Za-z]+[0-9%`~^&[\]{}<>|\\_]+[A-Za-z]*', w)]
     return len(odd_words) >= 1
+
+# ── Windows-1252 mojibake repair ───────────────────────────────────────────────
+# Bytes mis-decoded as U+0080-U+00A0 controls (common in hymn pages) -> proper chars.
+
+MOJIBAKE_MAP = {
+    0x80: '\u20ac', 0x82: '\u201a', 0x83: '\u0192', 0x84: '\u201e',
+    0x85: '\u2026', 0x86: '\u2020', 0x87: '\u2021', 0x88: '\u02c6',
+    0x89: '\u2030', 0x8A: '\u0160', 0x8B: '\u2039', 0x8C: '\u0152',
+    0x8E: '\u017d', 0x91: '\u2018', 0x92: '\u2019', 0x93: '\u201c',
+    0x94: '\u201d', 0x95: '\u2022', 0x96: '\u2013', 0x97: '\u2014',
+    0x98: '\u02dc', 0x99: '\u2122', 0x9A: '\u0161', 0x9B: '\u203a',
+    0x9C: '\u0153', 0x9E: '\u017e', 0x9F: '\u0178', 0xA0: ' ',
+}
+_MOJIBAKE_RE = re.compile(r'[\x80-\x9f\xa0]')
+
+def fix_mojibake(text: str) -> str:
+    """Map CP1252 mojibake controls to proper Unicode (no-op for clean text)."""
+    if not text:
+        return text
+    return _MOJIBAKE_RE.sub(lambda m: MOJIBAKE_MAP.get(ord(m.group(0)), ''), text)
+
+# ── Unconverted-residue guard (for scraped lyrics quality) ─────────────────────
+# Counts of glued font markers that never occur in clean lyrics at density.
+
+BAMINI_RESIDUE_RE = re.compile(r'[A-Za-z];[A-Za-z]')
+HINDI_RESIDUE_RE = re.compile(r'[\[\]>"+%^&~]')   # KrutiDev/Shusha glue (excludes ' and ,)
+ACCENT_RESIDUE_RE = re.compile(r'[\u0080-\u00FF]')  # Karthika/Baraha remnants
+# Strong Hindi markers: never occur in clean lyrics of any language.
+# (Brackets/quotes alone are excluded — English section labels use [Chorus].)
+STRONG_HINDI_RE = re.compile(r'[>+%~`]')
+
+def _residue_marker_counts(t: str) -> tuple:
+    """Raw counts of (bamini_glue, hindi_glue, accent_chars), ignoring script.
+    HTML/<BR> tags are stripped first so markup never counts as markers."""
+    t = re.sub(r'<[^>]+>', ' ', str(t or ''))
+    return (len(BAMINI_RESIDUE_RE.findall(t)),
+            len(HINDI_RESIDUE_RE.findall(t)),
+            len(ACCENT_RESIDUE_RE.findall(t)))
+
+def detect_unconverted_residue(text: str, ignore_indic: bool = False) -> str | None:
+    """Return hinted language ('Tamil'/'Hindi'/'Malayalam') when Roman text carries
+    dense legacy-font markers, else None. Skips text that already has Indic Unicode
+    unless ignore_indic=True (for sparse-Indic mixed residue)."""
+    if not text or (not ignore_indic and has_indic_unicode(text)):
+        return None
+    t = str(text)
+    bam, hin, acc = _residue_marker_counts(t)
+    # Strong KrutiDev/Shusha markers (never occur in Bamini or clean lyrics).
+    # Tags are excluded: '<BR>' brackets must not count.
+    t_plain = re.sub(r'<[^>]+>', ' ', t)
+    if len(STRONG_HINDI_RE.findall(t_plain)) >= 2:
+        return 'Hindi'
+    if bam >= 3:
+        return 'Tamil'
+    if hin >= 4:
+        return 'Hindi'
+    if acc >= 2:
+        return 'Malayalam'
+    return None
+
+def try_convert_residue(text: str, language_hint: str | None = None,
+                        ignore_indic: bool = False, category: str | None = None,
+                        vocab_hi=None) -> str:
+    """Attempt legacy-font conversion for residue text via the full codecs
+    (app.legacy_codec). Returns converted text, or the original when no
+    clean conversion is possible."""
+    if not text or (not ignore_indic and has_indic_unicode(text)):
+        return text or ''
+    if detect_unconverted_residue(text, ignore_indic=ignore_indic) is None:
+        return text  # no markers: never touch clean text
+    hinted = detect_unconverted_residue(text, ignore_indic=ignore_indic)
+    try:
+        from app.legacy_codec import full_decode
+        return full_decode(text, hinted, category, vocab_hi)
+    except Exception:
+        return text
 
 # ── Karthika → Malayalam ───────────────────────────────────────────────────────
 
@@ -216,21 +295,20 @@ SHUSHA_RULES = [
     ('sauMdr', 'सुंदर'), ('kudavand', 'खुदावंद'), ('kroosa', 'क्रूस'),
     ('p`Bau', 'प्रभु'), ('p`aqa-naa', 'प्रार्थना'), ('p`aqa', 'प्रार्थ'), ('p`a', 'प्रा'),
     ('p`oma', 'प्रेम'), ('rajaa', 'राजा'), ('dUsara', 'दूसरा'),
-    ('kao[-', 'कोई'), ('nahIM', 'नहीं'), ('AamaIna', 'आमीन')
+    ('kao[-', 'कोई'), ('nahIM', 'नहीं'), ('AamaIna', 'आमीन'),
+    ('AMQakar', 'अंधकार'), ('rkjhQ+', 'तारीफ'), ('isaf-', 'सिर्फ'),
+    ('jaga', 'जग'), ('lu', 'सुन'),
 ]
 
 KRUTIDEV_RULES = [
-    (',slk', 'जैसा'), ('eq>s', 'मुझे'), ('yxrk', 'लगता'), ('gS]', 'है'),
+    (',slk', 'ऐसा'), ('eq>s', 'मुझे'), ('yxrk', 'लगता'), ('gS]', 'है'),
     (';h\'kq', 'यीशु'), ('rsjs', 'तेरे'), ('lax', 'संग'), ('pyds', 'चलके'),
     ('tSls', 'जैसे'), ('dh', 'की'), ('dksbZ', 'कोई'), ('nqYgu]', 'दुल्हन'),
     ('nqYgs', 'दुल्हे'), ('ds', 'के'), ('pyrh', 'चलती'),
-    ('fgjuh', 'हिरणी'), ('ty', 'जल'), ('fy,', 'लिए'), (';w¡', 'यूँ'),
+    ('fgjuh', 'हिरनी'), ('ty', 'जल'), ('fy,', 'लिए'), (';w¡', 'यूँ'),
     ('rM+is', 'तड़पे'), (';s', 'ये'), ('nklh]', 'दासी'), ('I;klh', 'प्यासी'),
     ('gh', 'ही'), ('rks', 'तो'), ('jgrh', 'रहती'), ('gkFkksa', 'हाथों'),
-    ('mahImaa', 'महिमा'), ('masaIh', 'मसीह'), ('Anauga`h', 'अनुग्रह'),
-    ('jaga', 'जग'), ('AMQakar', 'अंधकार'), ('AaraQanaa', 'आराधना'),
-    ('yaISau', 'यीशु'), ('isaf-', 'सिर्फ'),
-    ('vc', 'अब'), ('gks', 'हो'), ('rkjhQ+', 'तारीफ'), ('[kqnkoUn', 'खुदावंद'),
+    ('jaga', 'जग'), ('vc', 'अब'), ('gks', 'हो'), ('[kqnkoUn', 'खुदावंद'),
     ('dks', 'को'), ('fd', 'कि'), ("cD'kk", 'बख्शा'), ('mlds', 'उसके'),
     ('uke', 'नाम'), ('ls', 'से'), ('vkne', 'आदम'), ('fdlh', 'किसी'),
     ('ckr', 'बात'), ('fpUrk', 'चिंता'), ('Mj', 'डर'), ('ugha', 'नहीं'),

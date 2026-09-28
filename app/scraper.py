@@ -18,7 +18,8 @@ from app.raw_archive_manager import save_raw_scrape, get_review_queue
 from app.translit_engine import generate_natural_transliteration
 from app.legacy_font_converter import (
     has_indic_unicode, looks_like_legacy_font,
-    convert_legacy_lyrics, detect_category_from_url
+    convert_legacy_lyrics, detect_category_from_url,
+    detect_unconverted_residue, try_convert_residue
 )
 from app.online_lyrics_search import smart_reconstruct_stanzas, structure_lyrics_into_stanzas
 
@@ -222,6 +223,44 @@ def extract_madely_lyrics(soup):
     manglish_lyrics = '<BR><BR>'.join(manglish_stanzas) if manglish_stanzas else ''
 
     return native_lyrics, manglish_lyrics
+
+def extract_madely_meta(soup):
+    """Extract per-song artist(s) and category tag from a Madely song page.
+
+    Artist: h2 > a.ArtistClass ("Artist : Kester A. Pandyan").
+    Category: span.spanCategories pill ("Entrance (Intro) Songs").
+    NOTE: the sidebar tag cloud is site-wide (identical on every page) and is
+    deliberately NOT used.
+    Returns (artist, category_tag) as plain strings ('' when absent).
+    """
+    artist = ''
+    category_tag = ''
+    try:
+        h2 = soup.find('h2')
+        if h2:
+            names = []
+            for a in h2.find_all('a', class_='ArtistClass'):
+                name = a.get_text(separator=' ', strip=True)
+                name = re.sub(r'^\s*Artist\s*:\s*', '', name).strip()
+                if name and name not in names:
+                    names.append(name)
+            if not names:
+                h2_text = h2.get_text(separator=' ', strip=True)
+                m = re.search(r'Artist\s*:\s*(.+)', h2_text, re.IGNORECASE)
+                if m and m.group(1).strip():
+                    names = [m.group(1).strip()]
+            artist = ', '.join(names)
+        cat_span = soup.find('span', class_='spanCategories')
+        if cat_span:
+            category_tag = cat_span.get_text(separator=' ', strip=True)
+            if not category_tag:
+                title_attr = cat_span.get('title', '')
+                m = re.search(r'-\s*(.+?)\s*$', title_attr)
+                if m:
+                    category_tag = m.group(1).strip()
+    except Exception:
+        pass
+    return artist, category_tag
 
 def separate_mixed_script_lyrics(lyrics, lyrics2='', title=''):
     """
@@ -460,11 +499,14 @@ def scrape_url(url, language_hint=None):
         lyrics2 = ''
 
         # 2. Site-Specific High-Fidelity Extraction
+        author = ''
+        tags = ''
         if 'madely.us' in url.lower():
             native_l, mang_l = extract_madely_lyrics(soup)
             lyrics = _break_mega_stanzas(native_l)
             lyrics2 = _break_mega_stanzas(mang_l) if mang_l else ''
             category = 'Malayalam'
+            author, tags = extract_madely_meta(soup)
 
         elif 'waytochurch.com' in url.lower():
             orig_div = soup.find('div', id='original')
@@ -521,6 +563,44 @@ def scrape_url(url, language_hint=None):
                 lyrics = reconstructed
         lyrics = _break_mega_stanzas(lyrics)
 
+        # Legacy-font residue guard: raw Bamini/KrutiDev/Karthika text is not
+        # lyrics — convert it when possible, else cap confidence so the
+        # auto-pipeline rejects instead of importing garbage.
+        # Sparse Indic (<5% of letters) does not exempt marker-dense text:
+        # genuine mixed pages are split stanza-wise upstream; leftovers here
+        # are residue with stray characters.
+        residue_unfixable = False
+        _indic_n = len(re.findall(r'[\u0900-\u0D7F]', lyrics or ''))
+        _roman_n = len(re.findall(r'[A-Za-z]', lyrics or ''))
+        _sparse = (_indic_n == 0) or (_indic_n * 10 < _roman_n)
+        if lyrics and _sparse:
+            residue_hint = detect_unconverted_residue(lyrics, ignore_indic=True)
+            guard = False
+            if residue_hint in ('Tamil', 'Malayalam'):
+                guard = True  # ';'-glue and accent runs never occur in clean lyrics
+            elif residue_hint == 'Hindi':
+                from app.legacy_font_converter import STRONG_HINDI_RE
+                _plain = re.sub(r'<[^>]+>', ' ', lyrics)
+                strong = len(STRONG_HINDI_RE.findall(_plain)) >= 2
+                non_english_ctx = (
+                    (language_hint in {'Malayalam', 'Hindi', 'Tamil', 'Telugu', 'Kannada'})
+                    or (detect_category_from_url(url) not in (None, 'English')))
+                guard = bool(strong or non_english_ctx)
+            if guard:
+                converted = try_convert_residue(lyrics, language_hint, ignore_indic=True)
+                if converted != lyrics and has_indic_unicode(converted):
+                    lyrics = _break_mega_stanzas(converted)
+                    lyrics2 = ''
+                else:
+                    residue_unfixable = True
+        # Same guard for the transliteration field: residue there is dropped so
+        # the fallback below regenerates it from clean native lyrics.
+        if lyrics2:
+            _i2 = len(re.findall(r'[\u0900-\u0D7F]', lyrics2))
+            _a2 = len(re.findall(r'[A-Za-z]', lyrics2))
+            if (_i2 == 0 or _i2 * 20 < _a2) and detect_unconverted_residue(lyrics2, ignore_indic=True):
+                lyrics2 = ''
+
         # 3. Detect / Enforce Language
         if not lyrics and lyrics2:
             # If only Romanized lyrics exist, category comes from hint or URL
@@ -564,12 +644,19 @@ def scrape_url(url, language_hint=None):
 
         # 5. Calculate Multi-Factor Confidence Score
         conf = compute_song_confidence(title, lyrics, category, source_domain=parsed_url.netloc)
+        if residue_unfixable:
+            # Unconvertible legacy-font residue is not usable lyrics:
+            # force below the auto-ingest/review bar so it gets rejected.
+            conf['overall_confidence'] = min(conf.get('overall_confidence', 0.0), 55.0)
+            conf['action'] = 'reject'
 
         return {
             "success": True,
             "url": url,
             "title": title,
             "category": category,
+            "author": author,
+            "tags": tags,
             "lyrics": lyrics,
             "lyrics2": lyrics2,
             "confidence": conf,
@@ -771,6 +858,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         lyrics = res['lyrics']
                         lyrics2 = res.get('lyrics2', '')
                         category = res.get('category') or cand['language']
+                        author = (res.get('author') or '').strip()
+                        tags = (res.get('tags') or '').strip()
                         # Live-sitemap URLs carry no trusted language until scraped:
                         # drop ones detected outside the requested target languages.
                         if not cand.get('language') and category not in target_langs:
@@ -789,17 +878,30 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         if dup_status in ['exact_duplicate', 'near_duplicate']:
                             auto_scraper_state["duplicates_skipped"] += 1
                             
-                            # If existing song lacks lyrics2 and candidate has clean lyrics2, enrich it!
-                            if matched_id and lyrics2 and lyrics2.strip():
+                            # If existing song lacks lyrics2/author/tags and candidate
+                            # has them, enrich it!
+                            if matched_id and (lyrics2 and lyrics2.strip() or author or tags):
                                 conn_enr = None
                                 try:
                                     conn_enr = db_manager.get_connection()
                                     cur_enr = conn_enr.cursor()
-                                    cur_enr.execute("SELECT lyrics2 FROM songs WHERE id = ?", (matched_id,))
+                                    cur_enr.execute("SELECT lyrics2, author, tags FROM songs WHERE id = ?", (matched_id,))
                                     r_enr = cur_enr.fetchone()
-                                    if r_enr and (not r_enr[0] or not r_enr[0].strip()):
-                                        cur_enr.execute("UPDATE songs SET lyrics2 = ? WHERE id = ?", (lyrics2, matched_id))
-                                        conn_enr.commit()
+                                    if r_enr:
+                                        sets, vals = [], []
+                                        if lyrics2 and lyrics2.strip() and (not r_enr[0] or not r_enr[0].strip()):
+                                            sets.append("lyrics2 = ?")
+                                            vals.append(lyrics2)
+                                        if author and (not r_enr[1] or not r_enr[1].strip()):
+                                            sets.append("author = ?")
+                                            vals.append(author)
+                                        if tags and (not r_enr[2] or not r_enr[2].strip()):
+                                            sets.append("tags = ?")
+                                            vals.append(tags)
+                                        if sets:
+                                            vals.append(matched_id)
+                                            cur_enr.execute(f"UPDATE songs SET {', '.join(sets)} WHERE id = ?", vals)
+                                            conn_enr.commit()
                                 except Exception:
                                     pass
                                 finally:
@@ -816,6 +918,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'raw_lyrics': lyrics,
                                 'cleaned_lyrics': lyrics,
                                 'lyrics2': lyrics2,
+                                'author': author,
+                                'tags': tags,
                                 'title_original': cand['title'],
                                 'title_cleaned': title,
                                 'language': category,
@@ -841,6 +945,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'raw_lyrics': lyrics,
                                 'cleaned_lyrics': lyrics,
                                 'lyrics2': lyrics2,
+                                'author': author,
+                                'tags': tags,
                                 'title_original': cand['title'],
                                 'title_cleaned': title,
                                 'language': category,
@@ -861,6 +967,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'raw_lyrics': lyrics,
                                 'cleaned_lyrics': lyrics,
                                 'lyrics2': lyrics2,
+                                'author': author,
+                                'tags': tags,
                                 'title_original': cand['title'],
                                 'title_cleaned': title,
                                 'language': category,
@@ -878,6 +986,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             'raw_lyrics': lyrics,
                             'cleaned_lyrics': lyrics,
                             'lyrics2': lyrics2,
+                            'author': author,
+                            'tags': tags,
                             'title_original': cand['title'],
                             'title_cleaned': title,
                             'language': category,
@@ -893,8 +1003,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             "category": category,
                             "lyrics": lyrics,
                             "lyrics2": lyrics2,
-                            "tags": '',
-                            "author": '',
+                            "tags": tags,
+                            "author": author,
                             "key": ''
                         }
                         db_manager.save_song(song_data, sync_cloud=True)

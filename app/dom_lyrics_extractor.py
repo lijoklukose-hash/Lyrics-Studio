@@ -52,6 +52,8 @@ def is_ui_noise_line(line: str) -> bool:
 def clean_chords(text: str) -> str:
     if not text:
         return ''
+    from app.legacy_font_converter import fix_mojibake
+    text = fix_mojibake(text)
     text = CHORD_REGEX.sub('', text)
     # Strip emojis including musical notes - astral plane + misc symbols
     # Note: Python3 strings hold full codepoints, so lone-surrogate range is omitted

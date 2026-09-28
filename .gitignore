@@ -36,6 +36,16 @@ scraped_data/*_debug.html
 scraped_data/wtc_scrape_log.txt
 scratch/
 scratch_orig.html
+*_audit_report.json
+*_verification.json
+*_report.json
+*_report.md
+sample.html
+sample_madely_lyrics_output.md
+*audit*.json
+verification_summary.json
+mannalyrics_song_urls.json
+scraped_data/*_live_catalog.json
 
 # Firebase / Google Credentials (SECRETS — never commit)
 *firebase-adminsdk*.json
