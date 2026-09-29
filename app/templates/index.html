@@ -640,16 +640,16 @@
                             </div>
                         </div>
 
-                        <button x-show="reviewQueueCount > 0" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm animate-pulse">
+                        <button x-show="reviewQueueCount > 0 || autoScraperState.needs_review > 0" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm animate-pulse">
                             <i data-lucide="shield-check" class="w-4 h-4"></i>
-                            <span>Review Pending Songs (<strong x-text="reviewQueueCount">0</strong>)</span>
+                            <span>Review Pending Songs (<strong x-text="reviewQueueCount || autoScraperState.needs_review || 0">0</strong>)</span>
                         </button>
                     </div>
 
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs">
                         <div class="flex items-center space-x-3">
                             <span class="text-slate-700 font-semibold flex items-center space-x-2">
-                                <span class="w-2.5 h-2.5 rounded-full" :class="autoScrapingActive ? 'bg-amber-500 animate-ping' : (autoScraperState.status === 'completed' ? 'bg-emerald-500' : 'bg-slate-400')"></span>
+                                <span class="w-2.5 h-2.5 rounded-full" :class="autoScrapingActive ? 'bg-amber-500 animate-ping' : (autoScraperState.status === 'completed' ? 'bg-emerald-500' : (autoScraperState.status === 'error' ? 'bg-rose-500' : (autoScraperState.status === 'stopped' ? 'bg-slate-500' : 'bg-slate-400')))"></span>
                                 <span>Status: <strong class="text-slate-900 capitalize" x-text="autoScraperState.status"></strong></span>
                             </span>
 
@@ -674,6 +674,7 @@
                             <span class="text-slate-500">Duplicates Skipped: <strong class="text-rose-600" x-text="autoScraperState.duplicates_skipped || 0">0</strong></span>
                             <span class="text-slate-500">Queued for Review: <strong class="text-amber-600" x-text="reviewQueueCount || autoScraperState.needs_review || 0">0</strong></span>
                             <span class="text-slate-500">Pristine Imported: <strong class="text-emerald-600" x-text="autoScraperState.imported || 0">0</strong></span>
+                            <span class="text-slate-500" x-show="autoScraperState.failed > 0">Failed: <strong class="text-rose-600" x-text="autoScraperState.failed || 0">0</strong></span>
                         </div>
                     </div>
                     <div class="text-xs text-slate-700 font-mono truncate" x-text="autoScraperState.message"></div>
@@ -1437,10 +1438,37 @@
                     </div>
                 </template>
 
-                <div x-show="reviewQueueItems.length === 0" class="py-12 text-center text-slate-500 space-y-2">
+                <div x-show="reviewQueueItems.length === 0 && !reviewQueueLoading && !reviewQueueError && reviewQueueTotal === 0" class="py-12 text-center text-slate-500 space-y-2">
                     <i data-lucide="check-circle-2" class="w-10 h-10 mx-auto text-emerald-500"></i>
                     <p class="text-sm font-bold text-slate-700">No pending songs for review!</p>
                     <p class="text-xs text-slate-400">All scraped songs have been reviewed or auto-processed.</p>
+                </div>
+
+                <div x-show="reviewQueueItems.length === 0 && !reviewQueueLoading && !reviewQueueError && reviewQueueTotal > 0" class="py-12 text-center space-y-3">
+                    <i data-lucide="hourglass" class="w-10 h-10 mx-auto text-amber-500"></i>
+                    <p class="text-sm font-bold text-slate-700" x-text="reviewQueueTotal + ' songs are pending but this batch did not load.'"></p>
+                    <p class="text-xs text-slate-400">The server may be busy — load the next batch.</p>
+                    <button type="button" @click="loadReviewQueue(true)" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-sm">
+                        Load Songs Now
+                    </button>
+                </div>
+
+                <div x-show="reviewQueueLoading" class="py-12 text-center text-slate-500 space-y-3">
+                    <svg class="animate-spin w-10 h-10 mx-auto text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <p class="text-sm font-bold text-slate-700">Loading songs for review...</p>
+                    <p class="text-xs text-slate-400">Fetching from the archive (this can take a moment while scraping runs).</p>
+                </div>
+
+                <div x-show="reviewQueueError && !reviewQueueLoading" class="py-12 text-center space-y-3">
+                    <i data-lucide="alert-triangle" class="w-10 h-10 mx-auto text-rose-500"></i>
+                    <p class="text-sm font-bold text-slate-700">Couldn't load the review queue</p>
+                    <p class="text-xs text-slate-400" x-text="reviewQueueError"></p>
+                    <button type="button" @click="loadReviewQueue(true)" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-sm">
+                        Retry Loading
+                    </button>
                 </div>
             </div>
 
@@ -1528,6 +1556,9 @@
                 reviewQueueModalOpen: false,
                 reviewQueueItems: [],
                 reviewQueueCount: 0,
+                reviewQueueTotal: 0,
+                reviewQueueLoading: false,
+                reviewQueueError: '',
                 reviewCurrentIndex: 0,
                 reviewScriptTab: 'native',
                 autoScrapingActive: false,
@@ -2180,6 +2211,7 @@
                         if (clearQueue) {
                             this.reviewQueueItems = [];
                             this.reviewQueueCount = 0;
+                            this.reviewQueueTotal = 0;
                             this.reviewCurrentIndex = 0;
                         } else {
                             await this.loadReviewQueue();
@@ -2191,11 +2223,22 @@
                     }
                 },
 
-                async loadReviewQueue() {
+                async loadReviewQueue(showErrors = false) {
+                    this.reviewQueueLoading = true;
+                    this.reviewQueueError = '';
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 60000);
                     try {
-                        const res = await fetch('/api/scraper/review-queue');
+                        const res = await fetch('/api/scraper/review-queue', { signal: controller.signal });
                         const data = await res.json();
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
                         const queue = data.queue || [];
+                        if (typeof data.total === 'number') {
+                            this.reviewQueueCount = data.total;
+                            this.reviewQueueTotal = data.total;
+                        }
                         this.reviewQueueItems = queue.map(item => {
                             const l1 = item.cleaned_lyrics || item.raw_lyrics || '';
                             const l2 = item.lyrics2 && item.lyrics2.trim() ? item.lyrics2 : l1;
@@ -2207,11 +2250,27 @@
                                 editText2: this.formatFromBrTags(l2)
                             };
                         });
-                        this.reviewQueueCount = this.reviewQueueItems.length;
+                        if (typeof data.total !== 'number') {
+                            this.reviewQueueCount = this.reviewQueueItems.length;
+                        }
                         if (this.reviewCurrentIndex >= this.reviewQueueItems.length) {
                             this.reviewCurrentIndex = Math.max(0, this.reviewQueueItems.length - 1);
                         }
-                    } catch (e) { console.error(e); }
+                    } catch (e) {
+                        const msg = (e && e.name === 'AbortError')
+                            ? 'Request timed out — the server is busy. Please retry.'
+                            : ('Failed to load review queue: ' + (e.message || e));
+                        this.reviewQueueError = msg;
+                        if (showErrors || this.reviewQueueModalOpen) {
+                            this.showToast(msg + ' Tap Retry.', 'error');
+                        } else {
+                            console.error(e);
+                        }
+                    } finally {
+                        clearTimeout(timer);
+                        this.reviewQueueLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
                 },
 
                 async openReviewQueueModal() {
@@ -2253,9 +2312,18 @@
                             throw new Error(data.error || data.detail || `Request failed with status ${res.status}`);
                         }
                         this.reviewQueueItems.splice(index, 1);
-                        this.reviewQueueCount = this.reviewQueueItems.length;
+                        this.reviewQueueCount = Math.max(0, (this.reviewQueueCount || 1) - 1);
+                        this.reviewQueueTotal = Math.max(0, (this.reviewQueueTotal || 1) - 1);
                         if (this.reviewCurrentIndex >= this.reviewQueueItems.length) {
                             this.reviewCurrentIndex = Math.max(0, this.reviewQueueItems.length - 1);
+                        }
+                        // Auto-refill: the queue serves 50 at a time, so fetch
+                        // the next batch instead of stranding the user.
+                        if (this.reviewQueueItems.length === 0) {
+                            await this.loadReviewQueue();
+                            if (this.reviewQueueItems.length > 0) {
+                                this.showToast('Loaded next batch of songs for review.', 'info');
+                            }
                         }
                         this.loadStats();
                         this.loadSongs(this.currentPage);
@@ -2279,7 +2347,7 @@
                                 // Cheap count-only refresh while running (full queue loads on finish)
                                 fetch('/api/scraper/review-count')
                                     .then(r => r.json())
-                                    .then(d => { if (d && typeof d.count === 'number') this.reviewQueueCount = d.count; })
+                                    .then(d => { if (d && typeof d.count === 'number') { this.reviewQueueCount = d.count; this.reviewQueueTotal = d.count; } })
                                     .catch(() => {});
                             } else {
                                 if (this.autoScrapingActive) {
@@ -2297,6 +2365,17 @@
                                     } else if (endStatus === 'error') {
                                         this.showToast('Auto-scraper error: ' + (this.autoScraperState.message || 'unknown'), 'error');
                                     }
+                                } else if (this.reviewQueueCount === 0) {
+                                    // Idle but count never synced (e.g. a failed initial
+                                    // load): one cheap recovery attempt, then sleep.
+                                    fetch('/api/scraper/review-count')
+                                        .then(r => r.json())
+                                        .then(d => { if (d && typeof d.count === 'number' && d.count > 0) { this.reviewQueueCount = d.count; this.reviewQueueTotal = d.count; } })
+                                        .catch(() => {})
+                                        .finally(() => {
+                                            clearInterval(this.autoScraperTimer);
+                                            this.autoScraperTimer = null;
+                                        });
                                 } else {
                                     // Already idle, stop timer to save CPU & network
                                     clearInterval(this.autoScraperTimer);

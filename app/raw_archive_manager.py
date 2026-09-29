@@ -100,10 +100,15 @@ def save_raw_scrape(data: dict, db_path=ARCHIVE_DB_PATH):
 def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
     init_raw_archive(db_path)
     with _ARCHIVE_LOCK:
+        keep = "'approved'"
+        if data.get('preserve_review', True):
+            # Review Mode: never silently flip a human-pending decision
+            # (content columns still refresh).
+            keep += ", 'review'"
         conn = sqlite3.connect(db_path, timeout=60.0)
         cur = conn.cursor()
         cur.execute("PRAGMA busy_timeout = 60000")
-        cur.execute('''
+        cur.execute(f'''
                 INSERT INTO raw_scrapes (
                     source_url, source_website, raw_html, raw_lyrics,
                     cleaned_lyrics, lyrics2, author, tags, title_original, title_cleaned,
@@ -117,9 +122,9 @@ def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
                     title_cleaned = excluded.title_cleaned,
                     overall_confidence = excluded.overall_confidence,
                     duplicate_score = excluded.duplicate_score,
-                    status = CASE 
-                        WHEN raw_scrapes.status IN ('approved', 'rejected') THEN raw_scrapes.status 
-                        ELSE excluded.status 
+                    status = CASE
+                        WHEN raw_scrapes.status IN ({keep}) THEN raw_scrapes.status
+                        ELSE excluded.status
                     END
             ''', (
                 data.get('source_url', ''),
@@ -143,18 +148,37 @@ def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
 
 def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH):
     init_raw_archive(db_path)
+    try:
+        limit = max(1, min(100, int(limit)))
+    except Exception:
+        limit = 50
     conn = sqlite3.connect(db_path, timeout=60.0)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+    # NOTE: raw_lyrics is intentionally excluded (it duplicates cleaned_lyrics
+    # and would double a multi-MB payload); COALESCE covers legacy rows.
     cur.execute('''
-        SELECT id, source_url, source_website, scraped_at, raw_lyrics, cleaned_lyrics, lyrics2, author, tags, title_original, title_cleaned, language, overall_confidence, duplicate_score, matched_id, status FROM raw_scrapes 
-        WHERE status = 'review' 
-        ORDER BY overall_confidence DESC 
+        SELECT id, source_url, source_website, scraped_at,
+            COALESCE(NULLIF(cleaned_lyrics, ''), raw_lyrics) AS cleaned_lyrics,
+            lyrics2, author, tags, title_original, title_cleaned, language,
+            overall_confidence, duplicate_score, matched_id, status FROM raw_scrapes
+        WHERE status = 'review'
+        ORDER BY overall_confidence DESC
         LIMIT ?
     ''', (limit,))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
+
+
+def get_review_count(db_path=ARCHIVE_DB_PATH):
+    """Cheap pending-review total (no lyrics payload) for progress polling."""
+    init_raw_archive(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
+    try:
+        return conn.execute("SELECT COUNT(*) FROM raw_scrapes WHERE status = 'review'").fetchone()[0]
+    finally:
+        conn.close()
 
 def clear_review_queue(db_path=ARCHIVE_DB_PATH):
     """Mark all pending review queue items as rejected so they won't pop up again."""

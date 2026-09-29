@@ -138,6 +138,8 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = re.sub(r'<br\s*/?>', '\n', t, flags=re.IGNORECASE)
     t = t.replace('<BR><BR>', '\n\n').replace('<BR>', '\n')
     t = re.sub(r'<[^>]+>', ' ', t)
+    # Detach section labels glued to lyric text ([अंतरा - 1], (कोरस), ...)
+    t = '\n'.join(detach_glued_section_labels(t.split('\n')))
     # Split multi-spaces into separate lines (reconstructs lines that were flattened with double spaces)
     t = re.sub(r'[ \t]{2,}', '\n', t)
 
@@ -262,11 +264,13 @@ Lyrics:
 
 _SECTION_WORDS = (
     r'verses?|stanzas?|chorus|refrain|bridge|intro|outro|interlude|ending|prelude'
-    r'|pre[\s\-]*chorus|prechorus|sthayi|sthaayi|antaraa?|mukhda'
+    r'|pre[\s\-]*chorus|prechorus|sthayi|sthaayi|antaraa?|antra|koras|samapti|samapthi|climax|mukhda'
     r'|pallavi|anupallavi|charanam'
     r'|పల్లవి|అనుపల్లవి|కోరస్|చరణం|पल्लवी|अनुपल्लवी|कोरस|चरण'
     r'|பல்லவி|அனுபல்லவி|கோரஸ்|சரணம்|പല്ലവി|അനുപല്ലവി|കോറസ്|ചരണം'
     r'|ಪಲ್ಲವಿ|ಅನುಪಲ್ಲವಿ|ಕೋರಸ್|ಚರಣ'
+    r'|अंतरा|कोरस|स्थायी'
+    r'|आउट्रो|समाप्ति|क्लाइमेक्स|मुखडा'
 )
 
 _SECTION_HEAD_RE = re.compile(
@@ -275,11 +279,45 @@ _SECTION_HEAD_RE = re.compile(
     r'|(?:' + _SECTION_WORDS + r')\s*\d{0,2}\s*[:.]?\s*$'  # bare label line
     r'|(?:' + _SECTION_WORDS + r')\s+\d{1,2}\b'  # Verse 1 / Pre-Chorus 2 + text
     r'|(?:' + _SECTION_WORDS + r')\s*(?:[:.]\s*\S|[\-–—]\s*$)'  # Chorus: x / Chorus -
+    r'|\[\s*(?:' + _SECTION_WORDS + r')[^\]\n]*\]'  # [अंतरा - 1] / [Chorus]
+    r'|\(\s*(?:' + _SECTION_WORDS + r')[^()\n]*\)'  # (कोरस) / (Chorus - repeat)
     r')',
     re.IGNORECASE)
 
 _REPEAT_ALONE_RE = re.compile(r'^\(\d+\)$')
 _REPEAT_PREFIX_RE = re.compile(r'^\(\d+\)\s+\S')
+
+# Bracket/paren labels glued to lyric text: detach into standalone lines so
+# they split stanzas instead of corrupting lyric lines. Only fires when the
+# brackets contain a section word — repeat tags like (2) are untouched.
+_BRACKET_LABEL_RE = re.compile(
+    r'(\[\s*(?:' + _SECTION_WORDS + r')[^\]\n]*\])', re.IGNORECASE)
+_PAREN_LABEL_RE = re.compile(
+    r'(\(\s*(?:' + _SECTION_WORDS + r')[^()\n]*\))', re.IGNORECASE)
+
+
+def detach_glued_section_labels(lines):
+    """Split section labels glued to lyric text into standalone lines.
+
+    Handles flat HTML like '...है[अंतरा - 1]मैं...' or '(कोरस)तू महान है'
+    where labels were never on their own line. Repeat tags (2) unaffected.
+    """
+    if not lines:
+        return []
+    out = []
+    for line in lines:
+        s = line if isinstance(line, str) else ''
+        s = _BRACKET_LABEL_RE.sub(r'\n\1\n', s)
+        # Parenthesized labels: skip pure repeat tags like (2)/(4).
+        parts = []
+        for chunk in _PAREN_LABEL_RE.split(s):
+            parts.append(chunk)
+        s = '\n'.join(parts)
+        for piece in s.split('\n'):
+            piece = piece.strip()
+            if piece:
+                out.append(piece)
+    return out
 
 
 def _is_section_head(line: str) -> bool:
@@ -382,7 +420,7 @@ def clean_citation_lines(lines):
 def structure_lyrics_into_stanzas(lines):
     if not lines:
         return ""
-    lines = clean_citation_lines(lines)
+    lines = clean_citation_lines(detach_glued_section_labels(lines))
     if not lines:
         return ""
     t = '\n'.join(lines)
@@ -422,7 +460,7 @@ def structure_lyrics_into_stanzas(lines):
         else:
             formatted_stanzas.append('<BR>'.join(merged))
 
-    return '<BR><BR>'.join(formatted_stanzas).strip()
+    return split_on_section_cues('<BR><BR>'.join(formatted_stanzas).strip())
 
 def is_valid_web_lyrics(scraped_lyrics, title, category="English", scraped_lyrics2=""):
     """

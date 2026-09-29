@@ -111,9 +111,12 @@ class DOMStructureExtractor:
             self.clean_dom()
             container = self.find_lyrics_container()
 
-        # Decompose title heading tags if they are inside container to avoid duplicating title inside lyrics
-        for h in container.find_all(['h1', 'h2']):
-            h.decompose()
+        # Detect adaptive BR pattern in container
+        raw_html = str(container)
+        br_matches = re.findall(r'((?:<br\s*/?>\s*)+)', raw_html, re.IGNORECASE)
+        br_runs = [len(re.findall(r'<br', m, re.IGNORECASE)) for m in br_matches]
+        has_3plus_br = any(c >= 3 for c in br_runs)
+        br_stanza_threshold = 3 if has_3plus_br else 2
 
         stanzas = []
         current_lines = []
@@ -137,10 +140,8 @@ class DOMStructureExtractor:
                 for idx, line in enumerate(lines):
                     cleaned = clean_chords(line).strip()
                     if cleaned:
-                        # If the line begins with a verse/stanza number or section label, start a new stanza
-                        if VERSE_START_REGEX.match(cleaned):
-                            if current_lines:
-                                flush_stanza()
+                        if VERSE_START_REGEX.match(cleaned) and current_lines:
+                            flush_stanza()
                         current_lines.append(cleaned)
                     elif idx > 0 and len(lines) > 2 and current_lines:
                         flush_stanza()
@@ -154,10 +155,19 @@ class DOMStructureExtractor:
                 return
 
             if tag_name in BREAK_TAGS:
-                next_sib = node.next_sibling
-                while next_sib and isinstance(next_sib, NavigableString) and not str(next_sib).strip():
-                    next_sib = next_sib.next_sibling
-                if next_sib and isinstance(next_sib, Tag) and next_sib.name.lower() in BREAK_TAGS:
+                # Count consecutive <br> siblings
+                consecutive_brs = 1
+                curr = node.next_sibling
+                while curr:
+                    if isinstance(curr, NavigableString) and not str(curr).strip():
+                        curr = curr.next_sibling
+                    elif isinstance(curr, Tag) and curr.name.lower() in BREAK_TAGS:
+                        consecutive_brs += 1
+                        curr = curr.next_sibling
+                    else:
+                        break
+
+                if consecutive_brs >= br_stanza_threshold:
                     flush_stanza()
                 return
 
@@ -171,7 +181,9 @@ class DOMStructureExtractor:
             for child in node.children:
                 walk(child)
 
-            if (is_block or is_stanza_div) and current_lines:
+            # For block elements (<p>, <div>), if they end and contain text,
+            # only flush stanza if it has multiple lines or is an explicit stanza container
+            if is_stanza_div and current_lines:
                 flush_stanza()
 
         walk(container)
@@ -182,4 +194,15 @@ class DOMStructureExtractor:
             st = st.strip()
             if st and st != '<BR>':
                 cleaned_stanzas.append(st)
+
+        # If extracted text resulted in 1-line stanzas (every line got split into its own stanza):
+        if len(cleaned_stanzas) >= 3:
+            avg_lines = sum(len(s.split('<BR>')) for s in cleaned_stanzas) / len(cleaned_stanzas)
+            if avg_lines <= 1.3:
+                all_lines = [l for s in cleaned_stanzas for l in s.split('<BR>') if l.strip()]
+                from app.online_lyrics_search import structure_lyrics_into_stanzas
+                recombined = structure_lyrics_into_stanzas(all_lines)
+                if recombined and '<BR><BR>' in recombined:
+                    return recombined
+
         return '<BR><BR>'.join(cleaned_stanzas)

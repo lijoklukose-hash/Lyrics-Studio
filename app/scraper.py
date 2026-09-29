@@ -340,6 +340,11 @@ def clean_and_format_lyrics(raw_html_or_text, title="", category=""):
         return ""
     extractor = DOMStructureExtractor(raw_html_or_text)
     lyrics = extractor.extract_structured_stanzas()
+    try:
+        from app.online_lyrics_search import split_on_section_cues
+        lyrics = split_on_section_cues(lyrics)
+    except Exception:
+        pass
     return lyrics
 
 # --- Live sitemap discovery (new songs beyond the static JSON snapshots) ---
@@ -557,7 +562,7 @@ def scrape_url(url, language_hint=None):
                 lyrics2 = extractor.extract_structured_stanzas(eng_div)
 
         # Fallback for other portals or missed containers:
-        if not lyrics and not lyrics2:
+        if not lyrics and not lyrics2 and not ('waytochurch.com' in url.lower() or 'madely.us' in url.lower()):
             extractor = DOMStructureExtractor(soup)
             lyrics = extractor.extract_structured_stanzas()
 
@@ -739,19 +744,38 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
         else:
             target_langs = list(valid_6_languages)
 
+        # Build catalog url-to-language index for fast, 100% accurate language filtering
+        catalog_url_to_lang = {}
+        for lang_name in valid_6_languages:
+            cat_f = os.path.join(CATALOG_DIR, f"{lang_name}_catalog.json")
+            if os.path.exists(cat_f):
+                try:
+                    with open(cat_f, 'r', encoding='utf-8') as f:
+                        for it in json.load(f):
+                            u = it.get('url')
+                            if u:
+                                catalog_url_to_lang[u] = lang_name
+                except Exception:
+                    pass
+        all_cat_f = os.path.join(CATALOG_DIR, "all_catalog.json")
+        if os.path.exists(all_cat_f):
+            try:
+                with open(all_cat_f, 'r', encoding='utf-8') as f:
+                    all_data = json.load(f)
+                    if isinstance(all_data, dict):
+                        for lang_name, items in all_data.items():
+                            if isinstance(items, list):
+                                for it in items:
+                                    u = it.get('url') if isinstance(it, dict) else None
+                                    if u and u not in catalog_url_to_lang:
+                                        catalog_url_to_lang[u] = lang_name
+            except Exception:
+                pass
+
         candidate_items = []
+        is_all_languages = (set(target_langs) == valid_6_languages)
+
         if source in ["all", "waytochurch"]:
-            # Previously discovered live URLs first (newest first)
-            for it in _load_live_catalog(WTC_LIVE_CATALOG):
-                lang = it.get("language")
-                if lang is not None and lang not in target_langs:
-                    continue
-                candidate_items.append({
-                    "url": it.get("url"),
-                    "title": it.get("title"),
-                    "language": lang,
-                    "source_name": "WayToChurch"
-                })
             for lang in target_langs:
                 cat_file = os.path.join(CATALOG_DIR, f"{lang}_catalog.json")
                 if os.path.exists(cat_file):
@@ -764,6 +788,23 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             "language": lang,
                             "source_name": "WayToChurch"
                         })
+
+            # Previously discovered live URLs (filtered strictly by target language)
+            for it in _load_live_catalog(WTC_LIVE_CATALOG):
+                u = it.get("url")
+                lang = it.get("language") or catalog_url_to_lang.get(u) or detect_category_from_url(u or '')
+                if lang:
+                    if lang not in target_langs:
+                        continue
+                elif not is_all_languages:
+                    # Skip untagged live URLs when user selected a specific language
+                    continue
+                candidate_items.append({
+                    "url": u,
+                    "title": it.get("title"),
+                    "language": lang,
+                    "source_name": "WayToChurch"
+                })
 
         if source in ["all", "madely"] and "Malayalam" in target_langs:
             for it in _load_live_catalog(MADELY_LIVE_CATALOG):
@@ -795,7 +836,13 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                     for c in discover_waytochurch_from_sitemap():
                         if auto_scraper_state.get("stop_requested"):
                             break
-                        if c.get("language") is not None and c["language"] not in target_langs:
+                        u = c.get("url")
+                        lang = c.get("language") or catalog_url_to_lang.get(u) or detect_category_from_url(u or '')
+                        if lang:
+                            if lang not in target_langs:
+                                continue
+                            c["language"] = lang
+                        elif not is_all_languages:
                             continue
                         live_new_wtc.append(c)
                 if source in ["all", "madely"] and "Malayalam" in target_langs:
@@ -912,9 +959,8 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         category = res.get('category') or cand['language']
                         author = (res.get('author') or '').strip()
                         tags = (res.get('tags') or '').strip()
-                        # Live-sitemap URLs carry no trusted language until scraped:
-                        # drop ones detected outside the requested target languages.
-                        if not cand.get('language') and category not in target_langs:
+                        # Strict target language guard: drop ones outside the requested target languages
+                        if category not in target_langs:
                             auto_scraper_state["duplicates_skipped"] += 1
                             continue
                         conf = res.get('confidence', {})
@@ -978,6 +1024,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'overall_confidence': overall_conf,
                                 'duplicate_score': sim,
                                 'matched_id': matched_id,
+                                'preserve_review': require_manual_review,
                                 'status': 'rejected'
                             })
                             continue
@@ -1005,6 +1052,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'overall_confidence': overall_conf,
                                 'duplicate_score': sim,
                                 'matched_id': matched_id,
+                                'preserve_review': require_manual_review,
                                 'status': 'review'
                             })
                             auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
@@ -1027,6 +1075,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'overall_confidence': overall_conf,
                                 'duplicate_score': sim,
                                 'matched_id': matched_id,
+                                'preserve_review': require_manual_review,
                                 'status': 'rejected'
                             })
                             continue
@@ -1046,6 +1095,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                             'overall_confidence': overall_conf,
                             'duplicate_score': sim,
                             'matched_id': matched_id,
+                            'preserve_review': require_manual_review,
                             'status': 'approved'
                         })
 
