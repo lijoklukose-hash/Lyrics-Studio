@@ -1353,6 +1353,15 @@
                             <div class="flex items-center space-x-3">
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-white shadow-xs" x-text="'Song ' + (reviewCurrentIndex + 1) + ' of ' + reviewQueueItems.length"></span>
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200" x-text="reviewQueueItems[reviewCurrentIndex].language"></span>
+                                <select x-model="reviewQueueLanguage" @change="reviewCurrentIndex = 0; loadReviewQueue(true)" title="Filter review queue by language" class="px-2 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                    <option value="All">All languages</option>
+                                    <option value="Malayalam">Malayalam</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Telugu">Telugu</option>
+                                    <option value="English">English</option>
+                                    <option value="Hindi">Hindi</option>
+                                    <option value="Kannada">Kannada</option>
+                                </select>
                                 <span class="text-xs text-slate-400 font-mono" x-text="'Confidence: ' + (reviewQueueItems[reviewCurrentIndex].overall_confidence || 0).toFixed(0) + '%'"></span>
                             </div>
 
@@ -1557,6 +1566,7 @@
                 reviewQueueItems: [],
                 reviewQueueCount: 0,
                 reviewQueueTotal: 0,
+                reviewQueueLanguage: 'All',
                 reviewQueueLoading: false,
                 reviewQueueError: '',
                 reviewCurrentIndex: 0,
@@ -2229,7 +2239,9 @@
                     const controller = new AbortController();
                     const timer = setTimeout(() => controller.abort(), 60000);
                     try {
-                        const res = await fetch('/api/scraper/review-queue', { signal: controller.signal });
+                        const lang = this.reviewQueueLanguage && this.reviewQueueLanguage !== 'All'
+                            ? `&language=${encodeURIComponent(this.reviewQueueLanguage)}` : '';
+                        const res = await fetch(`/api/scraper/review-queue?limit=50${lang}`, { signal: controller.signal });
                         const data = await res.json();
                         if (data.error) {
                             throw new Error(data.error);
@@ -2276,6 +2288,9 @@
                 async openReviewQueueModal() {
                     this.reviewCurrentIndex = 0;
                     this.reviewScriptTab = 'native';
+                    if (this.autoScrapeLanguage && this.autoScrapeLanguage !== 'All') {
+                        this.reviewQueueLanguage = this.autoScrapeLanguage;
+                    }
                     this.reviewQueueModalOpen = true;
                     this.$nextTick(() => lucide.createIcons());
                     await this.loadReviewQueue();

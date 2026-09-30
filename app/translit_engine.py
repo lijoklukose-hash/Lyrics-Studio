@@ -201,6 +201,22 @@ MALAYALAM_SYLLABLES = [
     ('ം', 'm'), ('ഃ', 'h')
 ]
 
+# Single-consonant bases for vocalic-R clusters (കൃ -> kri). Derived from
+# MALAYALAM_SYLLABLES bare-consonant entries so the mapping stays consistent
+# by construction (vocalic-R U+0D43 and vocalic-RR U+0D60 have no entries
+# in the syllable table, so without this the vowel sign was silently dropped:
+# കൃപ became 'kapa' instead of 'kripa').
+def _build_consonant_bases():
+    bases = {}
+    for mal, eng in MALAYALAM_SYLLABLES:
+        if len(mal) == 1 and eng.endswith('a') and mal >= 'ക' and mal <= 'ഹ':
+            bases[mal] = eng[:-1]
+    return bases
+
+MALAYALAM_CONSONANT_BASES = _build_consonant_bases()
+MALAYALAM_VOCALIC_R_RE = re.compile(
+    '([' + ''.join(sorted(MALAYALAM_CONSONANT_BASES)) + '])(ൃ|ൠ)')
+
 PHONETIC_CLEANERS = [
     (r'aa', 'aa'),
     (r'AA|A', 'aa'),
@@ -261,6 +277,13 @@ def transliterate_malayalam(text):
 
         for pat, rep in MALAYALAM_INDEP_VOWELS:
             l = l.replace(pat, rep)
+
+        # Single-consonant vocalic-R clusters (കൃ -> kri). Must run before
+        # the syllable table, which would otherwise consume the bare
+        # consonant and leave the vowel sign to be stripped.
+        l = MALAYALAM_VOCALIC_R_RE.sub(
+            lambda m: MALAYALAM_CONSONANT_BASES[m.group(1)]
+            + ('rii' if m.group(2) == 'ൠ' else 'ri'), l)
 
         for pat, rep in MALAYALAM_SYLLABLES:
             l = re.sub(pat, rep, l)

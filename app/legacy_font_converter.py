@@ -56,6 +56,39 @@ def fix_mojibake(text: str) -> str:
         return text
     return _MOJIBAKE_RE.sub(lambda m: MOJIBAKE_MAP.get(ord(m.group(0)), ''), text)
 
+# ── Backslash-escape debris repair ─────────────────────────────────────────────
+# Scraped/imported text sometimes carries literal two-char escapes (\n, \t,
+# \", \\, \uXXXX) from JSON-ish sources. No clean lyric contains a raw
+# backslash, so decoding (then dropping strays) is always safe.
+
+_BS_ESCAPES = {'n': '\n', 't': '\t', 'r': '\n', '"': '"', "'": "'", '\\': '\\'}
+_BS_RE = re.compile(r'\\(?:u([0-9a-fA-F]{4})|U([0-9a-fA-F]{6,8})|(.))', re.DOTALL)
+
+
+def _bs_sub(m):
+    uni4, uni8, ch = m.group(1), m.group(2), m.group(3)
+    try:
+        if uni4:
+            return chr(int(uni4, 16))
+        if uni8 and int(uni8, 16) <= 0x10FFFF:
+            return chr(int(uni8, 16))
+    except Exception:
+        pass
+    if ch is None:
+        return ''
+    if ch in _BS_ESCAPES:
+        return _BS_ESCAPES[ch]
+    if ch == '\n':
+        return '\n'
+    return ch  # drop lone backslash, keep the char
+
+
+def unescape_backslashes(text: str) -> str:
+    """Decode literal backslash escapes; drop stray backslashes."""
+    if not text or '\\' not in text:
+        return text
+    return _BS_RE.sub(_bs_sub, text)
+
 # ── Unconverted-residue guard (for scraped lyrics quality) ─────────────────────
 # Counts of glued font markers that never occur in clean lyrics at density.
 

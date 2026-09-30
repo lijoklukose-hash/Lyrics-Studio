@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 import uvicorn
 import os
 import sys
+import time
 import json
 import sqlite3
 import threading
@@ -513,21 +514,21 @@ async def get_preset_scraper_status():
     return auto_scraper_state
 
 @app.get("/api/scraper/review-queue")
-async def get_scraped_review_queue(limit: int = 50):
+async def get_scraped_review_queue(limit: int = 50, language: str = "All"):
     try:
         from app.raw_archive_manager import get_review_queue, get_review_count
-        queue = get_review_queue(limit=limit)
-        return {"queue": queue, "total": get_review_count()}
+        queue = get_review_queue(limit=limit, language=language)
+        return {"queue": queue, "total": get_review_count(language=language)}
     except Exception as e:
         print(f"Notice: review-queue fetch ({e})")
         return {"queue": [], "total": 0, "error": str(e)}
 
 @app.get("/api/scraper/review-count")
-async def get_scraped_review_count():
+async def get_scraped_review_count(language: str = "All"):
     """Lightweight pending-review count for live progress polling (no lyrics payload)."""
     try:
         from app.raw_archive_manager import get_review_count
-        return {"count": get_review_count()}
+        return {"count": get_review_count(language=language)}
     except Exception as e:
         print(f"Notice: review-count fetch ({e})")
         return {"count": 0}
@@ -535,54 +536,75 @@ async def get_scraped_review_count():
 @app.post("/api/scraper/review-resolve")
 async def resolve_scraped_review(data: dict = Body(...)):
     import sqlite3
-    from app.raw_archive_manager import ARCHIVE_DB_PATH
-    try:
-        raw_id = data.get("id")
-        action = data.get("action") # 'approve' or 'reject'
-        if not raw_id or action not in {'approve', 'reject'}:
-            return JSONResponse(status_code=400, content={"success": False, "error": "Valid raw ID and action ('approve'/'reject') required"})
-        
-        raw_id_val = int(raw_id) if str(raw_id).isdigit() else raw_id
-        conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
-        cur = conn.cursor()
+    raw_id = data.get("id")
+    action = data.get("action") # 'approve' or 'reject'
+    if not raw_id or action not in {'approve', 'reject'}:
+        return JSONResponse(status_code=400, content={"success": False, "error": "Valid raw ID and action ('approve'/'reject') required"})
+
+    raw_id_val = int(raw_id) if str(raw_id).isdigit() else raw_id
+    # Retry on lock contention: a running scraper holds the GB-scale archive
+    # in long batched transactions.
+    for attempt in range(4):
         try:
-            cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2, author, tags FROM raw_scrapes WHERE id = ?", (raw_id_val,))
-        except Exception:
-            cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
-        row = cur.fetchone()
+            return _resolve_scraped_review_once(data, action, raw_id_val)
+        except sqlite3.OperationalError as e:
+            if 'locked' in str(e).lower() and attempt < 3:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            print(f"Error in resolve_scraped_review: {e}")
+            return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+        except Exception as e:
+            print(f"Error in resolve_scraped_review: {e}")
+            return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+    return JSONResponse(status_code=500, content={"success": False, "error": "Archive database is busy, please retry"})
 
-        title = data.get("title") or (row[0] if row else "Untitled")
-        lang = data.get("category") or (row[1] if row else "Hindi")
-        lyrics = data.get("lyrics") or (row[2] if row else "")
-        lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else ((row[3] or "") if row else "")
-        author = data.get("author")
-        if author is None:
-            author = (row[4] if row and len(row) > 4 else "") or ""
-        tags = data.get("tags")
-        if tags is None:
-            tags = (row[5] if row and len(row) > 5 else "") or ""
 
-        if action == 'approve':
-            db_manager.save_song({
-                "title": title,
-                "category": lang,
-                "lyrics": lyrics,
-                "lyrics2": lyrics2,
-                "tags": tags,
-                "author": author
-            }, sync_cloud=True)
+def _resolve_scraped_review_once(data: dict, action: str, raw_id_val):
+    import sqlite3
+    from app.raw_archive_manager import ARCHIVE_DB_PATH, _ARCHIVE_LOCK, init_raw_archive
+    init_raw_archive()
+    with _ARCHIVE_LOCK:
+        conn = sqlite3.connect(ARCHIVE_DB_PATH, timeout=60.0)
+        try:
+            cur = conn.cursor()
+            cur.execute("PRAGMA busy_timeout = 60000")
+            cur.execute("PRAGMA journal_mode = WAL")
             try:
-                cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ?, author = ?, tags = ? WHERE id = ?", (title, lyrics, lyrics2, author, tags, raw_id_val))
+                cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2, author, tags FROM raw_scrapes WHERE id = ?", (raw_id_val,))
             except Exception:
-                cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id_val))
-        else:
-            cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id_val,))
-        conn.commit()
-        conn.close()
-        return {"success": True, "action": action}
-    except Exception as e:
-        print(f"Error in resolve_scraped_review: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+                cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
+            row = cur.fetchone()
+
+            title = data.get("title") or (row[0] if row else "Untitled")
+            lang = data.get("category") or (row[1] if row else "Hindi")
+            lyrics = data.get("lyrics") or (row[2] if row else "")
+            lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else ((row[3] or "") if row else "")
+            author = data.get("author")
+            if author is None:
+                author = (row[4] if row and len(row) > 4 else "") or ""
+            tags = data.get("tags")
+            if tags is None:
+                tags = (row[5] if row and len(row) > 5 else "") or ""
+
+            if action == 'approve':
+                db_manager.save_song({
+                    "title": title,
+                    "category": lang,
+                    "lyrics": lyrics,
+                    "lyrics2": lyrics2,
+                    "tags": tags,
+                    "author": author
+                }, sync_cloud=True)
+                try:
+                    cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ?, author = ?, tags = ? WHERE id = ?", (title, lyrics, lyrics2, author, tags, raw_id_val))
+                except Exception:
+                    cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ? WHERE id = ?", (title, lyrics, lyrics2, raw_id_val))
+            else:
+                cur.execute("UPDATE raw_scrapes SET status = 'rejected' WHERE id = ?", (raw_id_val,))
+            conn.commit()
+            return {"success": True, "action": action}
+        finally:
+            conn.close()
 
 @app.post("/api/format-helper")
 async def format_lyrics_helper(data: dict = Body(...)):

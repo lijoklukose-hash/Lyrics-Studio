@@ -138,7 +138,8 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = re.sub(r'<br\s*/?>', '\n', t, flags=re.IGNORECASE)
     t = t.replace('<BR><BR>', '\n\n').replace('<BR>', '\n')
     t = re.sub(r'<[^>]+>', ' ', t)
-    # Detach section labels glued to lyric text ([अंतरा - 1], (कोरस), ...)
+    # Detach section labels glued to lyric text ([अंतरा - 1], (कोरस),
+    # "Andaal"||1. refrain echoes) so they split stanzas downstream.
     t = '\n'.join(detach_glued_section_labels(t.split('\n')))
     # Split multi-spaces into separate lines (reconstructs lines that were flattened with double spaces)
     t = re.sub(r'[ \t]{2,}', '\n', t)
@@ -294,6 +295,9 @@ _BRACKET_LABEL_RE = re.compile(
     r'(\[\s*(?:' + _SECTION_WORDS + r')[^\]\n]*\])', re.IGNORECASE)
 _PAREN_LABEL_RE = re.compile(
     r'(\(\s*(?:' + _SECTION_WORDS + r')[^()\n]*\))', re.IGNORECASE)
+# Quoted refrain echo glued to a verse number: "Andaal"||1. -> Andaal / 1.
+# (WayToChurch Telugu refrain-title + verse-number convention.)
+_QUOTE_PIPE_RE = re.compile(r'"([^"\n]{2,60})"\|\|\s*(\d+)\s*\.?')
 
 
 def detach_glued_section_labels(lines):
@@ -307,6 +311,7 @@ def detach_glued_section_labels(lines):
     out = []
     for line in lines:
         s = line if isinstance(line, str) else ''
+        s = _QUOTE_PIPE_RE.sub(r'\1\n\2. ', s)
         s = _BRACKET_LABEL_RE.sub(r'\n\1\n', s)
         # Parenthesized labels: skip pure repeat tags like (2)/(4).
         parts = []

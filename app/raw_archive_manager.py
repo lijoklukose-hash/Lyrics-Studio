@@ -146,7 +146,7 @@ def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
         conn.commit()
         conn.close()
 
-def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH):
+def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH, language="All"):
     init_raw_archive(db_path)
     try:
         limit = max(1, min(100, int(limit)))
@@ -157,25 +157,34 @@ def get_review_queue(limit=50, db_path=ARCHIVE_DB_PATH):
     cur = conn.cursor()
     # NOTE: raw_lyrics is intentionally excluded (it duplicates cleaned_lyrics
     # and would double a multi-MB payload); COALESCE covers legacy rows.
-    cur.execute('''
+    lang_filter = ""
+    params = []
+    if language and language != "All":
+        lang_filter = "AND language = ?"
+        params.append(language)
+    cur.execute(f'''
         SELECT id, source_url, source_website, scraped_at,
             COALESCE(NULLIF(cleaned_lyrics, ''), raw_lyrics) AS cleaned_lyrics,
             lyrics2, author, tags, title_original, title_cleaned, language,
             overall_confidence, duplicate_score, matched_id, status FROM raw_scrapes
-        WHERE status = 'review'
+        WHERE status = 'review' {lang_filter}
         ORDER BY overall_confidence DESC
         LIMIT ?
-    ''', (limit,))
+    ''', params + [limit])
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
 
 
-def get_review_count(db_path=ARCHIVE_DB_PATH):
+def get_review_count(db_path=ARCHIVE_DB_PATH, language="All"):
     """Cheap pending-review total (no lyrics payload) for progress polling."""
     init_raw_archive(db_path)
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
+        if language and language != "All":
+            return conn.execute(
+                "SELECT COUNT(*) FROM raw_scrapes WHERE status = 'review' AND language = ?",
+                (language,)).fetchone()[0]
         return conn.execute("SELECT COUNT(*) FROM raw_scrapes WHERE status = 'review'").fetchone()[0]
     finally:
         conn.close()
