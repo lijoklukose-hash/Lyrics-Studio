@@ -392,13 +392,34 @@ def detect_category_from_url(url: str) -> str | None:
 
 def convert_legacy_lyrics(text: str, language: str) -> str:
     """Attempt legacy-font conversion for the given language."""
+    if not text:
+        return ''
     lang = (language or '').lower()
-    if lang == 'malayalam':
-        return convert_karthika_to_malayalam(text)
-    elif lang == 'tamil':
-        return convert_bamini_to_tamil(text)
-    elif lang == 'kannada':
-        return convert_baraha_to_kannada(text)
-    elif lang == 'hindi':
-        return convert_krutidev_to_hindi(text)
+    try:
+        from app.legacy_codec import decode_bamini, decode_baraha, decode_shusha, decode_krutidev, SHUSHA_MARK, KRUTIDEV_MARK
+        if lang == 'tamil':
+            converted = decode_bamini(text)
+            if has_indic_unicode(converted):
+                return converted
+        elif lang == 'kannada':
+            converted = decode_baraha(text)
+            if has_indic_unicode(converted):
+                return converted
+        elif lang == 'hindi':
+            if KRUTIDEV_MARK.search(text) and not SHUSHA_MARK.search(text):
+                converted = decode_krutidev(text)
+                if has_indic_unicode(converted):
+                    return converted
+            converted = decode_shusha(text)
+            if has_indic_unicode(converted):
+                return converted
+            converted = decode_krutidev(text)
+            if has_indic_unicode(converted):
+                return converted
+        elif lang == 'malayalam':
+            converted = convert_karthika_to_malayalam(text)
+            if has_indic_unicode(converted):
+                return converted
+    except Exception as e:
+        print(f"Legacy conversion notice: {e}")
     return text
