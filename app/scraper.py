@@ -969,7 +969,9 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
         def queue_save(payload):
             pending_saves.append(payload)
-            if len(pending_saves) >= 25:
+            # Flush immediately when a review song is saved so the user can review it in real-time,
+            # or in small batches of 5 for bulk rejects/approvals
+            if payload.get('status') == 'review' or len(pending_saves) >= 5:
                 flush_saves()
 
         with ThreadPoolExecutor(max_workers=10) as executor:
