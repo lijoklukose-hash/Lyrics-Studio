@@ -35,8 +35,12 @@ def compute_song_confidence(title: str, lyrics: str, category: str, source_domai
         # Check for residual HTML or script tags (excluding <BR> and <BR><BR>)
         if re.search(r'<(?!/?br\s*/?>)[^>]+>', lyrics, re.IGNORECASE):
             lyrics_score -= 25
-    else:
-        lyrics_score = 0
+
+        # Indic language validity check: penalize corrupted fonts, stray ASCII, or glyph soup
+        if category and category.strip().lower() != 'english':
+            from app.legacy_font_converter import is_valid_indic_lyrics
+            if not is_valid_indic_lyrics(lyrics, category):
+                lyrics_score = 10
 
     # 3. Structure evaluation (0 - 100)
     lyrics_safe = lyrics or ''
@@ -85,7 +89,18 @@ def compute_song_confidence(title: str, lyrics: str, category: str, source_domai
     # >= 90: auto_save
     # 75 - 89: needs_review
     # < 75: reject
-    if overall_round >= 90:
+    if category and category.strip().lower() != 'english':
+        from app.legacy_font_converter import is_valid_indic_lyrics
+        if not is_valid_indic_lyrics(lyrics, category):
+            overall_round = min(overall_round, 30.0)
+            action = 'reject'
+        elif overall_round >= 90:
+            action = 'auto_save'
+        elif overall_round >= 75:
+            action = 'needs_review'
+        else:
+            action = 'reject'
+    elif overall_round >= 90:
         action = 'auto_save'
     elif overall_round >= 75:
         action = 'needs_review'

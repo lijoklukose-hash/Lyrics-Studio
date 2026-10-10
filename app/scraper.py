@@ -21,7 +21,7 @@ from app.legacy_font_converter import (
     convert_legacy_lyrics, detect_category_from_url,
     detect_unconverted_residue, try_convert_residue
 )
-from app.online_lyrics_search import smart_reconstruct_stanzas, structure_lyrics_into_stanzas, split_on_section_cues
+from app.online_lyrics_search import smart_reconstruct_stanzas, structure_lyrics_into_stanzas, split_on_section_cues, is_valid_web_lyrics
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG_DIR = os.path.join(BASE_DIR, 'scraped_data')
@@ -676,11 +676,12 @@ def scrape_url(url, language_hint=None):
             if lyrics and not is_valid_indic_lyrics(lyrics, category):
                 if lyrics2 and is_valid_web_lyrics(lyrics2, title, category):
                     lyrics = roman_to_indic_native(lyrics2, category)
-                elif not has_indic_unicode(lyrics):
+                else:
                     lyrics = ''
             elif (not lyrics or not has_indic_unicode(lyrics)) and lyrics2:
                 # If lyrics is purely Roman, populate native script from Roman transliteration
-                lyrics = roman_to_indic_native(lyrics2, category)
+                if is_valid_web_lyrics(lyrics2, title, category):
+                    lyrics = roman_to_indic_native(lyrics2, category)
 
         # 4. Transliteration fallback: generate or fix if lyrics2 is empty, truncated, or has raw ITRANS corruption
         lyr1_lines = len([l for l in (lyrics or '').replace('<BR><BR>', '<BR>').split('<BR>') if l.strip()])
@@ -699,7 +700,10 @@ def scrape_url(url, language_hint=None):
 
         # If lyrics is empty or 1-2 line stub while lyrics2 is full:
         if (not lyrics or (lyr2_lines >= 4 and lyr1_lines <= 2)) and lyrics2:
-            lyrics = lyrics2
+            if category == 'English':
+                lyrics = lyrics2
+            elif is_valid_web_lyrics(lyrics2, title, category):
+                lyrics = roman_to_indic_native(lyrics2, category)
 
         # Transliterate native script title to English (Proper) Romanization
         if re.search(r'[\u0900-\u0D7F]', title):
@@ -1081,6 +1085,28 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         # >= 90 auto_save, >= 75 needs_review, < 75 reject
                         archive_status = 'approved' if (overall_conf >= 90.0 and sim < 0.80) else ('review' if (overall_conf >= 75.0 and sim < 0.95) else 'rejected')
 
+                        if archive_status == 'rejected':
+                            auto_scraper_state["duplicates_skipped"] += 1
+                            queue_save({
+                                'source_url': cand['url'],
+                                'source_website': cand['source_name'],
+                                'raw_html': res.get('raw_html', '')[:1000],
+                                'raw_lyrics': lyrics,
+                                'cleaned_lyrics': lyrics,
+                                'lyrics2': lyrics2,
+                                'author': author,
+                                'tags': tags,
+                                'title_original': cand['title'],
+                                'title_cleaned': title,
+                                'language': category,
+                                'overall_confidence': overall_conf,
+                                'duplicate_score': sim,
+                                'matched_id': matched_id,
+                                'preserve_review': require_manual_review,
+                                'status': 'rejected'
+                            })
+                            continue
+
                         if require_manual_review or archive_status == 'review':
                             review_count += 1
                             auto_scraper_state["needs_review"] = review_count
@@ -1103,28 +1129,6 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                                 'status': 'review'
                             })
                             auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
-                            continue
-
-                        if archive_status == 'rejected':
-                            auto_scraper_state["duplicates_skipped"] += 1
-                            queue_save({
-                                'source_url': cand['url'],
-                                'source_website': cand['source_name'],
-                                'raw_html': res.get('raw_html', '')[:10000],
-                                'raw_lyrics': lyrics,
-                                'cleaned_lyrics': lyrics,
-                                'lyrics2': lyrics2,
-                                'author': author,
-                                'tags': tags,
-                                'title_original': cand['title'],
-                                'title_cleaned': title,
-                                'language': category,
-                                'overall_confidence': overall_conf,
-                                'duplicate_score': sim,
-                                'matched_id': matched_id,
-                                'preserve_review': require_manual_review,
-                                'status': 'rejected'
-                            })
                             continue
 
                         queue_save({

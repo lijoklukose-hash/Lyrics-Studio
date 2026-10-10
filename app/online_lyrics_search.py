@@ -151,9 +151,14 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = GARBAGE_REGEX.sub('', t)
     t = t.replace('\r\n', '\n').replace('\r', '\n')
 
-    # Un-glue Roman and Indic boundary: "By Masilamaniఅందాల" -> "By Masilamani\nఅందాల"
-    t = re.sub(r'([a-zA-Z])([\u0900-\u0D7F])', r'\1\n\2', t)
-    t = re.sub(r'([\u0900-\u0D7F])([a-zA-Z])', r'\1\n\2', t)
+    # Un-glue Roman words and Indic boundary (e.g. "By Masilamani అందాల"):
+    # Require at least 2 Roman letters and never split before an Indic combining mark
+    t = re.sub(r'([a-zA-Z]{2,})\s*([\u0905-\u0939\u0B05-\u0B39\u0B85-\u0BB9\u0C05-\u0C39\u0C85-\u0CB9\u0D05-\u0D3A])', r'\1\n\2', t)
+    t = re.sub(r'([\u0900-\u0D7F])\s*([a-zA-Z]{2,})', r'\1\n\2', t)
+
+    # Rejoin lines broken right before an Indic combining mark (virama, pulli, vowel matra)
+    # Combining marks can NEVER start a new line or stanza
+    t = re.sub(r'\n+\s*([\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962-\u0963\u0B82\u0BBE-\u0BCD\u0BD7\u0C00-\u0C03\u0C3E-\u0C4D\u0C55-\u0C56\u0C62-\u0C63\u0C81-\u0C83\u0CBC-\u0CCD\u0CD5-\u0CD6\u0CE2-\u0CE3\u0D01-\u0D03\u0D3B-\u0D4E\u0D57])', r'\1', t)
 
     # Un-glue repeat markers stuck to words: ||అందాల తార||విశ్వాస -> ||అందాల తార||\n\nవిశ్వాస
     t = re.sub(r'(\|\|[^\n\|]+\|\|)([\u0900-\u0D7F0-9a-zA-Z])', r'\1\n\n\2', t)

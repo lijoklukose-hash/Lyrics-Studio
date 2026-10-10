@@ -36,6 +36,8 @@ def looks_like_legacy_font(text: str) -> bool:
     odd_words = [w for w in words if re.search(r'[A-Za-z]+[0-9%`~^&[\]{}<>|\\_]+[A-Za-z]*', w)]
     return len(odd_words) >= 1
 
+ALL_INDIC_COMBINING = r'[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962-\u0963\u0B82\u0BBE-\u0BCD\u0BD7\u0C00-\u0C03\u0C3E-\u0C4D\u0C55-\u0C56\u0C62-\u0C63\u0C81-\u0C83\u0CBC-\u0CCD\u0CD5-\u0CD6\u0CE2-\u0CE3\u0D01-\u0D03\u0D3B-\u0D4E\u0D57]'
+
 def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
     """True when text consists of genuine, well-formed lyrics and not corrupted legacy font residue."""
     if not text or not text.strip():
@@ -44,31 +46,56 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
     if lang == 'english':
         return bool(re.search(r'[A-Za-z]{3,}', text))
 
-    plain = re.sub(r'<[^>]+>', ' ', text)
+    plain = re.sub(r'<[^>]+>', '\n', text)
     indic_chars = re.findall(r'[\u0900-\u0D7F]', plain)
     if not indic_chars:
         return False
 
-    # 1. Illegal consecutive vowel signs / viramas on Indic scripts
+    # 1. Dotted circle character (rendered when Unicode combining mark lacks a base consonant)
+    if '\u25CC' in plain:
+        return False
+
+    # 2. Illegal consecutive vowel signs / viramas on Indic scripts
+    # In Devanagari (Hindi): two consecutive vowel signs (matras) is invalid
+    if re.search(r'[\u093E-\u094C]{2,}', plain):
+        return False
+    # In Malayalam, Telugu, Kannada: two consecutive vowel signs or virama+vowel sign
     if re.search(r'[\u0D3E-\u0D4C]{2,}|[\u0D4D][\u0D3E-\u0D4C]|[\u0C3E-\u0C4C]{2,}|[\u0CBE-\u0CCC]{2,}', plain):
         return False
-
-    if re.search(r'[\u093E-\u094C]{3,}', plain):
+    # In Tamil: two consecutive vowel signs or virama+vowel sign
+    if re.search(r'[\u0BBE-\u0BCD]{2,}', plain):
         return False
 
-    # 2. Loose marks at word start / line start (excluding single misplaced short-i)
-    loose_marks = re.findall(r'(?:^|\s)[\u0902\u0903\u093E\u0940-\u094D\u0B82\u0BBE-\u0BCD\u0C01-\u0C03\u0C3E-\u0C4D\u0C82\u0C83\u0CBE-\u0CCD\u0D02\u0D03\u0D3E-\u0D4D]', plain)
-    if len(loose_marks) >= 3:
+    # 3. Loose marks at word start or line start (e.g. ்களை, ்ள், ്, virama/vowel mark without preceding consonant)
+    loose_marks = re.findall(r'(?:^|[\s\r\n\(\[\{<>\-_.,;:!?"\'\\])' + ALL_INDIC_COMBINING, plain)
+    if len(loose_marks) >= 1:
         return False
 
-    # 3. Dense non-Indic punctuation / ASCII characters glued to Indic signs
-    glued = re.findall(r'[a-zA-Z~`%^&_{}\[\]\\/+=<>@$][\u0900-\u0D7F]|[\u0900-\u0D7F][a-zA-Z~`%^&_{}\[\]\\/+=<>@$]', plain)
-    if len(glued) >= 8:
+    # 4. Stray Latin letters or dense ASCII characters mixed into Indic text (e.g. x, q, e, B, c, n inside words)
+    glued = re.findall(r'[a-zA-Z~`%^&_{}\[\]\\/+=<>@$*][\u0900-\u0D7F]|[\u0900-\u0D7F][a-zA-Z~`%^&_{}\[\]\\/+=<>@$*]', plain)
+    if len(glued) >= 2:
         return False
 
-    # 4. In valid text, consonants must form at least 28% of Indic letters
+    # Semicolons inside words (Bamini/KrutiDev artifact, e.g. 'ik;k', 't;', 'Z;')
+    if re.search(r'[\u0900-\u0D7Fa-zA-Z];[\u0900-\u0D7Fa-zA-Z]|;[\u0900-\u0D7F]|[\u0900-\u0D7F];', plain):
+        return False
+
+    # Unconverted legacy font noise characters (braces, math symbols, accents, backslashes inside Indic lyrics)
+    if re.search(r'[\\}{~`^$|_\u0080-\u00FF\u0100-\u017F]', plain):
+        return False
+
+    # Check for stray single letters [a-zA-Z] inside Indic lyrics
+    single_latin = re.findall(r'\b[a-zA-Z]\b', plain)
+    if len(single_latin) >= 3:
+        return False
+
+    # 5. Placeholder circle '०' (U+0966 Devanagari zero) used as missing glyph marker in corrupted fonts
+    if re.search(r'[\u0900-\u0D7F][\s,]?०|०[\u0900-\u0D7F]', plain):
+        return False
+
+    # 6. In valid text, consonants must form at least 25% of Indic letters
     consonants = re.findall(r'[\u0915-\u0939\u0B15-\u0B39\u0B85-\u0BB9\u0C15-\u0C39\u0C85-\u0CB9\u0D15-\u0D3A\u0D7A-\u0D7F]', plain)
-    if len(indic_chars) >= 10 and len(consonants) / len(indic_chars) < 0.28:
+    if len(indic_chars) >= 10 and (len(consonants) / len(indic_chars)) < 0.25:
         return False
 
     return True

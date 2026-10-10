@@ -2257,7 +2257,7 @@
                         }
                         this.reviewQueueItems = queue.map(item => {
                             const l1 = item.cleaned_lyrics || item.raw_lyrics || '';
-                            const l2 = item.lyrics2 && item.lyrics2.trim() ? item.lyrics2 : l1;
+                            const l2 = item.lyrics2 && item.lyrics2.trim() ? item.lyrics2 : '';
                             return {
                                 ...item,
                                 lyrics2: l2,
