@@ -115,40 +115,45 @@ class DOMStructureExtractor:
             self.clean_dom()
             container = self.find_lyrics_container()
 
-        # Detect adaptive BR pattern in container
-        raw_html = str(container)
-        br_matches = re.findall(r'((?:<br\s*/?>\s*)+)', raw_html, re.IGNORECASE)
-        br_runs = [len(re.findall(r'<br', m, re.IGNORECASE)) for m in br_matches]
-        has_3plus_br = any(c >= 3 for c in br_runs)
-        br_stanza_threshold = 3 if has_3plus_br else 2
-
         stanzas = []
-        current_lines = []
+        current_stanza = []
+        current_line_parts = []
+
+        def flush_line():
+            nonlocal current_line_parts
+            if current_line_parts:
+                full_line = " ".join(" ".join(current_line_parts).split()).strip()
+                current_line_parts = []
+                if full_line and not is_ui_noise_line(full_line):
+                    if VERSE_START_REGEX.match(full_line) and current_stanza:
+                        flush_stanza()
+                    current_stanza.append(full_line)
 
         def flush_stanza():
-            nonlocal current_lines
-            if current_lines:
-                valid_lines = [l for l in current_lines if not is_ui_noise_line(l)]
-                if valid_lines:
-                    stanzas.append('<BR>'.join(valid_lines))
-                current_lines = []
+            nonlocal current_stanza
+            flush_line()
+            if current_stanza:
+                stanzas.append('<BR>'.join(current_stanza))
+                current_stanza = []
 
         def walk(node):
-            nonlocal current_lines
             if isinstance(node, Comment):
                 return
 
             if isinstance(node, NavigableString):
                 raw_text = str(node)
-                lines = raw_text.split('\n')
-                for idx, line in enumerate(lines):
-                    cleaned = clean_chords(line).strip()
-                    if cleaned:
-                        if VERSE_START_REGEX.match(cleaned) and current_lines:
-                            flush_stanza()
-                        current_lines.append(cleaned)
-                    elif idx > 0 and len(lines) > 2 and current_lines:
+                parts = re.split(r'(\n{2,}|\n)', raw_text)
+                for part in parts:
+                    if not part:
+                        continue
+                    if '\n\n' in part or (len(part) >= 2 and '\n' in part and not part.strip()):
                         flush_stanza()
+                    elif '\n' in part:
+                        flush_line()
+                    else:
+                        cleaned = clean_chords(part).strip()
+                        if cleaned:
+                            current_line_parts.append(cleaned)
                 return
 
             if not isinstance(node, Tag):
@@ -171,23 +176,23 @@ class DOMStructureExtractor:
                     else:
                         break
 
-                if consecutive_brs >= br_stanza_threshold:
+                if consecutive_brs >= 2:
                     flush_stanza()
+                else:
+                    flush_line()
                 return
 
-            is_block = tag_name in BLOCK_TAGS or tag_name in HEADING_TAGS
+            is_block = tag_name in BLOCK_TAGS or tag_name.startswith('h')
             classes = ' '.join(node.get('class', [])) if node.get('class') else ''
             is_stanza_div = bool(re.search(r'verse|chorus|stanza|refrain', classes, re.IGNORECASE))
 
-            if is_stanza_div and current_lines:
+            if (is_block or is_stanza_div) and node != container and current_stanza:
                 flush_stanza()
 
-            for child in node.children:
+            for child in list(node.children):
                 walk(child)
 
-            # For block elements (<p>, <div>), if they end and contain text,
-            # only flush stanza if it has multiple lines or is an explicit stanza container
-            if is_stanza_div and current_lines:
+            if (is_block or is_stanza_div) and node != container:
                 flush_stanza()
 
         walk(container)

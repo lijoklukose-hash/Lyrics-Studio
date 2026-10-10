@@ -640,9 +640,9 @@
                             </div>
                         </div>
 
-                        <button x-show="reviewQueueCount > 0 || autoScraperState.needs_review > 0" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm animate-pulse">
+                        <button x-show="reviewQueueCount > 0" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm animate-pulse">
                             <i data-lucide="shield-check" class="w-4 h-4"></i>
-                            <span>Review Pending Songs (<strong x-text="reviewQueueCount || autoScraperState.needs_review || 0">0</strong>)</span>
+                            <span>Review Pending Songs (<strong x-text="reviewQueueCount">0</strong>)</span>
                         </button>
                     </div>
 
@@ -672,7 +672,7 @@
 
                         <div class="flex items-center space-x-4 text-xs font-mono">
                             <span class="text-slate-500">Duplicates Skipped: <strong class="text-rose-600" x-text="autoScraperState.duplicates_skipped || 0">0</strong></span>
-                            <span class="text-slate-500">Queued for Review: <strong class="text-amber-600" x-text="reviewQueueCount || autoScraperState.needs_review || 0">0</strong></span>
+                            <span class="text-slate-500">Queued for Review: <strong class="text-amber-600" x-text="autoScraperState.needs_review || reviewQueueCount || 0">0</strong></span>
                             <span class="text-slate-500">Pristine Imported: <strong class="text-emerald-600" x-text="autoScraperState.imported || 0">0</strong></span>
                             <span class="text-slate-500" x-show="autoScraperState.failed > 0">Failed: <strong class="text-rose-600" x-text="autoScraperState.failed || 0">0</strong></span>
                         </div>

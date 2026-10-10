@@ -62,7 +62,7 @@ def stop_preset_auto_scraper():
 
 def reset_preset_auto_scraper(clear_queue=False):
     global auto_scraper_state
-    auto_scraper_state["stop_requested"] = True
+    auto_scraper_state["stop_requested"] = False
     auto_scraper_state["status"] = "idle"
     auto_scraper_state["source"] = ""
     auto_scraper_state["total_candidates"] = 0
@@ -531,41 +531,64 @@ def scrape_url(url, language_hint=None):
         elif 'waytochurch.com' in url.lower():
             orig_div = soup.find('div', id='original')
             eng_div  = soup.find('div', id='english')
+            det_lang = language_hint or detect_category_from_url(url) or 'Malayalam'
 
-            if orig_div:
-                orig_text = orig_div.get_text()
-                if has_indic_unicode(orig_text):
-                    extractor = DOMStructureExtractor(orig_div)
-                    lyrics = extractor.extract_structured_stanzas(orig_div)
-                    if eng_div:
-                        extractor2 = DOMStructureExtractor(eng_div)
-                        lyrics2 = extractor2.extract_structured_stanzas(eng_div)
-                elif looks_like_legacy_font(orig_text):
-                    extractor = DOMStructureExtractor(orig_div)
-                    raw_extracted = extractor.extract_structured_stanzas(orig_div)
-                    det_lang = language_hint or detect_category_from_url(url) or 'Malayalam'
-                    converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
-                    if has_indic_unicode(converted_native):
-                        lyrics = converted_native
-                        if eng_div:
+            from app.legacy_font_converter import is_valid_indic_lyrics, roman_to_indic_native, sanitize_converted_indic_lyrics
+
+            if det_lang == 'English':
+                target_div = orig_div if (orig_div and orig_div.get_text().strip()) else eng_div
+                if target_div:
+                    extractor = DOMStructureExtractor(target_div)
+                    lyrics = extractor.extract_structured_stanzas(target_div)
+                if not lyrics and eng_div:
+                    extractor = DOMStructureExtractor(eng_div)
+                    lyrics = extractor.extract_structured_stanzas(eng_div)
+                lyrics2 = lyrics
+            else:
+                if orig_div:
+                    orig_text = orig_div.get_text()
+                    if has_indic_unicode(orig_text):
+                        extractor = DOMStructureExtractor(orig_div)
+                        cand_lyrics = extractor.extract_structured_stanzas(orig_div)
+                        if is_valid_indic_lyrics(cand_lyrics, det_lang):
+                            lyrics = cand_lyrics
+                        else:
+                            lyrics = sanitize_converted_indic_lyrics(cand_lyrics, det_lang)
+                        if eng_div and eng_div.get_text().strip():
                             extractor2 = DOMStructureExtractor(eng_div)
                             lyrics2 = extractor2.extract_structured_stanzas(eng_div)
-                    elif eng_div:
+                    elif looks_like_legacy_font(orig_text):
+                        extractor = DOMStructureExtractor(orig_div)
+                        raw_extracted = extractor.extract_structured_stanzas(orig_div)
+                        converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
+                        if is_valid_indic_lyrics(converted_native, det_lang):
+                            lyrics = converted_native
+                            if eng_div and eng_div.get_text().strip():
+                                extractor2 = DOMStructureExtractor(eng_div)
+                                lyrics2 = extractor2.extract_structured_stanzas(eng_div)
+                        elif eng_div and eng_div.get_text().strip():
+                            extractor = DOMStructureExtractor(eng_div)
+                            lyrics2 = extractor.extract_structured_stanzas(eng_div)
+                            if lyrics2:
+                                lyrics = roman_to_indic_native(lyrics2, det_lang)
+                        elif has_indic_unicode(converted_native):
+                            lyrics = sanitize_converted_indic_lyrics(converted_native, det_lang)
+                    elif eng_div and eng_div.get_text().strip():
                         extractor = DOMStructureExtractor(eng_div)
                         lyrics2 = extractor.extract_structured_stanzas(eng_div)
-                        lyrics = ''
-                elif eng_div:
+                        if lyrics2:
+                            lyrics = roman_to_indic_native(lyrics2, det_lang)
+                    else:
+                        extractor = DOMStructureExtractor(orig_div)
+                        cand = extractor.extract_structured_stanzas(orig_div)
+                        if cand:
+                            lyrics2 = cand
+                            lyrics = roman_to_indic_native(lyrics2, det_lang)
+                elif eng_div and eng_div.get_text().strip():
                     extractor = DOMStructureExtractor(eng_div)
                     lyrics2 = extractor.extract_structured_stanzas(eng_div)
-                    if not lyrics2:
-                        # English tab empty: the origin div itself holds usable
-                        # Roman lyrics (e.g. Tanglish) — use it, don't discard.
-                        extractor = DOMStructureExtractor(orig_div)
-                        lyrics = extractor.extract_structured_stanzas(orig_div)
-                        lyrics2 = ''
-            elif eng_div:
-                extractor = DOMStructureExtractor(eng_div)
-                lyrics2 = extractor.extract_structured_stanzas(eng_div)
+                    if lyrics2:
+                        lyrics = roman_to_indic_native(lyrics2, det_lang)
 
         # Fallback for other portals or missed containers:
         if not lyrics and not lyrics2 and not ('waytochurch.com' in url.lower() or 'madely.us' in url.lower()):
@@ -616,7 +639,7 @@ def scrape_url(url, language_hint=None):
                 guard = bool(strong or non_english_ctx)
             if guard:
                 converted = try_convert_residue(lyrics, language_hint, ignore_indic=True)
-                if converted != lyrics and has_indic_unicode(converted):
+                if converted != lyrics and has_indic_unicode(converted) and is_valid_indic_lyrics(converted, language_hint or 'Malayalam'):
                     lyrics = _break_mega_stanzas(converted)
                     lyrics2 = ''
                 else:
@@ -631,20 +654,33 @@ def scrape_url(url, language_hint=None):
 
         # 3. Detect / Enforce Language
         if not lyrics and lyrics2:
-            # If only Romanized lyrics exist, category comes from hint or URL
             category = language_hint or detect_category_from_url(url) or 'Malayalam'
         else:
             category = detect_language(lyrics)
 
-        if language_hint and language_hint in {'Malayalam', 'Hindi', 'Tamil', 'Telugu', 'Kannada'}:
+        if language_hint and language_hint in {'Malayalam', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'English'}:
             category = language_hint
-        elif category == 'English' or not category:
-            if language_hint and language_hint != 'English':
-                category = language_hint
-            else:
-                url_lang = detect_category_from_url(url)
-                if url_lang and url_lang != 'English':
-                    category = url_lang
+        elif not category:
+            url_lang = detect_category_from_url(url)
+            if url_lang:
+                category = url_lang
+
+        # 4. Native Script and Transliteration Quality Enforcement
+        from app.legacy_font_converter import is_valid_indic_lyrics, roman_to_indic_native
+        if category == 'English':
+            if not lyrics2 and lyrics:
+                lyrics2 = lyrics
+            elif not lyrics and lyrics2:
+                lyrics = lyrics2
+        else:
+            if lyrics and not is_valid_indic_lyrics(lyrics, category):
+                if lyrics2 and is_valid_web_lyrics(lyrics2, title, category):
+                    lyrics = roman_to_indic_native(lyrics2, category)
+                elif not has_indic_unicode(lyrics):
+                    lyrics = ''
+            elif (not lyrics or not has_indic_unicode(lyrics)) and lyrics2:
+                # If lyrics is purely Roman, populate native script from Roman transliteration
+                lyrics = roman_to_indic_native(lyrics2, category)
 
         # 4. Transliteration fallback: generate or fix if lyrics2 is empty, truncated, or has raw ITRANS corruption
         lyr1_lines = len([l for l in (lyrics or '').replace('<BR><BR>', '<BR>').split('<BR>') if l.strip()])
@@ -898,11 +934,10 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
             from app.raw_archive_manager import ARCHIVE_DB_PATH
             conn_raw = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
             cur_raw = conn_raw.cursor()
-            if force_recheck:
-                # If force recheck is requested, only skip songs already approved/in library
-                cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status = 'approved'")
-            else:
-                cur_raw.execute("SELECT DISTINCT source_url FROM raw_scrapes WHERE status IN ('approved', 'rejected', 'review')")
+            # Skip songs already approved/imported into library.
+            # Songs that failed or were rejected in previous attempts can still be evaluated
+            # by current/improved extractors unless force_recheck is specifically requested.
+            cur_raw.execute("SELECT source_url FROM raw_scrapes WHERE status = 'approved'")
             scraped_urls = {row[0] for row in cur_raw.fetchall() if row[0]}
             conn_raw.close()
         except Exception as e:
