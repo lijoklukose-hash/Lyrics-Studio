@@ -628,7 +628,7 @@
                                     <i data-lucide="filter" class="w-3.5 h-3.5 text-indigo-600"></i>
                                     <span>Target Language:</span>
                                 </label>
-                                <select x-model="autoScrapeLanguage" class="px-3 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs">
+                                <select x-model="autoScrapeLanguage" @change="reviewQueueLanguage = autoScrapeLanguage; refreshReviewCount();" class="px-3 py-1 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs">
                                     <option value="All">🌐 All Languages (6)</option>
                                     <option value="Malayalam">Malayalam</option>
                                     <option value="Tamil">Tamil</option>
@@ -2353,6 +2353,20 @@
                     }
                 },
 
+                refreshReviewCount() {
+                    const lang = this.autoScrapeLanguage && this.autoScrapeLanguage !== 'All'
+                        ? `?language=${encodeURIComponent(this.autoScrapeLanguage)}` : '';
+                    fetch(`/api/scraper/review-count${lang}`)
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d && typeof d.count === 'number') {
+                                this.reviewQueueCount = d.count;
+                                this.reviewQueueTotal = d.count;
+                            }
+                        })
+                        .catch(() => {});
+                },
+
                 pollAutoScraperStatus() {
                     if (this.autoScraperTimer) clearInterval(this.autoScraperTimer);
                     this.autoScraperPollErrors = 0;
@@ -2361,10 +2375,12 @@
                             const res = await fetch('/api/scrape/preset/status');
                             this.autoScraperState = await res.json();
                             this.autoScraperPollErrors = 0;
+                            const langQuery = this.autoScrapeLanguage && this.autoScrapeLanguage !== 'All'
+                                ? `?language=${encodeURIComponent(this.autoScrapeLanguage)}` : '';
                             if (this.autoScraperState.status === 'running') {
                                 this.autoScrapingActive = true;
                                 // Cheap count-only refresh while running (full queue loads on finish)
-                                fetch('/api/scraper/review-count')
+                                fetch(`/api/scraper/review-count${langQuery}`)
                                     .then(r => r.json())
                                     .then(d => { if (d && typeof d.count === 'number') { this.reviewQueueCount = d.count; this.reviewQueueTotal = d.count; } })
                                     .catch(() => {});
@@ -2384,21 +2400,16 @@
                                     } else if (endStatus === 'error') {
                                         this.showToast('Auto-scraper error: ' + (this.autoScraperState.message || 'unknown'), 'error');
                                     }
-                                } else if (this.reviewQueueCount === 0) {
-                                    // Idle but count never synced (e.g. a failed initial
-                                    // load): one cheap recovery attempt, then sleep.
-                                    fetch('/api/scraper/review-count')
+                                } else {
+                                    // Refresh review count with current language filter
+                                    fetch(`/api/scraper/review-count${langQuery}`)
                                         .then(r => r.json())
-                                        .then(d => { if (d && typeof d.count === 'number' && d.count > 0) { this.reviewQueueCount = d.count; this.reviewQueueTotal = d.count; } })
+                                        .then(d => { if (d && typeof d.count === 'number') { this.reviewQueueCount = d.count; this.reviewQueueTotal = d.count; } })
                                         .catch(() => {})
                                         .finally(() => {
                                             clearInterval(this.autoScraperTimer);
                                             this.autoScraperTimer = null;
                                         });
-                                } else {
-                                    // Already idle, stop timer to save CPU & network
-                                    clearInterval(this.autoScraperTimer);
-                                    this.autoScraperTimer = null;
                                 }
                             }
                         } catch (e) {

@@ -14,6 +14,8 @@ def clean_raw_title(raw_title: str) -> str:
     if not raw_title:
         return ''
     t = str(raw_title).strip()
+    # Strip BOM and invisible formatting characters
+    t = re.sub(r'[\ufeff\u200b-\u200f]', '', t).strip()
     # Strip (Chords), [Chords], (with Chords), etc.
     t = re.sub(r'[\(\[\{]\s*(?:with\s+)?chords?\s*[\)\]\}]', '', t, flags=re.IGNORECASE)
     t = SITE_BRAND_REGEX.sub('', t)
@@ -21,6 +23,10 @@ def clean_raw_title(raw_title: str) -> str:
     # Remove empty brackets if left over
     t = re.sub(r'[\(\[\{]\s*[\)\]\}]', '', t)
     t = re.sub(r'^\s*[\d\.\-\:\)]+\s*', '', t)
+    # Strip musical Raga & Thalam performance prefixes/suffixes if present (e.g. "Bhairavi - Aadithaalam", "Aanandabhairavi Chaayvu")
+    RAGA_THALAM_RE = r'(?:ആനന്ദഭൈരവി|ഭൈരവി|ശങ്കരാഭരണം|കല്യാണി|തോഡി|മോഹനം|ഖരഹരപ്രിയ|ബിലഹരി|ഹംസധ്വനി|നാട്ട|ആഹാരി|സാവേരി|ആദിതാളം|രൂപകതാളം|ചായ്പുതാളം|ഏകതാളം|ഭൂപാളം|ചായ്[\u200c\u200d]*വ്|aanandabhairavi|bhairavi|aadithaalam|aadi\s*thaalam|roopaka\s*thaalam|chaayputhaalam|chaayvu|chaayv|eekathaalam)'
+    t = re.sub(r'^(?:' + RAGA_THALAM_RE + r')\s*[-–—:]*\s*(?:' + RAGA_THALAM_RE + r')?\s*[-–—:]*\s*', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'\s*[-–—:]*\s*(?:' + RAGA_THALAM_RE + r')\s*[-–—:]*\s*(?:' + RAGA_THALAM_RE + r')?$', '', t, flags=re.IGNORECASE)
     t = re.sub(r'[\|\-\–\—&]+$', '', t)
     t = re.sub(r'\s+', ' ', t).strip()
     return t
@@ -62,7 +68,6 @@ def extract_and_clean_title(soup: BeautifulSoup, url: str = '') -> tuple:
 
     best_title = ''
     best_confidence = 0.0
-
     for raw_title, base_weight in candidates:
         cleaned = clean_raw_title(raw_title)
         if cleaned and len(cleaned) >= 2:
@@ -73,5 +78,25 @@ def extract_and_clean_title(soup: BeautifulSoup, url: str = '') -> tuple:
             if score > best_confidence:
                 best_confidence = score
                 best_title = cleaned
+
+    if not best_title:
+        # Fallback: inspect first lyric line of the page if titles were purely raga/chords/empty
+        container_filter = re.compile(r'lyrics?|entry-content|original|div-lyric-text', re.I)
+        candidate_tags = soup.find_all(lambda t: t.name in ['div', 'p', 'span', 'article', 'section'] and (
+            container_filter.search(' '.join(t.get('class', []))) or
+            container_filter.search(t.get('id', ''))
+        ))
+        for tag in candidate_tags:
+            text = tag.get_text(separator='\n')
+            for line in text.split('\n'):
+                line = re.sub(r'[\ufeff\u200b-\u200f]', '', line).strip()
+                c = clean_raw_title(line)
+                # Ignore section words, numbers, or very short lines
+                if c and len(c) >= 3 and not re.match(r'^(?:[1-9]\d{0,1}[.)]?|pallavi|chorus|verse|charanam|stanzas?|പല്ലവി|ചരണം|ചരണങ്ങൾ|അനുപല്ലവി|பல்லவி|சரணம்)(?![\w\u0900-\u0D7F])', c, re.I):
+                    best_title = c[:60].strip(' -–—:;,')
+                    best_confidence = 0.50
+                    break
+            if best_title:
+                break
 
     return (best_title, round(best_confidence * 100, 1))

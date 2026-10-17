@@ -137,6 +137,8 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = re.sub(r'</?(?:p|div|li|article|section|tr|table|blockquote)[^>]*>', '\n\n', t, flags=re.IGNORECASE)
     t = re.sub(r'<br\s*/?>', '\n', t, flags=re.IGNORECASE)
     t = t.replace('<BR><BR>', '\n\n').replace('<BR>', '\n')
+    from app.legacy_font_converter import normalize_indic_digits
+    t = normalize_indic_digits(t)
     t = re.sub(r'<[^>]+>', ' ', t)
     # Detach section labels glued to lyric text ([अंतरा - 1], (कोरस),
     # "Andaal"||1. refrain echoes) so they split stanzas downstream.
@@ -434,6 +436,12 @@ def structure_lyrics_into_stanzas(lines):
     if not lines:
         return ""
     t = '\n'.join(lines)
+    from app.legacy_font_converter import normalize_indic_digits
+    t = normalize_indic_digits(t)
+    # Standardize verse prefixes: (1) or 1. or 1: or 1) at line start -> 1. 
+    t = re.sub(r'(?m)^(?:\(?([1-9]\d{0,1})\s*[\.\:\)\-]+\s*|\(([1-9]\d{0,1})\)\s*)(?=[^\d\s\n])', lambda m: f"{(m.group(1) or m.group(2))}. ", t)
+    # If verse number is on its own standalone line, join it to the following verse line: '1\nText' -> '1. Text'
+    t = re.sub(r'(?m)^([1-9]\d{0,1})\s*\n+([A-Za-z\u0900-\u0D7F])', r'\1. \2', t)
     # Rejoin any broken prepositional clauses before cues
     t = re.sub(r'(\b[A-Za-z\u0900-\u0D7F]+\s+(?:के|का|की))\s*\n+\s*([A-Za-z\u0900-\u0D7F]+)', r'\1 \2', t)
 

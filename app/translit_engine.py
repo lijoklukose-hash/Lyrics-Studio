@@ -5,6 +5,45 @@ from indic_transliteration.sanscript import transliterate
 
 RAW_MALAYALAM_PATTERNS = [
     # Explicit words / high frequency Christian Malayalam vocabulary
+    (r'ആരാധിക്കുമ്പോൾ', 'aaraadhikkumbol'),
+    (r'ആരാധിക്കുമ്പോഴ', 'aaraadhikkumbol'),
+    (r'ആരാധിക്കാം', 'aaraadhikkaam'),
+    (r'ആരാധിക്കും', 'aaraadhikkum'),
+    (r'ആരാധനയേ', 'aaraadhanaye'),
+    (r'ആരാധന', 'aaraadhana'),
+    (r'ആത്മാവിൽ', 'aathmavil'),
+    (r'ആത്മാവേ', 'aathmaave'),
+    (r'ആത്മാവ്', 'aathmaav'),
+    (r'ആത്മാ', 'aathma'),
+    (r'സൗഖ്യമായ്', 'saukhyamaay'),
+    (r'സൗഖ്യമായി', 'saukhyamaayi'),
+    (r'സൗഖ്യം', 'saukhyam'),
+    (r'സൗഖ്യ', 'saukhya'),
+    (r'വിടുതൽ', 'viduthal'),
+    (r'സ്വർഗ്ഗത്തിൻ', 'swarggatthin'),
+    (r'സ്വർഗ്ഗമേ', 'swarggame'),
+    (r'സ്വർഗ്ഗം', 'swarggam'),
+    (r'സ്വർഗ്ഗ', 'swargga'),
+    (r'സ്വർഗ്ഗീയ', 'swarggeeya'),
+    (r'സമാധാനം', 'samaadhaanam'),
+    (r'സമാധാന', 'samaadhaana'),
+    (r'സന്തോഷം', 'santhosham'),
+    (r'സന്തോഷ', 'santhosha'),
+    (r'പ്രാർത്ഥിക്കാം', 'praarthikkaam'),
+    (r'പ്രാർത്ഥിക്കും', 'praarthikkum'),
+    (r'പ്രാർത്ഥന', 'praarthana'),
+    (r'യാചിപ്പിൻ', 'yaachippin'),
+    (r'അന്വേഷിപ്പിൻ', 'anveshippin'),
+    (r'മുട്ടുവിൻ', 'muttuvin'),
+    (r'തുറക്കും', 'thurakkum'),
+    (r'കലവറ', 'kalavara'),
+    (r'നന്മകൾ', 'nanmakal'),
+    (r'നന്മ', 'nanma'),
+    (r'പ്രാപിക്കാം', 'praapikkaam'),
+    (r'പ്രാപിക്കും', 'praapikkum'),
+    (r'കണ്ടെത്തും', 'kandetthum'),
+    (r'ലഭിക്കും', 'labhikkum'),
+    (r'നൽകിടും', 'nalkidum'),
     (r'സ്തുതിപ്പേൻ', 'sthuthippen'),
     (r'സ്തുതിപ്പിൻ', 'sthuthippin'),
     (r'സ്തുതിക്കു', 'sthuthikku'),
@@ -28,6 +67,7 @@ RAW_MALAYALAM_PATTERNS = [
     (r'രാജാവ്', 'raajaav'),
     (r'കർത്താവേ', 'karththaave'),
     (r'കർത്താവ്', 'karththaav'),
+    (r'കർത്തനെ', 'karthane'),
     (r'കർത്തൃ', 'karthru'),
     (r'അത്ഭുതം', 'athbhutham'),
     (r'അത്ഭുത', 'athbhutha'),
@@ -160,44 +200,43 @@ MALAYALAM_INDEP_VOWELS = [
     ('ഏ', 'ee'), ('ഓ', 'o'), ('അ', 'a'), ('ഇ', 'i'), ('ഉ', 'u'),
     ('ഋ', 'ri'), ('എ', 'e'), ('ഒ', 'o')
 ]
-
 MALAYALAM_SYLLABLES = [
-    ('കാ', 'kaa'), ('കി', 'ki'), ('കീ', 'kee'), ('കു', 'ku'), ('കൂ', 'koo'), ('കെ', 'ke'), ('കേ', 'ke'), ('കൈ', 'kai'), ('കൊ', 'ko'), ('കോ', 'ko'), ('കൌ|കൗ', 'kau'), ('ക്', 'k'), ('ക', 'ka'),
-    ('ഖാ', 'khaa'), ('ഖി', 'khi'), ('ഖീ', 'khee'), ('ഖു', 'khu'), ('ഖൂ', 'khoo'), ('ഖെ', 'khe'), ('ഖേ', 'khe'), ('ഖൈ', 'khai'), ('ഖൊ', 'kho'), ('ഖോ', 'kho'), ('ഖ്', 'kh'), ('ഖ', 'kha'),
-    ('ഗാ', 'gaa'), ('ഗി', 'gi'), ('ഗീ', 'gee'), ('ഗു', 'gu'), ('ഗൂ', 'goo'), ('ഗെ', 'ge'), ('ഗേ', 'ge'), ('ഗൈ', 'gai'), ('ഗൊ', 'go'), ('ഗോ', 'go'), ('ഗ്', 'g'), ('ഗ', 'ga'),
-    ('ഘാ', 'ghaa'), ('ഘി', 'ghi'), ('ഘീ', 'ghee'), ('ഘു', 'ghu'), ('ഘൂ', 'ghoo'), ('ഘെ', 'ghe'), ('ഘേ', 'ghe'), ('ഘ്', 'gh'), ('ഘ', 'gha'),
-    ('ങാ', 'ngaa'), ('ങി', 'ngi'), ('ങീ', 'ngee'), ('ങു', 'ngu'), ('ങൂ', 'ngoo'), ('ങെ', 'nge'), ('ങേ', 'nge'), ('ങ്', 'ng'), ('ങ', 'nga'),
-    ('ചാ', 'chaa'), ('ചി', 'chi'), ('ചീ', 'chee'), ('ചു', 'chu'), ('ചൂ', 'choo'), ('ചെ', 'che'), ('ചേ', 'che'), ('ചൈ', 'chai'), ('ചൊ', 'cho'), ('ചോ', 'cho'), ('ച്', 'ch'), ('ച', 'cha'),
-    ('ഛാ', 'chhaa'), ('ഛി', 'chhi'), ('ഛീ', 'chhee'), ('ഛു', 'chhu'), ('ഛൂ', 'chhoo'), ('ഛ്', 'chh'), ('ഛ', 'chha'),
-    ('ജാ', 'jaa'), ('ജി', 'ji'), ('ജീ', 'jee'), ('ജു', 'ju'), ('ജൂ', 'joo'), ('ജെ', 'je'), ('ജേ', 'je'), ('ജൈ', 'jai'), ('ജൊ', 'jo'), ('ജോ', 'jo'), ('ജ്', 'j'), ('ജ', 'ja'),
-    ('ഝാ', 'jhaa'), ('ഝി', 'jhi'), ('ഝീ', 'jhee'), ('ഝു', 'jhu'), ('ഝൂ', 'jhoo'), ('ഝ്', 'jh'), ('ഝ', 'jha'),
-    ('ഞാ', 'njaa'), ('ഞി', 'nji'), ('ഞീ', 'njee'), ('ഞു', 'nju'), ('ഞൂ', 'njoo'), ('ഞെ', 'nje'), ('ഞേ', 'nje'), ('ഞ്', 'nj'), ('ഞ', 'nja'),
-    ('ടാ', 'daa'), ('ടി', 'di'), ('ടീ', 'dee'), ('ടു', 'du'), ('ടൂ', 'doo'), ('ടെ', 'de'), ('ടേ', 'de'), ('ടൈ', 'dai'), ('ടൊ', 'do'), ('ടോ', 'do'), ('ട്', 'du'), ('ട', 'da'),
-    ('ഠാ', 'thaa'), ('ഠി', 'thi'), ('ഠീ', 'thee'), ('ഠു', 'thu'), ('ഠൂ', 'thoo'), ('ഠ്', 'th'), ('ഠ', 'tha'),
-    ('ഡാ', 'daa'), ('ഡി', 'di'), ('ഡീ', 'dee'), ('ഡു', 'du'), ('ഡൂ', 'doo'), ('ഡെ', 'de'), ('ഡേ', 'de'), ('ഡൈ', 'dai'), ('ഡൊ', 'do'), ('ഡോ', 'do'), ('ഡ്', 'd'), ('ഡ', 'da'),
-    ('ഢാ', 'dhaa'), ('ഢി', 'dhi'), ('ഢീ', 'dhee'), ('ഢു', 'dhu'), ('ഢൂ', 'dhoo'), ('ഢ്', 'dh'), ('ഢ', 'dha'),
-    ('ണാ', 'naa'), ('ണി', 'ni'), ('ണീ', 'nee'), ('ണു', 'nu'), ('ണൂ', 'noo'), ('ണെ', 'ne'), ('ണേ', 'ne'), ('ണൈ', 'nai'), ('ണൊ', 'no'), ('ണോ', 'no'), ('ണ്', 'n'), ('ണ', 'na'),
-    ('താ', 'thaa'), ('തി', 'thi'), ('തീ', 'thee'), ('തു', 'thu'), ('തൂ', 'thoo'), ('തെ', 'the'), ('തേ', 'the'), ('തൈ', 'thai'), ('തൊ', 'tho'), ('തോ', 'tho'), ('ത്', 'th'), ('ത', 'tha'),
-    ('ഥാ', 'thaa'), ('ഥി', 'thi'), ('ഥീ', 'thee'), ('ഥു', 'thu'), ('ഥൂ', 'thoo'), ('ഥ്', 'th'), ('ഥ', 'tha'),
-    ('ദാ', 'daa'), ('ദി', 'di'), ('ദീ', 'dee'), ('ദു', 'du'), ('ദൂ', 'doo'), ('ദെ', 'de'), ('ദേ', 'de'), ('ദൈ', 'dai'), ('ദൊ', 'do'), ('ദോ', 'do'), ('ദ്', 'd'), ('ദ', 'da'),
-    ('ധാ', 'dhaa'), ('ധി', 'dhi'), ('ധീ', 'dhee'), ('ധു', 'dhu'), ('ധൂ', 'dhoo'), ('ധെ', 'dhe'), ('ധേ', 'dhe'), ('ധൈ', 'dhai'), ('ധൊ', 'dho'), ('ധോ', 'dho'), ('ധ്', 'dh'), ('ധ', 'dha'),
-    ('നാ', 'naa'), ('നി', 'ni'), ('നീ', 'nee'), ('നു', 'nu'), ('നൂ', 'noo'), ('നെ', 'ne'), ('നേ', 'ne'), ('നൈ', 'nai'), ('നൊ', 'no'), ('നോ', 'no'), ('ന്', 'n'), ('ന', 'na'),
-    ('പാ', 'paa'), ('പി', 'pi'), ('പീ', 'pee'), ('പു', 'pu'), ('പൂ', 'poo'), ('പെ', 'pe'), ('പേ', 'pe'), ('പൈ', 'pai'), ('പൊ', 'po'), ('പോ', 'po'), ('പ്', 'p'), ('പ', 'pa'),
-    ('ഫാ', 'phaa'), ('ഫി', 'phi'), ('ഫീ', 'phee'), ('ഫു', 'phu'), ('ഫൂ', 'phoo'), ('ഫെ', 'phe'), ('ഫേ', 'phe'), ('ഫൈ', 'phai'), ('ഫൊ', 'pho'), ('ഫോ', 'pho'), ('ഫ്', 'ph'), ('ഫ', 'pha'),
-    ('ബാ', 'baa'), ('ബി', 'bi'), ('ബീ', 'bee'), ('ബു', 'bu'), ('ബൂ', 'boo'), ('ബെ', 'be'), ('ബേ', 'be'), ('ബൈ', 'bai'), ('ബൊ', 'bo'), ('ബോ', 'bo'), ('ബ്', 'b'), ('ബ', 'ba'),
-    ('ഭാ', 'bhaa'), ('ഭി', 'bhi'), ('ഭീ', 'bhee'), ('ഭു', 'bhu'), ('ഭൂ', 'bhoo'), ('ഭെ', 'bhe'), ('ഭേ', 'bhe'), ('ഭൈ', 'bhai'), ('ഭൊ', 'bho'), ('ഭോ', 'bho'), ('ഭ്', 'bh'), ('ഭ', 'bha'),
-    ('മാ', 'maa'), ('മി', 'mi'), ('മീ', 'mee'), ('മു', 'mu'), ('മൂ', 'moo'), ('മെ', 'me'), ('മേ', 'me'), ('മൈ', 'mai'), ('മൊ', 'mo'), ('മോ', 'mo'), ('മ്', 'm'), ('മ', 'ma'),
-    ('യാ', 'yaa'), ('യി', 'yi'), ('യീ', 'yee'), ('യു', 'yu'), ('യൂ', 'yoo'), ('യെ', 'ye'), ('യേ', 'ye'), ('യൈ', 'yai'), ('യൊ', 'yo'), ('യോ', 'yo'), ('യ്', 'y'), ('യ', 'ya'),
-    ('രാ', 'raa'), ('രി', 'ri'), ('രീ', 'ree'), ('രു', 'ru'), ('രൂ', 'roo'), ('രെ', 're'), ('രേ', 're'), ('രൈ', 'rai'), ('രൊ', 'ro'), ('രോ', 'ro'), ('ര്', 'r'), ('ര', 'ra'),
-    ('ലാ', 'laa'), ('ലി', 'li'), ('ലീ', 'lee'), ('ലു', 'lu'), ('ലൂ', 'loo'), ('ലെ', 'le'), ('ലേ', 'le'), ('ലൈ', 'lai'), ('ലൊ', 'lo'), ('ലോ', 'lo'), ('ല്', 'l'), ('ല', 'la'),
-    ('വാ', 'vaa'), ('വി', 'vi'), ('വീ', 'vee'), ('വു', 'vu'), ('വൂ', 'voo'), ('വെ', 've'), ('വേ', 've'), ('വൈ', 'vai'), ('വൊ', 'vo'), ('വോ', 'vo'), ('വ്', 'v'), ('വ', 'va'),
-    ('ശാ', 'shaa'), ('ശി', 'shi'), ('ശീ', 'shee'), ('ശു', 'shu'), ('ശൂ', 'shoo'), ('ശെ', 'she'), ('ശേ', 'she'), ('ശൈ', 'shai'), ('ശൊ', 'sho'), ('ശോ', 'sho'), ('ശ്', 'sh'), ('ശ', 'sha'),
-    ('ഷാ', 'shaa'), ('ഷി', 'shi'), ('ഷീ', 'shee'), ('ഷു', 'shu'), ('ഷൂ', 'shoo'), ('ഷെ', 'she'), ('ഷേ', 'she'), ('ഷൈ', 'shai'), ('ഷൊ', 'sho'), ('ഷോ', 'sho'), ('ഷ്', 'sh'), ('ഷ', 'sha'),
-    ('സാ', 'saa'), ('സി', 'si'), ('സീ', 'see'), ('സു', 'su'), ('സൂ', 'soo'), ('സെ', 'se'), ('സേ', 'se'), ('സൈ', 'sai'), ('സൊ', 'so'), ('സോ', 'so'), ('സ്', 's'), ('സ', 'sa'),
-    ('ഹാ', 'haa'), ('ഹി', 'hi'), ('ഹീ', 'hee'), ('ഹു', 'hu'), ('ഹൂ', 'hoo'), ('ഹെ', 'he'), ('ഹേ', 'he'), ('ഹൈ', 'hai'), ('ഹൊ', 'ho'), ('ഹോ', 'ho'), ('ഹ്', 'h'), ('ഹ', 'ha'),
-    ('ളാ', 'laa'), ('ളി', 'li'), ('ളീ', 'lee'), ('ളു', 'lu'), ('ളൂ', 'loo'), ('ളെ', 'le'), ('ളേ', 'le'), ('ളൈ', 'lai'), ('ളൊ', 'lo'), ('ളോ', 'lo'), ('ള്', 'l'), ('ള', 'la'),
-    ('ഴാ', 'zhaa'), ('ഴി', 'zhi'), ('ഴീ', 'zhee'), ('ഴു', 'zhu'), ('ഴൂ', 'zhoo'), ('ഴെ', 'zhe'), ('ഴേ', 'zhe'), ('ഴൈ', 'zhai'), ('ഴൊ', 'zho'), ('ഴോ', 'zho'), ('ഴ്', 'zh'), ('ഴ', 'zha'),
-    ('റാ', 'raa'), ('റി', 'ri'), ('റീ', 'ree'), ('റു', 'ru'), ('റൂ', 'roo'), ('റെ', 're'), ('റേ', 're'), ('റൈ', 'rai'), ('റൊ', 'ro'), ('റോ', 'ro'), ('റ്', 'r'), ('റ', 'ra'),
+    ('കൌ|കൗ', 'kau'), ('കാ', 'kaa'), ('കി', 'ki'), ('കീ', 'kee'), ('കു', 'ku'), ('കൂ', 'koo'), ('കെ', 'ke'), ('കേ', 'ke'), ('കൈ', 'kai'), ('കൊ', 'ko'), ('കോ', 'ko'), ('ക്', 'k'), ('ക', 'ka'),
+    ('ഖൌ|ഖൗ', 'khau'), ('ഖാ', 'khaa'), ('ഖി', 'khi'), ('ഖീ', 'khee'), ('ഖു', 'khu'), ('ഖൂ', 'khoo'), ('ഖെ', 'khe'), ('ഖേ', 'khe'), ('ഖൈ', 'khai'), ('ഖൊ', 'kho'), ('ഖോ', 'kho'), ('ഖ്', 'kh'), ('ഖ', 'kha'),
+    ('ഗൌ|ഗൗ', 'gau'), ('ഗാ', 'gaa'), ('ഗി', 'gi'), ('ഗീ', 'gee'), ('ഗു', 'gu'), ('ഗൂ', 'goo'), ('ഗെ', 'ge'), ('ഗേ', 'ge'), ('ഗൈ', 'gai'), ('ഗൊ', 'go'), ('ഗോ', 'go'), ('ഗ്', 'g'), ('ഗ', 'ga'),
+    ('ഘൌ|ഘൗ', 'ghau'), ('ഘാ', 'ghaa'), ('ഘി', 'ghi'), ('ഘീ', 'ghee'), ('ഘു', 'ghu'), ('ഘൂ', 'ghoo'), ('ഘെ', 'ghe'), ('ഘേ', 'ghe'), ('ഘ്', 'gh'), ('ഘ', 'gha'),
+    ('ങൌ|ങൗ', 'ngau'), ('ങാ', 'ngaa'), ('ങി', 'ngi'), ('ങീ', 'ngee'), ('ങു', 'ngu'), ('ങൂ', 'ngoo'), ('ങെ', 'nge'), ('ങേ', 'nge'), ('ങ്', 'ng'), ('ങ', 'nga'),
+    ('ചൌ|ചൗ', 'chau'), ('ചാ', 'chaa'), ('ചി', 'chi'), ('ചീ', 'chee'), ('ചു', 'chu'), ('ചൂ', 'choo'), ('ചെ', 'che'), ('ചേ', 'che'), ('ചൈ', 'chai'), ('ചൊ', 'cho'), ('ചോ', 'cho'), ('ച്', 'ch'), ('ച', 'cha'),
+    ('ഛൌ|ഛൗ', 'chhau'), ('ഛാ', 'chhaa'), ('ഛി', 'chhi'), ('ഛീ', 'chhee'), ('ഛു', 'chhu'), ('ഛൂ', 'chhoo'), ('ഛ്', 'chh'), ('ഛ', 'chha'),
+    ('ജൌ|ജൗ', 'jau'), ('ജാ', 'jaa'), ('ജി', 'ji'), ('ജീ', 'jee'), ('ജു', 'ju'), ('ജൂ', 'joo'), ('ജെ', 'je'), ('ജേ', 'je'), ('ജൈ', 'jai'), ('ജൊ', 'jo'), ('ജോ', 'jo'), ('ജ്', 'j'), ('ജ', 'ja'),
+    ('ഝൌ|ഝൗ', 'jhau'), ('ഝാ', 'jhaa'), ('ഝി', 'jhi'), ('ഝീ', 'jhee'), ('ഝു', 'jhu'), ('ഝൂ', 'jhoo'), ('ഝ്', 'jh'), ('ഝ', 'jha'),
+    ('ഞൌ|ഞൗ', 'njau'), ('ഞാ', 'njaa'), ('ഞി', 'nji'), ('ഞീ', 'njee'), ('ഞു', 'nju'), ('ഞൂ', 'njoo'), ('ഞെ', 'nje'), ('ഞേ', 'nje'), ('ഞ്', 'nj'), ('ഞ', 'nja'),
+    ('ടൌ|ടൗ', 'dau'), ('ടാ', 'daa'), ('ടി', 'di'), ('ടീ', 'dee'), ('ടു', 'du'), ('ടൂ', 'doo'), ('ടെ', 'de'), ('ടേ', 'de'), ('ടൈ', 'dai'), ('ടൊ', 'do'), ('ടോ', 'do'), ('ട്', 't'), ('ട', 'da'),
+    ('ഠൌ|ഠൗ', 'thau'), ('ഠാ', 'thaa'), ('ഠി', 'thi'), ('ഠീ', 'thee'), ('ഠു', 'thu'), ('ഠൂ', 'thoo'), ('ഠ്', 'th'), ('ഠ', 'tha'),
+    ('ഡൌ|ഡൗ', 'dau'), ('ഡാ', 'daa'), ('ഡി', 'di'), ('ഡീ', 'dee'), ('ഡു', 'du'), ('ഡൂ', 'doo'), ('ഡെ', 'de'), ('ഡേ', 'de'), ('ഡൈ', 'dai'), ('ഡൊ', 'do'), ('ഡോ', 'do'), ('ഡ്', 'd'), ('ഡ', 'da'),
+    ('ഢൌ|ഢൗ', 'dhau'), ('ഢാ', 'dhaa'), ('ഢി', 'dhi'), ('ഢീ', 'dhee'), ('ഢു', 'dhu'), ('ഢൂ', 'dhoo'), ('ഢ്', 'dh'), ('ഢ', 'dha'),
+    ('ണൌ|ണൗ', 'nau'), ('ണാ', 'naa'), ('ണി', 'ni'), ('ണീ', 'nee'), ('ണു', 'nu'), ('ണൂ', 'noo'), ('ണെ', 'ne'), ('ണേ', 'ne'), ('ണൈ', 'nai'), ('ണൊ', 'no'), ('ണോ', 'no'), ('ണ്', 'n'), ('ണ', 'na'),
+    ('തൌ|തൗ', 'thau'), ('താ', 'thaa'), ('തി', 'thi'), ('തീ', 'thee'), ('തു', 'thu'), ('തൂ', 'thoo'), ('തെ', 'the'), ('തേ', 'the'), ('തൈ', 'thai'), ('തൊ', 'tho'), ('തോ', 'tho'), ('ത്', 'th'), ('ത', 'tha'),
+    ('ഥൌ|ഥൗ', 'thau'), ('ഥാ', 'thaa'), ('ഥി', 'thi'), ('ഥീ', 'thee'), ('ഥു', 'thu'), ('ഥൂ', 'thoo'), ('ഥ്', 'th'), ('ഥ', 'tha'),
+    ('ദൌ|ദൗ', 'dau'), ('ദാ', 'daa'), ('ദി', 'di'), ('ദീ', 'dee'), ('ദു', 'du'), ('ദൂ', 'doo'), ('ദെ', 'de'), ('ദേ', 'de'), ('ദൈ', 'dai'), ('ദൊ', 'do'), ('ദോ', 'do'), ('ദ്', 'd'), ('ദ', 'da'),
+    ('ധൌ|ധൗ', 'dhau'), ('ധാ', 'dhaa'), ('ധി', 'dhi'), ('ധീ', 'dhee'), ('ധു', 'dhu'), ('ധൂ', 'dhoo'), ('ധെ', 'dhe'), ('ധേ', 'dhe'), ('ധൈ', 'dhai'), ('ധൊ', 'dho'), ('ധോ', 'dho'), ('ധ്', 'dh'), ('ധ', 'dha'),
+    ('നൌ|നൗ', 'nau'), ('നാ', 'naa'), ('നി', 'ni'), ('നീ', 'nee'), ('നു', 'nu'), ('നൂ', 'noo'), ('നെ', 'ne'), ('നേ', 'ne'), ('നൈ', 'nai'), ('നൊ', 'no'), ('നോ', 'no'), ('ന്', 'n'), ('ന', 'na'),
+    ('പൌ|പൗ', 'pau'), ('പാ', 'paa'), ('പി', 'pi'), ('പീ', 'pee'), ('പു', 'pu'), ('പൂ', 'poo'), ('പെ', 'pe'), ('പേ', 'pe'), ('പൈ', 'pai'), ('പൊ', 'po'), ('പോ', 'po'), ('പ്', 'p'), ('പ', 'pa'),
+    ('ഫൌ|ഫൗ', 'phau'), ('ഫാ', 'phaa'), ('ഫി', 'phi'), ('ഫീ', 'phee'), ('ഫു', 'phu'), ('ഫൂ', 'phoo'), ('ഫെ', 'phe'), ('ഫേ', 'phe'), ('ഫൈ', 'phai'), ('ഫൊ', 'pho'), ('ഫോ', 'pho'), ('ഫ്', 'ph'), ('ഫ', 'pha'),
+    ('ബൌ|ബൗ', 'bau'), ('ബാ', 'baa'), ('ബി', 'bi'), ('ബീ', 'bee'), ('ബു', 'bu'), ('ബൂ', 'boo'), ('ബെ', 'be'), ('ബേ', 'be'), ('ബൈ', 'bai'), ('ബൊ', 'bo'), ('ബോ', 'bo'), ('ബ്', 'b'), ('ബ', 'ba'),
+    ('ഭൌ|ഭൗ', 'bhau'), ('ഭാ', 'bhaa'), ('ഭി', 'bhi'), ('ഭീ', 'bhee'), ('ഭു', 'bhu'), ('ഭൂ', 'bhoo'), ('ഭെ', 'bhe'), ('ഭേ', 'bhe'), ('ഭൈ', 'bhai'), ('ഭൊ', 'bho'), ('ഭോ', 'bho'), ('ഭ്', 'bh'), ('ഭ', 'bha'),
+    ('മൌ|മൗ', 'mau'), ('മാ', 'maa'), ('മി', 'mi'), ('മീ', 'mee'), ('മു', 'mu'), ('മൂ', 'moo'), ('മെ', 'me'), ('മേ', 'me'), ('മൈ', 'mai'), ('മൊ', 'mo'), ('മോ', 'mo'), ('മ്', 'm'), ('മ', 'ma'),
+    ('യൌ|യൗ', 'yau'), ('യാ', 'yaa'), ('യി', 'yi'), ('യീ', 'yee'), ('യു', 'yu'), ('യൂ', 'yoo'), ('യെ', 'ye'), ('യേ', 'ye'), ('യൈ', 'yai'), ('യൊ', 'yo'), ('യോ', 'yo'), ('യ്', 'y'), ('യ', 'ya'),
+    ('രൌ|രൗ', 'rau'), ('രാ', 'raa'), ('രി', 'ri'), ('രീ', 'ree'), ('രു', 'ru'), ('രൂ', 'roo'), ('രെ', 're'), ('രേ', 're'), ('രൈ', 'rai'), ('രൊ', 'ro'), ('രോ', 'ro'), ('ര്', 'r'), ('ര', 'ra'),
+    ('ലൌ|ലൗ', 'lau'), ('ലാ', 'laa'), ('ലി', 'li'), ('ലീ', 'lee'), ('ലു', 'lu'), ('ലൂ', 'loo'), ('ലെ', 'le'), ('ലേ', 'le'), ('ലൈ', 'lai'), ('ലൊ', 'lo'), ('ലോ', 'lo'), ('ല്', 'l'), ('ല', 'la'),
+    ('വൌ|വൗ', 'vau'), ('വാ', 'vaa'), ('വി', 'vi'), ('വീ', 'vee'), ('വു', 'vu'), ('വൂ', 'voo'), ('വെ', 've'), ('വേ', 've'), ('വൈ', 'vai'), ('വൊ', 'vo'), ('വോ', 'vo'), ('വ്', 'v'), ('വ', 'va'),
+    ('ശൌ|ശൗ', 'shau'), ('ശാ', 'shaa'), ('ശി', 'shi'), ('ശീ', 'shee'), ('ശു', 'shu'), ('ശൂ', 'shoo'), ('ശെ', 'she'), ('ശേ', 'she'), ('ശൈ', 'shai'), ('ശൊ', 'sho'), ('ശോ', 'sho'), ('ശ്', 'sh'), ('ശ', 'sha'),
+    ('ഷൌ|ഷൗ', 'shau'), ('ഷാ', 'shaa'), ('ഷി', 'shi'), ('ഷീ', 'shee'), ('ഷു', 'shu'), ('ഷൂ', 'shoo'), ('ഷെ', 'she'), ('ഷേ', 'she'), ('ഷൈ', 'shai'), ('ഷൊ', 'sho'), ('ഷോ', 'sho'), ('ഷ്', 'sh'), ('ഷ', 'sha'),
+    ('സൌ|സൗ', 'sau'), ('സാ', 'saa'), ('സി', 'si'), ('സീ', 'see'), ('സു', 'su'), ('സൂ', 'soo'), ('സെ', 'se'), ('സേ', 'se'), ('സൈ', 'sai'), ('സൊ', 'so'), ('സോ', 'so'), ('സ്', 's'), ('സ', 'sa'),
+    ('ഹൌ|ഹൗ', 'hau'), ('ഹാ', 'haa'), ('ഹി', 'hi'), ('ഹീ', 'hee'), ('ഹു', 'hu'), ('ഹൂ', 'hoo'), ('ഹെ', 'he'), ('ഹേ', 'he'), ('ഹൈ', 'hai'), ('ഹൊ', 'ho'), ('ഹോ', 'ho'), ('ഹ്', 'h'), ('ഹ', 'ha'),
+    ('ളൌ|ളൗ', 'lau'), ('ളാ', 'laa'), ('ളി', 'li'), ('ളീ', 'lee'), ('ളു', 'lu'), ('ളൂ', 'loo'), ('ളെ', 'le'), ('ളേ', 'le'), ('ളൈ', 'lai'), ('ളൊ', 'lo'), ('ളോ', 'lo'), ('ള്', 'l'), ('ള', 'la'),
+    ('ഴൌ|ഴൗ', 'zhau'), ('ഴാ', 'zhaa'), ('ഴി', 'zhi'), ('ഴീ', 'zhee'), ('ഴു', 'zhu'), ('ഴൂ', 'zhoo'), ('ഴെ', 'zhe'), ('ഴേ', 'zhe'), ('ഴൈ', 'zhai'), ('ഴൊ', 'zho'), ('ഴോ', 'zho'), ('ഴ്', 'zh'), ('ഴ', 'zha'),
+    ('റൌ|റൗ', 'rau'), ('റാ', 'raa'), ('റി', 'ri'), ('റീ', 'ree'), ('റു', 'ru'), ('റൂ', 'roo'), ('റെ', 're'), ('റേ', 're'), ('റൈ', 'rai'), ('റൊ', 'ro'), ('റോ', 'ro'), ('റ്', 'r'), ('റ', 'ra'),
     ('ം', 'm'), ('ഃ', 'h')
 ]
 
@@ -292,6 +331,22 @@ def transliterate_malayalam(text):
         l = re.sub(r'[\u0900-\u0D7F]', '', l)
         l = re.sub(r'[èéòóàá^~`]', '', l)
 
+        # Malayalam Natural Phonetic Smoothing
+        MALAYALAM_SMOOTH = [
+            (r'rthth', 'rth'),
+            (r'arthth', 'arth'),
+            (r'thth', 'th'),
+            (r'svargg', 'swarg'),
+            (r'svarg', 'swarg'),
+            (r'rgg', 'rg'),
+            (r'thmaav', 'thmav'),
+            (r'thmaa', 'thma'),
+            (r'\baathm\b', 'aathma'),
+            (r'\bdheivam\b|\bdhaivam\b', 'daivam'),
+        ]
+        for pat, rep in MALAYALAM_SMOOTH:
+            l = re.sub(pat, rep, l, flags=re.IGNORECASE)
+
         words = l.split()
         natural_words = []
         for w in words:
@@ -301,7 +356,12 @@ def transliterate_malayalam(text):
 
         line_str = " ".join(natural_words)
         if line_str:
-            line_str = line_str[0].upper() + line_str[1:]
+            # Preserve leading verse numbers e.g. "1. " or "2. "
+            m_num = re.match(r'^(\d+[\.\:\)\-]?\s*)(.*)', line_str)
+            if m_num:
+                line_str = m_num.group(1) + (m_num.group(2).capitalize() if m_num.group(2) else '')
+            else:
+                line_str = line_str[0].upper() + line_str[1:]
         clean_lines.append(line_str)
 
     stanzas = "\n".join(clean_lines).split('\n\n')
@@ -333,11 +393,17 @@ TAMIL_INDEP_VOWELS_MAP = {
 
 TAMIL_COMMON_WORDS = [
     ('கர்த்தர்', 'karthar'), ('கர்த்தரை', 'kartharai'), ('கர்த்தருக்கு', 'kartharukku'),
+    ('கர்த்தாவே', 'karththaave'),
     ('ஸ்தோத்திரி', 'sthothiri'), ('ஸ்தோத்திரம்', 'sthothiram'),
+    ('ஆராதனை', 'aaraadhanai'), ('ஆராதிப்போம்', 'aaraadhippom'), ('ஆராதிப்பேன்', 'aaraadhippen'),
+    ('ஆராதிக்கின்றோம்', 'aaraadhikkindrom'), ('ஆராதி', 'aaraadhi'),
     ('ஆத்துமாவே', 'aathumaave'), ('ஆத்துமா', 'aathumaa'),
     ('அல்லேலூயா', 'halleluyaah'), ('இயேசு', 'yesu'), ('இயேசுவே', 'yesuve'),
-    ('பரிசுத்த', 'parisuttha'), ('ஆவியே', 'aaviye'), ('இரட்சகர்', 'iratchagar'),
-    ('இரத்தமே', 'iratthame'), ('கிருபை', 'kirubai'),
+    ('பரிசுத்த', 'parisuttha'), ('பரிசுத்தர்', 'parisutthar'), ('ஆவியே', 'aaviye'),
+    ('இரட்சகர்', 'iratchagar'), ('இரட்சகரே', 'iratchagare'),
+    ('இரத்தமே', 'iratthame'), ('இரத்தம்', 'irattham'),
+    ('கிருபை', 'kirubai'), ('தேவன்', 'devan'), ('தேவனே', 'devane'), ('தேவனுக்கே', 'devanukke'),
+    ('அப்பா', 'appa'), ('பிதாவே', 'pidhaave'),
 ]
 
 def transliterate_tamil(text):
@@ -369,16 +435,32 @@ def transliterate_tamil(text):
             i += 1
             
     res = ''.join(t_res)
-    res = re.sub(r'nth\b', 'nthu', res)
-    res = re.sub(r'tth\b', 'tthu', res)
-    res = re.sub(r'nd\b', 'ndu', res)
-    res = re.sub(r'mb\b', 'mbu', res)
-    res = re.sub(r'ng\b', 'ngu', res)
+    # Tamil Intervocalic and Post-Nasal Natural Voicing
+    TAMIL_PHONETIC_SMOOTH = [
+        (r'ngk', 'ng'),
+        (r'np', 'nb'),
+        (r'nt([aeiou])', r'nd\1'),
+        (r'nth([aeiou])', r'ndh\1'),
+        (r'([aeiou])ka\b', r'\1ga'),
+        (r'([aeiou])ka([aeiou])', r'\1ga\2'),
+        (r'([aeiou])tha\b', r'\1dha'),
+        (r'([aeiou])tha([aeiou])', r'\1dha\2'),
+        (r'nth\b', 'nthu'),
+        (r'tth\b', 'tthu'),
+        (r'nd\b', 'ndu'),
+        (r'mb\b', 'mbu'),
+        (r'ng\b', 'ngu'),
+    ]
+    for pat, rep in TAMIL_PHONETIC_SMOOTH:
+        res = re.sub(pat, rep, res)
     return res
 
 def generate_natural_transliteration(text, category):
     if not text or category == 'English':
         return text if category == 'English' else ""
+
+    from app.legacy_font_converter import normalize_indic_digits
+    text = normalize_indic_digits(text)
 
     lines = text.replace('<BR><BR>', '\n\n').replace('<BR>', '\n').splitlines()
     clean_lines = []
@@ -660,9 +742,20 @@ def generate_natural_transliteration(text, category):
                     if len(wt) > 3 and wt_lower not in ('yeshu', 'kroos', 'jinda'):
                         wt = re.sub(r'ee', 'i', wt, flags=re.IGNORECASE)
                         wt = re.sub(r'oo', 'u', wt, flags=re.IGNORECASE)
-                        
                     cleaned_words.append(wt)
                 l = ' '.join(cleaned_words)
+
+            elif category in ('Telugu', 'Kannada'):
+                DRAVIDIAN_SMOOTH = [
+                    (r'\baaraadhana\b', 'aaradhana'),
+                    (r'\bshree\b', 'sri'),
+                    (r'\bdevudu\b', 'devudu'),
+                    (r'\bswargg', 'swarg'),
+                    (r'\bprabhoo\b', 'prabhu'),
+                    (r'\byesayyaa\b', 'yesayya'),
+                ]
+                for pat, rep in DRAVIDIAN_SMOOTH:
+                    l = re.sub(pat, rep, l, flags=re.IGNORECASE)
 
         # Global cleanup across all languages: strip residual Indic codepoints, accents, and broken web font glyphs
         # Only strip the script matching the target language category
@@ -689,7 +782,11 @@ def generate_natural_transliteration(text, category):
 
         line_str = " ".join(natural_words)
         if line_str:
-            line_str = line_str[0].upper() + line_str[1:]
+            m_num = re.match(r'^(\d+[\.\:\)\-]?\s*)(.*)', line_str)
+            if m_num:
+                line_str = m_num.group(1) + (m_num.group(2).capitalize() if m_num.group(2) else '')
+            else:
+                line_str = line_str[0].upper() + line_str[1:]
         clean_lines.append(line_str)
 
     stanzas = "\n".join(clean_lines).split('\n\n')

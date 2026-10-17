@@ -19,7 +19,8 @@ from app.translit_engine import generate_natural_transliteration
 from app.legacy_font_converter import (
     has_indic_unicode, looks_like_legacy_font,
     convert_legacy_lyrics, detect_category_from_url,
-    detect_unconverted_residue, try_convert_residue
+    detect_unconverted_residue, try_convert_residue,
+    normalize_indic_digits
 )
 from app.online_lyrics_search import smart_reconstruct_stanzas, structure_lyrics_into_stanzas, split_on_section_cues, is_valid_web_lyrics
 
@@ -571,6 +572,9 @@ def scrape_url(url, language_hint=None):
                             lyrics2 = extractor.extract_structured_stanzas(eng_div)
                             if lyrics2:
                                 lyrics = roman_to_indic_native(lyrics2, det_lang)
+                        elif raw_extracted and is_valid_web_lyrics(raw_extracted, title, det_lang):
+                            lyrics2 = raw_extracted
+                            lyrics = roman_to_indic_native(lyrics2, det_lang)
                         elif has_indic_unicode(converted_native):
                             lyrics = sanitize_converted_indic_lyrics(converted_native, det_lang)
                     elif eng_div and eng_div.get_text().strip():
@@ -613,6 +617,10 @@ def scrape_url(url, language_hint=None):
                 lyrics = reconstructed
         lyrics = split_on_section_cues(lyrics)
         lyrics = _break_mega_stanzas(lyrics)
+        if lyrics:
+            lyrics = normalize_indic_digits(lyrics)
+        if lyrics2:
+            lyrics2 = normalize_indic_digits(lyrics2)
 
         # Legacy-font residue guard: raw Bamini/KrutiDev/Karthika text is not
         # lyrics — convert it when possible, else cap confidence so the
@@ -704,6 +712,9 @@ def scrape_url(url, language_hint=None):
                 lyrics = lyrics2
             elif is_valid_web_lyrics(lyrics2, title, category):
                 lyrics = roman_to_indic_native(lyrics2, category)
+                if lyrics:
+                    lyrics = _break_mega_stanzas(split_on_section_cues(lyrics))
+                    lyrics = normalize_indic_digits(lyrics)
 
         # Transliterate native script title to English (Proper) Romanization
         if re.search(r'[\u0900-\u0D7F]', title):
@@ -1000,14 +1011,25 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
                     try:
                         res = future.result()
-                        if not res.get('success') or not res.get('title') or not res.get('lyrics'):
+                        if not res.get('success') or not res.get('title'):
                             auto_scraper_state["failed"] += 1
                             continue
 
                         title = res['title']
-                        lyrics = res['lyrics']
-                        lyrics2 = res.get('lyrics2', '')
+                        lyrics = res.get('lyrics') or ''
+                        lyrics2 = res.get('lyrics2') or ''
                         category = res.get('category') or cand['language']
+
+                        if not lyrics and lyrics2:
+                            if category == 'English':
+                                lyrics = lyrics2
+                            else:
+                                from app.legacy_font_converter import roman_to_indic_native
+                                lyrics = roman_to_indic_native(lyrics2, category)
+
+                        if not lyrics and not lyrics2:
+                            auto_scraper_state["failed"] += 1
+                            continue
                         author = (res.get('author') or '').strip()
                         tags = (res.get('tags') or '').strip()
                         # Strict target language guard: drop ones outside the requested target languages

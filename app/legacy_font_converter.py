@@ -93,15 +93,51 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
     if re.search(r'[\u0900-\u0D7F][\s,]?०|०[\u0900-\u0D7F]', plain):
         return False
 
-    # 6. In valid text, consonants must form at least 25% of Indic letters
+    # 6. Illegal vowel sign followed immediately by an independent vowel
+    # In Dravidian & Devanagari, natural diphthong spellings like कोई (k + o + ii), भाई (bh + aa + ii), पाई (p + aa + ii)
+    # are completely normal and standard words. Only flag mismatched script or illegal internal sequences.
+    if re.search(r'[\u093E-\u094C][\u0905\u0906\u0909\u090A\u090B\u090F\u0910\u0913\u0914]|[\u0BBE-\u0BCD][\u0B85-\u0B94]|[\u0C3E-\u0C4C][\u0C05-\u0C14]|[\u0CBE-\u0CCC][\u0C85-\u0C94]|[\u0D3E-\u0D4C][\u0D05-\u0D14]', plain):
+        # Exclude legitimate Hindi combinations ending with इ / ई / उ / ऊ (e.g. कोई, भाई, गाऊं, आए)
+        if not re.search(r'[\u093E\u094B\u0947][\u0907\u0908\u0909\u090F]', plain):
+            return False
+
+    # 7. Unnatural machine transliteration conjuncts or internal avagraha noise
+    if re.search(r'\u0D19\u0D4D\u0D1C|\u0D28\u0D4D\u0D1C|\u0D1a\u0D4D\u0D15|[\u0900-\u0D7F][\u093D\u0D3D][\u0900-\u0D7F]', plain):
+        return False
+
+    # 8. In valid text, consonants must form at least 25% of Indic letters
     consonants = re.findall(r'[\u0915-\u0939\u0B15-\u0B39\u0B85-\u0BB9\u0C15-\u0C39\u0C85-\u0CB9\u0D15-\u0D3A\u0D7A-\u0D7F]', plain)
     if len(indic_chars) >= 10 and (len(consonants) / len(indic_chars)) < 0.25:
         return False
 
     return True
 
+INDIC_TO_ARABIC_DIGITS = {
+    # Malayalam numerals (൧, ൨, ൩, ൪, ൫, ൬, ൭, ൮, ൯, ൦)
+    '\u0D66': '0', '\u0D67': '1', '\u0D68': '2', '\u0D69': '3', '\u0D6A': '4',
+    '\u0D6B': '5', '\u0D6C': '6', '\u0D6D': '7', '\u0D6E': '8', '\u0D6F': '9',
+    # Tamil numerals (௦, ௧, ௨, ௩, ௪, ௫, ௬, ௭, ௮, ௯)
+    '\u0BE6': '0', '\u0BE7': '1', '\u0BE8': '2', '\u0BE9': '3', '\u0BEA': '4',
+    '\u0BEB': '5', '\u0BEC': '6', '\u0BED': '7', '\u0BEE': '8', '\u0BEF': '9',
+    # Telugu numerals (౦, ౧, ౨, ౩, ౪, ౫, ౬, ౭, ౮, ౯)
+    '\u0C66': '0', '\u0C67': '1', '\u0C68': '2', '\u0C69': '3', '\u0C6A': '4',
+    '\u0C6B': '5', '\u0C6C': '6', '\u0C6D': '7', '\u0C6E': '8', '\u0C6F': '9',
+    # Kannada numerals (೦, ೧, ೨, ೩, ೪, ೫, ೬, ೭, ೮, ೯)
+    '\u0CE6': '0', '\u0CE7': '1', '\u0CE8': '2', '\u0CE9': '3', '\u0CEA': '4',
+    '\u0CEB': '5', '\u0CEC': '6', '\u0CED': '7', '\u0CEE': '8', '\u0CEF': '9',
+    # Devanagari numerals (०, १, २, ३, ४, ५, ६, ७, ८, ९)
+    '\u0966': '0', '\u0967': '1', '\u0968': '2', '\u0969': '3', '\u096A': '4',
+    '\u096B': '5', '\u096C': '6', '\u096D': '7', '\u096E': '8', '\u096F': '9',
+}
+
+def normalize_indic_digits(text: str) -> str:
+    """Normalize regional Indic font numerals (Malayalam, Tamil, Telugu, Kannada, Hindi) to standard Arabic digits (0-9)."""
+    if not text:
+        return ''
+    return ''.join(INDIC_TO_ARABIC_DIGITS.get(ch, ch) for ch in text)
+
 def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
-    """Converts Roman phonetic / Manglish lyrics into clean native script."""
+    """Converts Roman phonetic / Manglish lyrics into clean native script, keeping standard numbers."""
     if not text:
         return ''
     lang = (language or '').lower()
@@ -125,19 +161,71 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
         lines = st.split('<BR>')
         out_lines = []
         for l in lines:
-            if not l.strip():
+            line_str = l.strip()
+            if not line_str:
                 continue
+            # Preserve leading verse numbers (e.g. "1.", "1 ", "1)") so they never turn into font numerals
+            lead_num = ''
+            m = re.match(r'^(\(?\d+[\.\:\)\-]?\s*)(.*)', line_str)
+            if m:
+                lead_raw = m.group(1).strip()
+                lead_digits = re.sub(r'\D', '', lead_raw)
+                if lead_digits:
+                    lead_num = f"{lead_digits}. "
+                line_str = m.group(2).strip()
+
             try:
-                l_clean = l.lower()
+                l_clean = line_str.lower()
                 if lang == 'malayalam':
-                    l_clean = re.sub(r'\baanandham\b', 'aanandam', l_clean)
-                    l_clean = re.sub(r'\baanandhame\b', 'aanandame', l_clean)
-                    l_clean = re.sub(r'\bjeevitham\b', 'jeevitham', l_clean)
-                    l_clean = re.sub(r'\bjeevithame\b', 'jeevithame', l_clean)
-                conv = transliterate(l_clean, sanscript.ITRANS, tgt_scheme)
-                out_lines.append(conv)
+                    MAL_WORD_DICT = {
+                        'enne': 'എന്നെ', 'ennil': 'എന്നിൽ', 'ente': 'എന്റെ', 'en': 'എൻ',
+                        'enikku': 'എനിക്കു', 'enikkaay': 'എനിക്കായ്', 'ennum': 'എന്നും',
+                        'ellam': 'എല്ലാം', 'ellaam': 'എല്ലാം', 'yeshuve': 'യേശുവേ', 'yeshu': 'യേശു',
+                        'angekku': 'അങ്ങേക്കു', 'angekk': 'അങ്ങേക്കു', 'angeykk': 'അങ്ങേക്കു', 'angeykku': 'അങ്ങേക്കു',
+                        'aaradhana': 'ആരാധന', 'aradhana': 'ആരാധന', 'aaradhikkam': 'ആരാധിക്കാം', 'aradhikkam': 'ആരാധിക്കാം',
+                        'marippan': 'മരിപ്പാൻ', 'marikkan': 'മരിക്കാൻ', 'snehichavan': 'സ്നേഹിച്ചവൻ', 'snehicha': 'സ്നേഹിച്ച',
+                        'sneham': 'സ്നേഹം', 'snehame': 'സ്നേഹമേ', 'krushil': 'ക്രൂശിൽ', 'krooshil': 'ക്രൂശിൽ', 'kurishil': 'കുരിശിൽ',
+                        'yagamayi': 'യാഗമായി', 'yaagamayi': 'യാഗമായി', 'theernnavan': 'തീർന്നവൻ', 'theerthan': 'തീർത്തവൻ', 'theerthavan': 'തീർത്തവൻ',
+                        'uyarthidan': 'ഉയർത്തീടാൻ', 'uyarthan': 'ഉയർത്താൻ', 'karuthuvan': 'കരുതുവാൻ', 'karuthunnavan': 'കരുതുന്നവൻ',
+                        'than': 'തൻ', 'thaan': 'താൻ', 'thante': 'തന്റെ', 'jeevane': 'ജീവനെ', 'jeevan': 'ജീവൻ', 'nalkiyon': 'നൽകിയോൻ', 'nalkiyavan': 'നൽകിയവൻ',
+                        'puthranayi': 'പുത്രനായി', 'puthranay': 'പുത്രനായ്', 'puthran': 'പുത്രൻ', 'kuravukal': 'കുറവുകൾ', 'kuravukale': 'കുറവുകളെ',
+                        'neekiye': 'നീക്കിയേ', 'neekkiye': 'നീക്കിയേ', 'neekki': 'നീക്കി', 'sthuthikkam': 'സ്തുതിക്കാം', 'sthuthi': 'സ്തുതി',
+                        'sthothram': 'സ്തോത്രം', 'halleluya': 'ഹല്ലേലൂയ്യാ', 'hallelujah': 'ഹല്ലേലൂയ്യാ', 'daivame': 'ദൈവമേ', 'daivam': 'ദൈവം',
+                        'karthave': 'കർത്താവേ', 'karthavu': 'കർത്താവ്', 'aanandham': 'ആനന്ദം', 'aanandhame': 'ആനന്ദമേ',
+                        'jeevitham': 'ജീവിതം', 'jeevithame': 'ജീവിതമേ', 'njan': 'ഞാൻ', 'njaan': 'ഞാൻ', 'ninte': 'നിന്റെ', 'ninne': 'നിന്നെ'
+                    }
+                    words = l_clean.split(' ')
+                    out_words = []
+                    for w in words:
+                        if not w:
+                            continue
+                        m_w = re.match(r'^([^a-zA-Z]*)([a-zA-Z]+)([^a-zA-Z]*)$', w)
+                        if m_w:
+                            pre_p, core_w, post_p = m_w.group(1), m_w.group(2), m_w.group(3)
+                            if core_w in MAL_WORD_DICT:
+                                out_words.append(pre_p + MAL_WORD_DICT[core_w] + post_p)
+                                continue
+                        w_trans = transliterate(w, sanscript.ITRANS, tgt_scheme)
+                        # Normalize chillu consonants
+                        w_trans = re.sub(r'ന്(?=[^a-zA-Z\u0D00-\u0D7F]|$)', 'ൻ', w_trans)
+                        w_trans = re.sub(r'ല്(?=[^a-zA-Z\u0D00-\u0D7F]|$)', 'ൽ', w_trans)
+                        w_trans = re.sub(r'ര്(?=[^a-zA-Z\u0D00-\u0D7F]|$)', 'ർ', w_trans)
+                        w_trans = re.sub(r'ള്(?=[^a-zA-Z\u0D00-\u0D7F]|$)', 'ൾ', w_trans)
+                        w_trans = re.sub(r'ണ്(?=[^a-zA-Z\u0D00-\u0D7F]|$)', 'ൺ', w_trans)
+                        w_trans = re.sub(r'^ഏ(?=[^േെ])', 'എ', w_trans)
+                        out_words.append(w_trans)
+                    conv = ' '.join(out_words)
+                else:
+                    conv = transliterate(l_clean, sanscript.ITRANS, tgt_scheme)
+                conv = normalize_indic_digits(conv)
+                if lead_num:
+                    conv = lead_num + conv.lstrip()
+                out_lines.append(conv.strip())
             except Exception:
-                out_lines.append(l)
+                fallback = normalize_indic_digits(line_str)
+                if lead_num:
+                    fallback = lead_num + fallback.lstrip()
+                out_lines.append(fallback)
         if out_lines:
             out_stanzas.append('<BR>'.join(out_lines))
     return '<BR><BR>'.join(out_stanzas)
@@ -507,11 +595,14 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         res = re.sub(r'[\u0BBE]{2,}', '\u0BBE', res)
         res = re.sub(r'\u0BC7\u0BBE', '\u0BCB', res)
         res = re.sub(r'\u0BC6\u0BBE', '\u0BCA', res)
+        res = re.sub(r'[\u0BBE-\u0BCD][\u0BCD]', '\u0BCD', res)
+        res = re.sub(r'\u0BC8([\u0B85-\u0BB9])', r'\g<1>' + '\u0BC8', res)
         res = res.replace('ாா்', 'ார்')
     elif lang == 'hindi':
         res = re.sub(r'(^|\s)ि([क-ह])', r'\1\2ि', res)
         res = re.sub(r'िा', 'ी', res)
         res = res.replace('‚', ',')
+    res = normalize_indic_digits(res)
     return res
 
 W2CF_MALAYALAM_WORDS = {

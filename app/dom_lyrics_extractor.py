@@ -25,7 +25,8 @@ UI_NOISE_PATTERNS = [
     r'^(?:song\s*#\s*\d+|chords?|translate|original|manglish|english|malayalam|tamil|telugu|hindi|kannada)\b',
     r'^(?:references?|ref|scripture\s*reference|bible\s*reference|key\s*verse)\s*[:\-].*$',
     r'^[—–\-_=~*#\s]{3,}$',  # Separator lines like —————————————–
-    r'^(?:[MFABCDEFGH]|male|female|all)\s*$'  # Singer role indicators like M, F, A
+    r'^(?:[MFABCDEFGH]|male|female|all)\s*$',  # Singer role indicators like M, F, A
+    r'^(?:ആനന്ദഭൈരവി|ഭൈരവി|ശങ്കരാഭരണം|കല്യാണി|തോഡി|മോഹനം|ഖരഹരപ്രിയ|ബിലഹരി|ഹംസധ്വനി|നാട്ട|ആഹാരി|സാവേരി|ആദിതാളം|രൂപകതാളം|ചായ്പുതാളം|ഏകതാളം|ഭൂപാളം|ചായ്വ്|aanandabhairavi|bhairavi|aadithaalam|aadi\s*thaalam|roopaka\s*thaalam|chaayputhaalam|chaayvu|eekathaalam)(?:\s*[-–—:\s]+\s*(?:ആനന്ദഭൈരവി|ഭൈരവി|ശങ്കരാഭരണം|കല്യാണി|തോഡി|മോഹനം|ഖരഹരപ്രിയ|ബിലഹരി|ഹംസധ്വനി|നാട്ട|ആഹാരി|സാവേരി|ആദിതാളം|രൂപകതാളം|ചായ്പുതാളം|ഏകതാളം|ഭൂപാളം|ചായ്വ്|aanandabhairavi|bhairavi|aadithaalam|aadi\s*thaalam|roopaka\s*thaalam|chaayputhaalam|chaayvu|eekathaalam))?\s*$'
 ]
 UI_NOISE_REGEX = re.compile('|'.join(UI_NOISE_PATTERNS), re.IGNORECASE)
 
@@ -53,16 +54,16 @@ def is_ui_noise_line(line: str) -> bool:
 def clean_chords(text: str) -> str:
     if not text:
         return ''
-    from app.legacy_font_converter import fix_mojibake, unescape_backslashes
+    from app.legacy_font_converter import fix_mojibake, unescape_backslashes, normalize_indic_digits
     text = unescape_backslashes(text)
     text = fix_mojibake(text)
+    text = normalize_indic_digits(text)
     text = CHORD_REGEX.sub('', text)
-    # Strip emojis including musical notes - astral plane + misc symbols
-    # Note: Python3 strings hold full codepoints, so lone-surrogate range is omitted
+    # Strip BOM, zero-width spaces, soft hyphens, and astral/emoji symbols
+    text = re.sub(r'[\ufeff\u200b-\u200f\u00a0\u00ad\ufffd\u25cc\u266a-\u266f]', '', text)
     text = re.sub(r'[\U00010000-\U0010FFFF\u2600-\u27BF\u2B00-\u2BFF\uFE00-\uFE0F]', '', text)
-    # Clean broken web character encodings, soft hyphens, and dangling font artifacts (e.g. ோ, ிீ)
-    text = re.sub(r'[\u00a0\u00ad\ufffd\u200b\u200c\u200d\u25cc\u266a-\u266f]', '', text)
-    text = re.sub(r'[\u0b82\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc]\u0bbf|\u0bbf\u0bc6|[\u0b82-\u0bcd]{3,}', '', text)
+    # Clean broken web character encodings and dangling font artifacts (e.g. ோ, ிீ)
+    text = re.sub(r'[\u0b82\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc]\u0bbf|\u0bbf\u0bc6|[\u0bbe-\u0bcd]{3,}', '', text)
     # Collapse tabs and multi-space runs (page-layout gaps, never lyric content)
     text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
