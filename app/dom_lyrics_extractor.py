@@ -33,7 +33,7 @@ UI_NOISE_PATTERNS = [
 UI_NOISE_REGEX = re.compile('|'.join(UI_NOISE_PATTERNS), re.IGNORECASE)
 
 VERSE_START_REGEX = re.compile(
-    r'^(?:[1-9]\d{0,1}[.)]?$|[1-9]\d{0,1}[.)\s]+[A-Za-z\u0900-\u0D7F]|(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|pallavi|anupallavi|charanam|சரணம்|பல்லவி|చరణం|పల్లవి|ചരണം|പല്ലവി|चरण|पल्लवी)\b)',
+    r'^(?:(?:\(?[1-9]\d{0,1}(?:[.)\]}]\s*|:\s*|$))|(?:\(?\s*(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|pallavi|anupallavi|charanam|\u0c9a\u0cb0\u0ca3|\u0caa\u0cb2\u0ccd\u0cb2\u0cb5\u0cbf|\u0b9a\u0bb0\u0ba3\u0bae\u0bcd|\u0baa\u0bb2\u0bcd\u0bb2\u0bb5\u0bbf|\u0c1a\u0c30\u0c23\u0c02|\u0c2a\u0c32\u0c4d\u0c32\u0c35\u0c3f|\u0d1a\u0d30\u0d23\u0d02|\u0d2a\u0d32\u0d4d\u0d32\u0d35\u0c3f|\u091a\u0930\u0923|\u092a\u0932\u094d\u0932\u0935\u0940)\b[\s\d:.)\]}]*))',
     re.IGNORECASE
 )
 
@@ -217,4 +217,26 @@ class DOMStructureExtractor:
                 if recombined and '<BR><BR>' in recombined:
                     return recombined
 
-        return '<BR><BR>'.join(cleaned_stanzas)
+        raw_result = '<BR><BR>'.join(cleaned_stanzas)
+        if not raw_result:
+            return ""
+
+        from app.legacy_font_converter import normalize_indic_digits
+        raw_result = normalize_indic_digits(raw_result)
+
+        # Merge standalone verse numbers: '1<BR>Text' or '1.<BR>Text' -> '1. Text'
+        raw_result = re.sub(r'^(?:<BR>)*([1-9]\d{0,1})[.)\-:]?\s*<BR>\s*([A-Za-z\u0900-\u0D7F])', r'\1. \2', raw_result, flags=re.IGNORECASE)
+        raw_result = re.sub(r'(<BR><BR>)\s*([1-9]\d{0,1})[.)\-:]?\s*<BR>\s*([A-Za-z\u0900-\u0D7F])', r'\1\2. \3', raw_result, flags=re.IGNORECASE)
+        raw_result = re.sub(r'(<BR>)\s*([1-9]\d{0,1})[.)\-:]?\s*<BR>\s*([A-Za-z\u0900-\u0D7F])', r'<BR><BR>\2. \3', raw_result, flags=re.IGNORECASE)
+
+        # Standardize line repeat notations to ' (2)':
+        # e.g., ' x2', ' x 2', ' X2', ' *2' -> ' (2)'
+        raw_result = re.sub(r'[\s\-–—]+(?:x|\*|X)\s*([1-9]\d{0,1})\b', r' (\1)', raw_result)
+        # e.g., ' - 2' at end of line -> ' (2)'
+        raw_result = re.sub(r'[\s\-–—]+\(?\s*([1-9]\d{0,1})\s*\)?(?=(?:<BR>|$))', r' (\1)', raw_result)
+        # e.g., '( 2 )' -> '(2)'
+        raw_result = re.sub(r'\(\s*([1-9]\d{0,1})\s*\)', r'(\1)', raw_result)
+        # e.g., ensure leading space before (2): 'word(2)' -> 'word (2)'
+        raw_result = re.sub(r'([^\s\(<])\(([1-9]\d{0,1})\)', r'\1 (\2)', raw_result)
+
+        return raw_result

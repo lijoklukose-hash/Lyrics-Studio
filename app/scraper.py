@@ -51,7 +51,8 @@ auto_scraper_state = {
     "imported": 0,
     "current_song": "",
     "message": "Ready to auto-scrape",
-    "stop_requested": False
+    "stop_requested": False,
+    "recent_errors": []
 }
 
 def stop_preset_auto_scraper():
@@ -80,6 +81,7 @@ def reset_preset_auto_scraper(clear_queue=False):
     auto_scraper_state["imported"] = 0
     auto_scraper_state["current_song"] = ""
     auto_scraper_state["message"] = "Ready to auto-scrape"
+    auto_scraper_state["recent_errors"] = []
 
     cleared_count = 0
     if clear_queue:
@@ -818,7 +820,7 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
         # Pre-compute fingerprints once (transliteration-heavy); without this
         # the first songs each stall for seconds on cold per-song hashing.
         def _prep_progress(done, total):
-            auto_scraper_state["message"] = f"Indexing {done:,}/{total:,} known songs for duplicate check..."
+            auto_scraper_state["message"] = f"Initializing duplicate database (runs once per batch): {done:,}/{total:,} known songs..."
         if not prepare_dedup_cache(
                 existing_songs_cache, on_progress=_prep_progress,
                 should_stop=lambda: auto_scraper_state.get("stop_requested")):
@@ -1058,11 +1060,19 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         res = future.result()
                         if not res.get('success') or not res.get('title'):
                             auto_scraper_state["failed"] += 1
+                            err_desc = res.get('error', 'No title or lyrics could be extracted')
+                            auto_scraper_state.setdefault("recent_errors", []).append({
+                                "title": cand.get('title', 'Unknown'),
+                                "url": cand.get('url', ''),
+                                "reason": err_desc
+                            })
+                            if len(auto_scraper_state["recent_errors"]) > 10:
+                                auto_scraper_state["recent_errors"].pop(0)
                             queue_save({
                                 'source_url': cand['url'], 'source_website': cand['source_name'],
                                 'title_original': cand.get('title', ''), 'title_cleaned': '',
                                 'language': cand.get('language', ''), 'status': 'failed',
-                                'error_message': res.get('error', 'No title or lyrics could be extracted'),
+                                'error_message': err_desc,
                                 'preserve_review': False
                             })
                             continue

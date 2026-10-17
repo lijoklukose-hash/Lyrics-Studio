@@ -77,6 +77,7 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
                 pass
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_url ON raw_scrapes(source_url)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_source_status ON raw_scrapes(source_website, status)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_conf ON raw_scrapes(status, overall_confidence DESC)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_lang ON raw_scrapes(status, language)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_attempt ON raw_scrapes(status, retry_count)')

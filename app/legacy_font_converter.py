@@ -165,12 +165,13 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                 continue
             # Preserve leading verse numbers (e.g. "1.", "1 ", "1)") so they never turn into font numerals
             lead_num = ''
-            m = re.match(r'^(\(?\d+[\.\:\)\-]?\s*)(.*)', line_str)
+            m = re.match(r'^(\(?[1-9]\d{0,1}[\.\:\)\-]?\s*)(.*)', line_str)
             if m:
                 lead_raw = m.group(1).strip()
                 lead_digits = re.sub(r'\D', '', lead_raw)
                 if lead_digits:
                     lead_num = f"{lead_digits}. "
+                    line_str = m.group(2).strip()
             # Normalize repeat count notations like 'x 2', 'x2', 'x(2)', 'x (2)' -> (2)
             line_str = re.sub(r'(?i)\bx\s*\(?([1-9]\d{0,1})\)?(?=\s*[\)\],.;:]*|$)', r'(\1)', line_str)
             line_str = re.sub(r'\(([1-9]\d{0,1})\)\)+', r'(\1)', line_str)

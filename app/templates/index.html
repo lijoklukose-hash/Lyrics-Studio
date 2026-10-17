@@ -696,7 +696,9 @@
                             <span class="text-slate-500">Duplicates Skipped: <strong class="text-rose-600" x-text="autoScraperState.duplicates_skipped || 0">0</strong></span>
                             <span class="text-slate-500">Queued for Review: <strong class="text-amber-600" x-text="autoScraperState.needs_review || reviewQueueCount || 0">0</strong></span>
                             <span class="text-slate-500">Pristine Imported: <strong class="text-emerald-600" x-text="autoScraperState.imported || 0">0</strong></span>
-                            <span class="text-slate-500" x-show="autoScraperState.failed > 0">Failed: <strong class="text-rose-600" x-text="autoScraperState.failed || 0">0</strong></span>
+                            <span class="text-slate-500" x-show="autoScraperState.failed > 0" :title="autoScraperState.recent_errors && autoScraperState.recent_errors.length ? autoScraperState.recent_errors.map(e => e.title + ': ' + e.reason).join('\n') : 'Pages with HTTP errors or no readable lyrics container'">
+                                Failed: <strong class="text-rose-600 underline decoration-dotted cursor-help" x-text="autoScraperState.failed || 0">0</strong>
+                            </span>
                         </div>
                     </div>
                     <div class="text-xs text-slate-700 font-mono truncate" x-text="autoScraperState.message"></div>
