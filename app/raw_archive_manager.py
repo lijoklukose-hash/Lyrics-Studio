@@ -13,7 +13,7 @@ _INIT_DONE_PATHS = set()
 def _needs_migration(conn, db_path):
     try:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(raw_scrapes)").fetchall()}
-        return not {'lyrics2', 'author', 'tags'} <= cols
+        return not {'lyrics2', 'author', 'tags', 'error_message', 'retry_count', 'last_attempt_at'} <= cols
     except Exception:
         return True
 
@@ -68,15 +68,18 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
                 status TEXT DEFAULT 'pending'
             )
         ''')
-        for _col in ("lyrics2", "author", "tags"):
+        for _col, _type in (("lyrics2", "TEXT"), ("author", "TEXT"), ("tags", "TEXT"),
+                            ("error_message", "TEXT"), ("retry_count", "INTEGER DEFAULT 0"),
+                            ("last_attempt_at", "DATETIME")):
             try:
-                cur.execute(f"ALTER TABLE raw_scrapes ADD COLUMN {_col} TEXT")
+                cur.execute(f"ALTER TABLE raw_scrapes ADD COLUMN {_col} {_type}")
             except Exception:
                 pass
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_url ON raw_scrapes(source_url)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_conf ON raw_scrapes(status, overall_confidence DESC)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_lang ON raw_scrapes(status, language)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_attempt ON raw_scrapes(status, retry_count)')
         conn.commit()
         conn.close()
         _INIT_DONE_PATHS.add(db_path)
@@ -113,8 +116,9 @@ def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
                 INSERT INTO raw_scrapes (
                     source_url, source_website, raw_html, raw_lyrics,
                     cleaned_lyrics, lyrics2, author, tags, title_original, title_cleaned,
-                    language, overall_confidence, duplicate_score, matched_id, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    language, overall_confidence, duplicate_score, matched_id, status,
+                    error_message, retry_count, last_attempt_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(source_url) DO UPDATE SET
                     cleaned_lyrics = excluded.cleaned_lyrics,
                     lyrics2 = excluded.lyrics2,
@@ -123,6 +127,9 @@ def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
                     title_cleaned = excluded.title_cleaned,
                     overall_confidence = excluded.overall_confidence,
                     duplicate_score = excluded.duplicate_score,
+                    error_message = excluded.error_message,
+                    retry_count = raw_scrapes.retry_count + CASE WHEN excluded.status = 'failed' THEN 1 ELSE 0 END,
+                    last_attempt_at = CURRENT_TIMESTAMP,
                     status = CASE
                         WHEN raw_scrapes.status IN ({keep}) THEN raw_scrapes.status
                         ELSE excluded.status
@@ -142,7 +149,10 @@ def _save_raw_scrape_inner(data: dict, db_path=ARCHIVE_DB_PATH):
                 data.get('overall_confidence', 0.0),
                 data.get('duplicate_score', 0.0),
                 data.get('matched_id'),
-                data.get('status', 'pending')
+                data.get('status', 'pending'),
+                data.get('error_message', ''),
+                data.get('retry_count', 0),
+                datetime.datetime.now().isoformat(timespec='seconds')
             ))
         conn.commit()
         conn.close()
@@ -202,3 +212,38 @@ def clear_review_queue(db_path=ARCHIVE_DB_PATH):
     conn.commit()
     conn.close()
     return count
+
+def get_scrape_health(db_path=ARCHIVE_DB_PATH):
+    """Compact source/status summary for the scraper dashboard."""
+    init_raw_archive(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute('''
+            SELECT COALESCE(NULLIF(source_website, ''), 'Unknown') AS source,
+                   status, COUNT(*) AS count, MAX(scraped_at) AS last_scraped
+            FROM raw_scrapes GROUP BY source, status ORDER BY source, status
+        ''').fetchall()
+        sources = {}
+        for row in rows:
+            source = sources.setdefault(row['source'], {'source': row['source'], 'approved': 0, 'review': 0, 'failed': 0, 'rejected': 0, 'last_scraped': None})
+            source[row['status']] = row['count']
+            source['last_scraped'] = max(filter(None, [source['last_scraped'], row['last_scraped']]), default=None)
+        return list(sources.values())
+    finally:
+        conn.close()
+
+def retry_failed_scrapes(source=None, db_path=ARCHIVE_DB_PATH):
+    """Make failed URLs eligible for the next catalog run; never auto-approves them."""
+    init_raw_archive(db_path)
+    conn = sqlite3.connect(db_path, timeout=60.0)
+    try:
+        cur = conn.cursor()
+        if source and source != 'All':
+            cur.execute("UPDATE raw_scrapes SET status = 'retry', error_message = '' WHERE status = 'failed' AND source_website = ?", (source,))
+        else:
+            cur.execute("UPDATE raw_scrapes SET status = 'retry', error_message = '' WHERE status = 'failed'")
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()

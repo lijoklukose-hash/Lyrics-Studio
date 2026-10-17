@@ -598,6 +598,28 @@
                     </button>
                 </div>
 
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-800">Source Health & Failed Retries</h3>
+                            <p class="text-[11px] text-slate-500">Failed URLs are saved for the next scrape; no song is auto-approved.</p>
+                        </div>
+                        <div class="flex gap-2 shrink-0">
+                            <button @click="loadScrapeHealth()" class="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100">Refresh</button>
+                            <button @click="retryFailedScrapes()" :disabled="scrapeHealthRetrying" class="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-50" x-text="scrapeHealthRetrying ? 'Queueing…' : 'Queue Failed URLs'"></button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" x-show="scrapeHealth.length">
+                        <template x-for="source in scrapeHealth" :key="source.source">
+                            <div class="rounded-xl bg-white border border-slate-200 p-3 text-xs">
+                                <div class="font-extrabold text-slate-800" x-text="source.source"></div>
+                                <div class="mt-1 text-slate-500"><span class="text-emerald-700" x-text="(source.approved || 0) + ' approved'"></span> · <span class="text-amber-700" x-text="(source.review || 0) + ' review'"></span> · <span class="text-rose-700" x-text="(source.failed || 0) + ' failed'"></span></div>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="!scrapeHealth.length" class="text-xs text-slate-500">No scraper archive activity recorded yet.</p>
+                </div>
+
                 <!-- Live Review Mode & Progress Log -->
                 <div class="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-200">
@@ -655,7 +677,7 @@
 
                             <!-- Stop & Reset Control Buttons -->
                             <div class="flex items-center space-x-1.5 border-l border-slate-200 pl-3">
-                                <button type="button" @click="stopPresetAutoScrape()" :disabled="!autoScrapingActive && autoScraperState.status !== 'running'" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center space-x-1 border border-rose-200 disabled:opacity-40 disabled:hover:bg-rose-50 disabled:hover:text-rose-600 cursor-pointer disabled:cursor-not-allowed active:scale-95">
+                                <button type="button" @click="stopPresetAutoScrape()" :disabled="!autoScrapingActive && !['running', 'stopping'].includes(autoScraperState.status)" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-[11px] transition flex items-center space-x-1 border border-rose-200 disabled:opacity-40 disabled:hover:bg-rose-50 disabled:hover:text-rose-600 cursor-pointer disabled:cursor-not-allowed active:scale-95">
                                     <i data-lucide="square" class="w-3 h-3"></i>
                                     <span>Stop Scraper</span>
                                 </button>
@@ -1573,6 +1595,8 @@
                 reviewQueueLanguage: 'All',
                 reviewQueueLoading: false,
                 reviewQueueError: '',
+                scrapeHealth: [],
+                scrapeHealthRetrying: false,
                 reviewCurrentIndex: 0,
                 reviewScriptTab: 'native',
                 autoScrapingActive: false,
@@ -1626,6 +1650,7 @@
                     this.loadSongs(1);
                     this.loadStats();
                     this.loadReviewQueue();
+                    this.loadScrapeHealth();
                     
                     // 2. Defer background tasks to avoid saturating browser network connections
                     setTimeout(() => {
@@ -1731,7 +1756,36 @@
 
                 formatFromBrTags(brText) {
                     if (!brText) return '';
-                    return brText.replace(/<BR><BR>/g, '\n\n').replace(/<BR>/g, '\n');
+                    return brText.replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '\n\n').replace(/<br\s*\/?>/gi, '\n');
+                },
+
+                async apiJson(url, options) {
+                    const response = await fetch(url, options);
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (_) {
+                        throw new Error(`Server returned ${response.status} ${response.statusText}`);
+                    }
+                    if (!response.ok) {
+                        throw new Error(data.detail || data.error || `Server returned ${response.status}`);
+                    }
+                    return data;
+                },
+
+                async readClipboardText() {
+                    try {
+                        if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('Clipboard API unavailable');
+                        const text = await navigator.clipboard.readText();
+                        if (text && text.trim()) return text;
+                        this.showToast('Clipboard is empty', 'info');
+                        return '';
+                    } catch (_) {
+                        // Browser clipboard permission is commonly blocked in embedded/non-secure views.
+                        // Keep the toolbar buttons usable by offering a deliberate manual-paste fallback.
+                        const text = window.prompt('Paste the lyrics here, then click OK:');
+                        return text && text.trim() ? text : '';
+                    }
                 },
 
                 toggleEditorTextMode(mode) {
@@ -1874,7 +1928,7 @@
                     }
                     this.searchingWeb = true;
                     try {
-                        const res = await fetch('/api/songs/auto-fix-web', {
+                        const data = await this.apiJson('/api/songs/auto-fix-web', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -1883,7 +1937,6 @@
                                 category: this.editingSong.category
                             })
                         });
-                        const data = await res.json();
                         if (data.found && data.lyrics) {
                             this.editingSong.lyrics = data.lyrics;
                             this.editingSong.lyrics2 = data.lyrics2 || this.editingSong.lyrics2;
@@ -1895,7 +1948,7 @@
                             this.showToast(`Found verified lyrics (${data.source || 'Web'})!`, 'success');
                         } else {
                             // Smart stanza reconstruction fallback
-                            const recRes = await fetch('/api/songs/reconstruct-stanzas', {
+                            const recData = await this.apiJson('/api/songs/reconstruct-stanzas', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -1903,7 +1956,6 @@
                                     category: this.editingSong.category
                                 })
                             });
-                            const recData = await recRes.json();
                             if (recData.lyrics) {
                                 this.editingSong.lyrics = recData.lyrics;
                                 this.editingSong.lyrics2 = recData.lyrics2;
@@ -1930,7 +1982,7 @@
                     }
                     this.formattingAI = true;
                     try {
-                        const res = await fetch('/api/ai-format', {
+                        const data = await this.apiJson('/api/ai-format', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -1939,7 +1991,6 @@
                                 model: 'qwen3.5:0.8b'
                             })
                         });
-                        const data = await res.json();
                         if (data.success && data.formatted) {
                             this.editingSong.lyrics = data.formatted;
                             if (data.formatted2) this.editingSong.lyrics2 = data.formatted2;
@@ -1948,7 +1999,7 @@
                             this.updateEditorLyricsFromInput();
                             this.updateEditorLyrics2FromInput();
                             this.editorPreviewTab = 'dual';
-                            this.showToast('🤖 Formatted with local AI Model!', 'success');
+                            this.showToast(data.engine === 'Ollama LLM' ? '🤖 Formatted with local AI model!' : '✨ Formatted with the rule engine.', 'success');
                         } else {
                             this.showToast('AI format notice: ' + (data.error || 'Ollama unavailable'), 'error');
                         }
@@ -1961,16 +2012,9 @@
                 },
 
                 async pasteAndAutoDetectBreaks() {
-                    try {
-                        const clipText = await navigator.clipboard.readText();
-                        if (!clipText || !clipText.trim()) {
-                            this.showToast('Clipboard is empty', 'info');
-                            return;
-                        }
-                        await this.applyAutoDetectToLyrics(clipText);
-                    } catch (err) {
-                        this.showToast('Please paste directly into the box with Ctrl+V', 'info');
-                    }
+                    const clipText = await this.readClipboardText();
+                    if (!clipText) return;
+                    await this.applyAutoDetectToLyrics(clipText);
                 },
 
                 // Ctrl+V in textarea — auto-preserve format + auto-convert legacy fonts
@@ -1980,12 +2024,11 @@
                     event.preventDefault();
                     const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
                     try {
-                        const res = await fetch('/api/paste-preserve', {
+                        const data = await this.apiJson('/api/paste-preserve', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ text: pastedData, category: cat })
                         });
-                        const data = await res.json();
                         if (data.success) {
                             this.editingSong.lyrics = data.lyrics;
                             this.editorLyricsText = this.formatFromBrTags(data.lyrics);
@@ -2009,12 +2052,11 @@
                 async applyAutoDetectToLyrics(rawText) {
                     try {
                         const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
-                        const res = await fetch('/api/songs/reconstruct-stanzas', {
+                        const data = await this.apiJson('/api/songs/reconstruct-stanzas', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ lyrics: rawText, category: cat })
                         });
-                        const data = await res.json();
                         if (data.lyrics) {
                             this.editingSong.lyrics = data.lyrics;
                             if (data.lyrics2) this.editingSong.lyrics2 = data.lyrics2;
@@ -2038,18 +2080,14 @@
                 // Paste preserving original format — no reconstruction
                 async pastePreserveFormat() {
                     try {
-                        const clipText = await navigator.clipboard.readText();
-                        if (!clipText || !clipText.trim()) {
-                            this.showToast('Clipboard is empty', 'info');
-                            return;
-                        }
+                        const clipText = await this.readClipboardText();
+                        if (!clipText) return;
                         const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
-                        const res = await fetch('/api/paste-preserve', {
+                        const data = await this.apiJson('/api/paste-preserve', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ text: clipText, category: cat })
                         });
-                        const data = await res.json();
                         if (data.success) {
                             this.editingSong.lyrics = data.lyrics;
                             this.editorLyricsText = this.formatFromBrTags(data.lyrics);
@@ -2077,12 +2115,11 @@
                     this.convertingFont = true;
                     try {
                         const cat = this.editingSong ? this.editingSong.category : 'Malayalam';
-                        const res = await fetch('/api/convert-font', {
+                        const data = await this.apiJson('/api/convert-font', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ text: currentText, category: cat })
                         });
-                        const data = await res.json();
                         if (data.success) {
                             this.editingSong.lyrics = data.converted;
                             this.editorLyricsText = this.formatFromBrTags(data.converted);
@@ -2168,10 +2205,8 @@
                             })
                         });
                         const data = await res.json();
-                        if (data && data.status === 'busy') {
-                            this.autoScrapingActive = false;
-                            this.showToast(data.message || 'Auto-scraper is already running', 'info');
-                            return;
+                        if (!res.ok || !data || data.status !== 'started') {
+                            throw new Error((data && (data.detail || data.message)) || `Server returned ${res.status}`);
                         }
                         this.pollAutoScraperStatus();
                         const langMsg = source === 'madely' ? 'Malayalam' : (this.autoScrapeLanguage === 'All' ? 'All Languages' : this.autoScrapeLanguage);
@@ -2187,6 +2222,9 @@
                     try {
                         const res = await fetch('/api/scrape/preset/stop', { method: 'POST' });
                         const data = await res.json();
+                        if (!res.ok || data.success === false) {
+                            throw new Error(data.message || data.error || `Server returned ${res.status}`);
+                        }
                         // Keep polling until the server actually leaves 'running'
                         // so the UI never desyncs from the background loop.
                         this.autoScrapingActive = true;
@@ -2206,6 +2244,9 @@
                             body: JSON.stringify({ clear_queue: clearQueue })
                         });
                         const data = await res.json();
+                        if (!res.ok || data.success === false) {
+                            throw new Error(data.message || data.error || `Server returned ${res.status}`);
+                        }
                         this.autoScrapingActive = false;
                         this.autoScraperState = {
                             status: 'idle',
@@ -2367,6 +2408,28 @@
                         .catch(() => {});
                 },
 
+                async loadScrapeHealth() {
+                    try {
+                        const data = await this.apiJson('/api/scraper/health');
+                        this.scrapeHealth = data.sources || [];
+                    } catch (e) {
+                        console.error('Source health unavailable:', e);
+                    }
+                },
+
+                async retryFailedScrapes() {
+                    this.scrapeHealthRetrying = true;
+                    try {
+                        const data = await this.apiJson('/api/scraper/retry-failed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'All' }) });
+                        this.showToast(`${data.queued || 0} failed URLs queued for the next auto-scrape.`, 'success');
+                        await this.loadScrapeHealth();
+                    } catch (e) {
+                        this.showToast('Could not queue failed URLs: ' + e.message, 'error');
+                    } finally {
+                        this.scrapeHealthRetrying = false;
+                    }
+                },
+
                 pollAutoScraperStatus() {
                     if (this.autoScraperTimer) clearInterval(this.autoScraperTimer);
                     this.autoScraperPollErrors = 0;
@@ -2377,8 +2440,9 @@
                             this.autoScraperPollErrors = 0;
                             const langQuery = this.autoScrapeLanguage && this.autoScrapeLanguage !== 'All'
                                 ? `?language=${encodeURIComponent(this.autoScrapeLanguage)}` : '';
-                            if (this.autoScraperState.status === 'running') {
+                            if (['running', 'stopping'].includes(this.autoScraperState.status)) {
                                 this.autoScrapingActive = true;
+                                if (this.autoScraperState.status === 'stopping') return;
                                 // Cheap count-only refresh while running (full queue loads on finish)
                                 fetch(`/api/scraper/review-count${langQuery}`)
                                     .then(r => r.json())

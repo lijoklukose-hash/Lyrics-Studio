@@ -94,12 +94,11 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
         return False
 
     # 6. Illegal vowel sign followed immediately by an independent vowel
-    # In Dravidian & Devanagari, natural diphthong spellings like कोई (k + o + ii), भाई (bh + aa + ii), पाई (p + aa + ii)
-    # are completely normal and standard words. Only flag mismatched script or illegal internal sequences.
-    if re.search(r'[\u093E-\u094C][\u0905\u0906\u0909\u090A\u090B\u090F\u0910\u0913\u0914]|[\u0BBE-\u0BCD][\u0B85-\u0B94]|[\u0C3E-\u0C4C][\u0C05-\u0C14]|[\u0CBE-\u0CCC][\u0C85-\u0C94]|[\u0D3E-\u0D4C][\u0D05-\u0D14]', plain):
-        # Exclude legitimate Hindi combinations ending with इ / ई / उ / ऊ (e.g. कोई, भाई, गाऊं, आए)
-        if not re.search(r'[\u093E\u094B\u0947][\u0907\u0908\u0909\u090F]', plain):
-            return False
+    # In Dravidian & Devanagari, natural diphthongs and verbal inflections like
+    # कोई, भाई, पाई, गाऊं, आए, आओ, जाएं, राजाओं, प्रभुओं are standard Hindi.
+    # Only flag mismatched script or truly illegal internal sequences.
+    if re.search(r'[\u0BBE-\u0BCD][\u0B85-\u0B94]|[\u0C3E-\u0C4C][\u0C05-\u0C14]|[\u0CBE-\u0CCC][\u0C85-\u0C94]|[\u0D3E-\u0D4C][\u0D05-\u0D14]', plain):
+        return False
 
     # 7. Unnatural machine transliteration conjuncts or internal avagraha noise
     if re.search(r'\u0D19\u0D4D\u0D1C|\u0D28\u0D4D\u0D1C|\u0D1a\u0D4D\u0D15|[\u0900-\u0D7F][\u093D\u0D3D][\u0900-\u0D7F]', plain):
@@ -215,6 +214,51 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                         w_trans = re.sub(r'^ഏ(?=[^േെ])', 'എ', w_trans)
                         out_words.append(w_trans)
                     conv = ' '.join(out_words)
+                elif lang == 'hindi':
+                    HINDI_WORD_DICT = {
+                        'bolo': 'बोलो', 'jai': 'जय', 'jay': 'जय', 'milkar': 'मिलकर', 'yeshu': 'यीशु', 'yeshuve': 'यीशु',
+                        'ki': 'की', 'ke': 'के', 'ka': 'का', 'ko': 'को', 'se': 'से', 'mein': 'में', 'me': 'में', 'par': 'पर',
+                        'tere': 'तेरे', 'meri': 'मेरी', 'mera': 'मेरा', 'mere': 'मेरे', 'apni': 'अपनी', 'apna': 'अपना',
+                        'prem': 'प्रेम', 'preet': 'प्रीत', 'reet': 'रीत', 'geet': 'गीत', 'gaaye': 'गाए', 'halleluyah': 'हल्लेलूयाह',
+                        'halleluya': 'हल्लेलूयाह', 'hallelujah': 'हल्लेलूयाह', 'krush': 'क्रूस', 'kroosh': 'क्रूस',
+                        'khoon': 'खून', 'baha': 'बहा', 'mujh': 'मुझ', 'paapi': 'पापी', 'dee': 'दी', 'di': 'दी',
+                        'shifa': 'शिफ़ा', 'shifaa': 'शिफ़ा', 'man': 'मन', 'mann': 'मन', 'tu': 'तू', 'bol': 'बोल', 'sada': 'सदा',
+                        'teri': 'तेरी', 'qudrat': 'कुदरत', 'kudrat': 'कुदरत', 'yeh': 'यह', 'shaan': 'शान', 'shan': 'शान',
+                        'khud': 'खुद', 'hi': 'ही', 'dat': 'दात', 'daat': 'दात', 'dan': 'दान', 'daan': 'दान',
+                        'chahe': 'चाहे', 'zameen': 'ज़मीन', 'zamin': 'ज़मीन', 'tootkar': 'टूटकर', 'choor': 'चूर', 'ho': 'हो',
+                        'tab': 'तब', 'bhi': 'भी', 'vishwas': 'विश्वास', 'har': 'हर', 'neev': 'नीव', 'dagmagaye': 'डगमगाए',
+                        'pre': 'प्री', 'chorus': 'कोरस', 'bharose': 'भरोसे', 'layak': 'लायक', 'jab': 'जब', 'kuch': 'कुछ',
+                        'na': 'न', 'rahe': 'रहे', 'gaun': 'गाऊं', 'phir': 'फिर', 'tujhpar': 'तुझपर', 'bharosa': 'भरोसा',
+                        'hai': 'है', 'hain': 'हैं', 'andhera': 'अंधेरा', 'raah': 'राह', 'cha': 'छा', 'jaye': 'जाए', 'toh': 'तो',
+                        'bhavishya': 'भविष्य', 'aashayein': 'आशाएं', 'ashayein': 'आशाएं', 'toot': 'टूट', 'sahar': 'शहर',
+                        'iss': 'इस', 'is': 'इस', 'jahan': 'जहान', 'koi': 'कोई', 'aake': 'आके', 'hum': 'हम', 'jamja': 'जमजा',
+                        'ae': 'ऐ', 'khuda': 'खुदा', 'de': 'दे', 'paak': 'पाक', 'pak': 'पाक', 'rooh': 'रूह', 'ruh': 'रूह',
+                        'humko': 'हमको', 'maza': 'मज़ा', 'bhej': 'भेज', 'aag': 'आग', 'sarabor': 'सराबोर', 'masiha': 'मसीहा',
+                        'khatm': 'ख़त्म', 'khatam': 'ख़त्म', 'hamari': 'हमारी', 'khudi': 'खुदी', 'dikhe': 'दिखे', 'noor': 'नूर',
+                        'soo': 'सू', 'su': 'सू', 'bas': 'बस', 'khayal': 'ख़्याल', 'zahir': 'ज़ाहिर', 'jalal': 'जलाल',
+                        'yahi': 'यही', 'aarzoo': 'आरज़ू', 'aaj': 'आज', 'nahi': 'नहीं', 'nahin': 'नहीं', 'kal': 'कल',
+                        'parso': 'परसों', 'parson': 'परसों', 'bada': 'बड़ा', 'din': 'दिन', 'gin': 'गिन', 're': 'रे',
+                        'bhaiya': 'भैया', 'ghar': 'घर', 'roz': 'रोज़', 'roti': 'रोटी', 'dede': 'देदे', 'jeevan': 'जीवन',
+                        'tuhi': 'तूही', 'bal': 'बल', 'jis': 'जिस', 'tarah': 'तरह', 'apne': 'अपने', 'apradhi': 'अपराधी',
+                        'maaf': 'माफ़', 'karte': 'करते', 'usi': 'उसी', 'hamare': 'हमारे'
+                    }
+                    words = l_clean.split(' ')
+                    out_words = []
+                    for w in words:
+                        if not w:
+                            continue
+                        m_w = re.match(r'^([^a-zA-Z]*)([a-zA-Z]+)([^a-zA-Z]*)$', w)
+                        if m_w:
+                            pre_p, core_w, post_p = m_w.group(1), m_w.group(2), m_w.group(3)
+                            if core_w in HINDI_WORD_DICT:
+                                out_words.append(pre_p + HINDI_WORD_DICT[core_w] + post_p)
+                                continue
+                        w_trans = transliterate(w, sanscript.ITRANS, tgt_scheme)
+                        # Remove schwa-syncope virama at end of word
+                        w_trans = re.sub(r'([क-ह])्(?=[ ,.;:!?\n\r\t]|$)', r'\1', w_trans)
+                        out_words.append(w_trans)
+                    conv = ' '.join(out_words)
+                    conv = re.sub(r'([\u0915-\u0939])\u094D\u093F([\u0915-\u0939])', '\\g<1>\u094D\\g<2>\u093F', conv)
                 else:
                     conv = transliterate(l_clean, sanscript.ITRANS, tgt_scheme)
                 conv = normalize_indic_digits(conv)
@@ -601,6 +645,13 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
     elif lang == 'hindi':
         res = re.sub(r'(^|\s)ि([क-ह])', r'\1\2ि', res)
         res = re.sub(r'िा', 'ी', res)
+        # Fix KrutiDev reph-i ligature artifact (e.g. भर्इया -> भईया / भैया, बुरार्इ -> बुराई)
+        res = res.replace('र्इ', 'ई').replace('र्र्इ', 'ई')
+        res = res.replace('भईया', 'भैया')
+        # Fix inverted matra i across conjuncts: [Consonant] + virama + matra_i + [Consonant] (e.g. अग्िन -> अग्नि, बल्िक -> बल्कि)
+        res = re.sub(r'([\u0915-\u0939])\u094D\u093F([\u0915-\u0939])', '\\g<1>\u094D\\g<2>\u093F', res)
+        # Strip dotted circles caused by orphan matras
+        res = res.replace('\u25CC', '')
         res = res.replace('‚', ',')
     res = normalize_indic_digits(res)
     return res

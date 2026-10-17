@@ -56,13 +56,19 @@ auto_scraper_state = {
 
 def stop_preset_auto_scraper():
     global auto_scraper_state
+    if auto_scraper_state.get("status") not in {"running", "stopping"}:
+        return {"success": False, "message": "Auto-scraper is not running"}
     auto_scraper_state["stop_requested"] = True
-    auto_scraper_state["status"] = "stopped"
-    auto_scraper_state["message"] = "Auto-scraper stopped."
-    return {"success": True, "message": "Auto-scraper stopped"}
+    # The worker owns the final stopped state after it has flushed its archive
+    # writes and cancelled the outstanding scrape futures.
+    auto_scraper_state["status"] = "stopping"
+    auto_scraper_state["message"] = "Stop requested; finishing the current scrape batch..."
+    return {"success": True, "message": "Stop requested; waiting for the current batch to finish"}
 
 def reset_preset_auto_scraper(clear_queue=False):
     global auto_scraper_state
+    if auto_scraper_state.get("status") in {"running", "stopping"}:
+        return {"success": False, "message": "Stop the auto-scraper and wait for it to finish before resetting."}
     auto_scraper_state["stop_requested"] = False
     auto_scraper_state["status"] = "idle"
     auto_scraper_state["source"] = ""
@@ -532,7 +538,27 @@ def scrape_url(url, language_hint=None):
         elif 'waytochurch.com' in url.lower():
             orig_div = soup.find('div', id='original')
             eng_div  = soup.find('div', id='english')
-            det_lang = language_hint or detect_category_from_url(url) or 'Malayalam'
+            
+            # Detect language from explicit page markers: tab heading or index breadcrumb
+            page_lang = None
+            orig_tab = soup.find('a', href='#original')
+            if orig_tab and orig_tab.get_text().strip():
+                t_txt = orig_tab.get_text().strip()
+                for known in ('Malayalam', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'English'):
+                    if known.lower() == t_txt.lower():
+                        page_lang = known
+                        break
+            if not page_lang:
+                list_link = soup.find('a', href=re.compile(r'/lyrics/list/([A-Za-z]+)'))
+                if list_link:
+                    m = re.search(r'/lyrics/list/([A-Za-z]+)', list_link.get('href', ''))
+                    if m:
+                        for known in ('Malayalam', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'English'):
+                            if known.lower() == m.group(1).lower():
+                                page_lang = known
+                                break
+
+            det_lang = language_hint or page_lang or detect_category_from_url(url) or 'Malayalam'
 
             from app.legacy_font_converter import is_valid_indic_lyrics, roman_to_indic_native, sanitize_converted_indic_lyrics
 
@@ -942,24 +968,39 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
             except Exception as e:
                 print(f"Live discovery notice: {e}")
 
-        # Filter out URLs that have already been scraped and evaluated in raw archive
+        # Filter out URLs that have already been scraped and evaluated in raw archive.
+        # A requested fresh ingestion deliberately rechecks previously approved
+        # entries with the current extractors and confidence rules.
         scraped_urls = set()
-        try:
-            import sqlite3
-            from app.raw_archive_manager import ARCHIVE_DB_PATH
-            conn_raw = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
-            cur_raw = conn_raw.cursor()
-            # Skip songs already approved/imported into library.
-            # Songs that failed or were rejected in previous attempts can still be evaluated
-            # by current/improved extractors unless force_recheck is specifically requested.
-            cur_raw.execute("SELECT source_url FROM raw_scrapes WHERE status = 'approved'")
-            scraped_urls = {row[0] for row in cur_raw.fetchall() if row[0]}
-            conn_raw.close()
-        except Exception as e:
-            print(f"Warning fetching scraped_urls: {e}")
+        if not force_recheck:
+            try:
+                import sqlite3
+                from app.raw_archive_manager import ARCHIVE_DB_PATH
+                conn_raw = sqlite3.connect(ARCHIVE_DB_PATH, timeout=30.0)
+                try:
+                    cur_raw = conn_raw.cursor()
+                    cur_raw.execute("SELECT source_url FROM raw_scrapes WHERE status = 'approved'")
+                    scraped_urls = {row[0] for row in cur_raw.fetchall() if row[0]}
+                finally:
+                    conn_raw.close()
+            except Exception as e:
+                print(f"Warning fetching scraped_urls: {e}")
 
         if scraped_urls:
             candidate_items = [c for c in candidate_items if c.get('url') not in scraped_urls]
+
+        # Static catalogs and live sitemap results overlap.  Keep each URL once
+        # so a song cannot be scraped or queued twice in the same run.
+        unique_candidates = []
+        seen_urls = set()
+        for candidate in candidate_items:
+            url = (candidate.get('url') or '').strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            candidate['url'] = url
+            unique_candidates.append(candidate)
+        candidate_items = unique_candidates
 
         auto_scraper_state["total_candidates"] = len(candidate_items)
         auto_scraper_state["message"] = f"Ingesting and filtering {len(candidate_items):,} remaining candidate songs..."
@@ -1013,6 +1054,13 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         res = future.result()
                         if not res.get('success') or not res.get('title'):
                             auto_scraper_state["failed"] += 1
+                            queue_save({
+                                'source_url': cand['url'], 'source_website': cand['source_name'],
+                                'title_original': cand.get('title', ''), 'title_cleaned': '',
+                                'language': cand.get('language', ''), 'status': 'failed',
+                                'error_message': res.get('error', 'No title or lyrics could be extracted'),
+                                'preserve_review': False
+                            })
                             continue
 
                         title = res['title']

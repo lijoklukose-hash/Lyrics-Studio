@@ -165,11 +165,15 @@ async def convert_font_to_unicode(data: dict = Body(...)):
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     # Detect and convert legacy fonts (or convert directly when user clicks button)
-    was_legacy = looks_like_legacy_font(text)
-    converted_text = convert_legacy_lyrics(text, category)
-    if converted_text != text:
-        text = converted_text
-        was_legacy = True
+    # Legacy ASCII fonts are Indic-language encodings.  Treating ordinary
+    # English lyrics, chords, or punctuation as a legacy font corrupts them.
+    was_legacy = category != "English" and looks_like_legacy_font(text)
+    if was_legacy:
+        converted_text = convert_legacy_lyrics(text, category)
+        if converted_text != text:
+            text = converted_text
+        else:
+            was_legacy = False
 
     # Format to <BR> tags while PRESERVING the original line structure
     stanzas = text.split('\n\n')
@@ -216,7 +220,8 @@ async def paste_preserve_format(data: dict = Body(...)):
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     # Convert legacy font if detected
-    if looks_like_legacy_font(text):
+    # Do not run legacy Indic codecs over English lyrics or chord notation.
+    if category != "English" and looks_like_legacy_font(text):
         text = convert_legacy_lyrics(text, category)
 
     # Convert newlines to <BR> tags preserving original structure exactly
@@ -486,12 +491,16 @@ async def trigger_preset_scraper(background_tasks: BackgroundTasks, data: dict =
     from app.scraper import auto_scraper_state, run_preset_auto_scraper
     source = data.get("source", "all")
     languages = data.get("languages", None)
-    require_review = data.get("require_review", True)
-    force_recheck = data.get("force_recheck", False)
-    discover_new = data.get("discover_new", True)
+    require_review = bool(data.get("require_review", True))
+    force_recheck = bool(data.get("force_recheck", False))
+    discover_new = bool(data.get("discover_new", True))
     if source not in {"all", "waytochurch", "madely"}:
         raise HTTPException(status_code=400, detail="Unsupported scraper source")
-    if auto_scraper_state["status"] == "running":
+    valid_languages = {"Malayalam", "Hindi", "English", "Tamil", "Telugu", "Kannada"}
+    if languages is not None:
+        if not isinstance(languages, list) or any(language not in valid_languages for language in languages):
+            raise HTTPException(status_code=400, detail="languages must be a list of supported languages")
+    if auto_scraper_state["status"] in {"running", "stopping"}:
         return {"status": "busy", "message": "Auto-scraper is already running"}
     
     background_tasks.add_task(run_preset_auto_scraper, source=source, allowed_languages=languages, require_manual_review=require_review, force_recheck=force_recheck, discover_new=discover_new)
@@ -506,7 +515,10 @@ async def stop_preset_scraper():
 async def reset_preset_scraper(data: dict = Body(...)):
     from app.scraper import reset_preset_auto_scraper
     clear_queue = data.get("clear_queue", False)
-    return reset_preset_auto_scraper(clear_queue=clear_queue)
+    result = reset_preset_auto_scraper(clear_queue=clear_queue)
+    if not result.get("success"):
+        return JSONResponse(status_code=409, content=result)
+    return result
 
 @app.get("/api/scrape/preset/status")
 async def get_preset_scraper_status():
@@ -532,6 +544,17 @@ async def get_scraped_review_count(language: str = "All"):
     except Exception as e:
         print(f"Notice: review-count fetch ({e})")
         return {"count": 0}
+
+@app.get("/api/scraper/health")
+async def get_scraper_health():
+    from app.raw_archive_manager import get_scrape_health
+    return {"sources": get_scrape_health()}
+
+@app.post("/api/scraper/retry-failed")
+async def retry_failed_scrapes(data: dict = Body(default={})):
+    from app.raw_archive_manager import retry_failed_scrapes
+    source = data.get("source", "All")
+    return {"success": True, "queued": retry_failed_scrapes(source=source), "message": "Failed URLs are eligible for the next auto-scrape."}
 
 @app.post("/api/scraper/review-resolve")
 async def resolve_scraped_review(data: dict = Body(...)):
@@ -574,11 +597,13 @@ def _resolve_scraped_review_once(data: dict, action: str, raw_id_val):
             except Exception:
                 cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
             row = cur.fetchone()
+            if not row:
+                return JSONResponse(status_code=404, content={"success": False, "error": "Review item no longer exists"})
 
-            title = data.get("title") or (row[0] if row else "Untitled")
-            lang = data.get("category") or (row[1] if row else "Hindi")
-            lyrics = data.get("lyrics") or (row[2] if row else "")
-            lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else ((row[3] or "") if row else "")
+            title = data.get("title") or row[0] or "Untitled"
+            lang = data.get("category") or row[1] or "Hindi"
+            lyrics = data.get("lyrics") or row[2] or ""
+            lyrics2 = data.get("lyrics2") if data.get("lyrics2") is not None else (row[3] or "")
             author = data.get("author")
             if author is None:
                 author = (row[4] if row and len(row) > 4 else "") or ""
