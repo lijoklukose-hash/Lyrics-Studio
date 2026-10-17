@@ -26,6 +26,8 @@ UI_NOISE_PATTERNS = [
     r'^(?:references?|ref|scripture\s*reference|bible\s*reference|key\s*verse)\s*[:\-].*$',
     r'^[—–\-_=~*#\s]{3,}$',  # Separator lines like —————————————–
     r'^(?:[MFABCDEFGH]|male|female|all)\s*$',  # Singer role indicators like M, F, A
+    r'^(?:[I|]{1,4}|[\u0964\u0965|—–\-_=~*#\s]{1,4})$',  # Isolated refrain/delimiter artifacts like II, ||, ।, ॥
+    r'^(?:[a-zA-Z\s]+)?(?:tamil|telugu|malayalam|hindi|kannada|english)?\s*christian\s+song\s+lyrics\s*$',  # SEO title noise lines
     r'^(?:ആനന്ദഭൈരവി|ഭൈരവി|ശങ്കരാഭരണം|കല്യാണി|തോഡി|മോഹനം|ഖരഹരപ്രിയ|ബിലഹരി|ഹംസധ്വനി|നാട്ട|ആഹാരി|സാവേരി|ആദിതാളം|രൂപകതാളം|ചായ്പുതാളം|ഏകതാളം|ഭൂപാളം|ചായ്വ്|aanandabhairavi|bhairavi|aadithaalam|aadi\s*thaalam|roopaka\s*thaalam|chaayputhaalam|chaayvu|eekathaalam)(?:\s*[-–—:\s]+\s*(?:ആനന്ദഭൈരവി|ഭൈരവി|ശങ്കരാഭരണം|കല്യാണി|തോഡി|മോഹനം|ഖരഹരപ്രിയ|ബിലഹരി|ഹംസധ്വനി|നാട്ട|ആഹാരി|സാവേരി|ആദിതാളം|രൂപകതാളം|ചായ്പുതാളം|ഏകതാളം|ഭൂപാളം|ചായ്വ്|aanandabhairavi|bhairavi|aadithaalam|aadi\s*thaalam|roopaka\s*thaalam|chaayputhaalam|chaayvu|eekathaalam))?\s*$'
 ]
 UI_NOISE_REGEX = re.compile('|'.join(UI_NOISE_PATTERNS), re.IGNORECASE)

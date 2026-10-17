@@ -171,7 +171,10 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                 lead_digits = re.sub(r'\D', '', lead_raw)
                 if lead_digits:
                     lead_num = f"{lead_digits}. "
-                line_str = m.group(2).strip()
+            # Normalize repeat count notations like 'x 2', 'x2', 'x(2)', 'x (2)' -> (2)
+            line_str = re.sub(r'(?i)\bx\s*\(?([1-9]\d{0,1})\)?(?=\s*[\)\],.;:]*|$)', r'(\1)', line_str)
+            line_str = re.sub(r'\(([1-9]\d{0,1})\)\)+', r'(\1)', line_str)
+            line_str = re.sub(r'\(\s*\(([1-9]\d{0,1})\)\s*\)', r'(\1)', line_str)
 
             try:
                 l_clean = line_str.lower()
@@ -261,6 +264,9 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                     conv = re.sub(r'([\u0915-\u0939])\u094D\u093F([\u0915-\u0939])', '\\g<1>\u094D\\g<2>\u093F', conv)
                 else:
                     conv = transliterate(l_clean, sanscript.ITRANS, tgt_scheme)
+                # Strip Indic 'ksha' artifacts resulting from 'x (2)' or 'x 2' in source:
+                # e.g. Telugu 'క్ష్(2)' or 'క్ష 2', Kannada 'ಕ್ಷ್(2)', Tamil 'க்ஷ்(2)', Devanagari 'क्ष्(2)'
+                conv = re.sub(r'[\u0c15\u0c95\u0b95\u0d15\u0915][\u0c4d\u0ccd\u0bcd\u0d4d\u094d]?[\u0c37\u0cb7\u0bb7\u0d37\u0937][\u0c4d\u0ccd\u0bcd\u0d4d\u094d]?\s*(?=\(\d+\)|\d+)', '', conv)
                 conv = normalize_indic_digits(conv)
                 if lead_num:
                     conv = lead_num + conv.lstrip()

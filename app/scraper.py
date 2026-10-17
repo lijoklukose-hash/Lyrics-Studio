@@ -574,7 +574,11 @@ def scrape_url(url, language_hint=None):
             else:
                 if orig_div:
                     orig_text = orig_div.get_text()
-                    if has_indic_unicode(orig_text):
+                    orig_indic_n = len(re.findall(r'[\u0900-\u0D7F]', orig_text))
+                    orig_roman_n = len(re.findall(r'[A-Za-z]', orig_text))
+                    is_sparse_indic = (orig_indic_n > 0 and orig_indic_n * 10 < orig_roman_n)
+
+                    if has_indic_unicode(orig_text) and not is_sparse_indic:
                         extractor = DOMStructureExtractor(orig_div)
                         cand_lyrics = extractor.extract_structured_stanzas(orig_div)
                         if is_valid_indic_lyrics(cand_lyrics, det_lang):
@@ -584,7 +588,7 @@ def scrape_url(url, language_hint=None):
                         if eng_div and eng_div.get_text().strip():
                             extractor2 = DOMStructureExtractor(eng_div)
                             lyrics2 = extractor2.extract_structured_stanzas(eng_div)
-                    elif looks_like_legacy_font(orig_text):
+                    elif looks_like_legacy_font(orig_text) and not is_sparse_indic:
                         extractor = DOMStructureExtractor(orig_div)
                         raw_extracted = extractor.extract_structured_stanzas(orig_div)
                         converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
