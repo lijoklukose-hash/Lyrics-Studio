@@ -662,10 +662,17 @@
                             </div>
                         </div>
 
-                        <button x-show="reviewQueueCount > 0" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm animate-pulse">
-                            <i data-lucide="shield-check" class="w-4 h-4"></i>
-                            <span>Review Pending Songs (<strong x-text="reviewQueueCount">0</strong>)</span>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="triggerPresetAutoScrape(autoScrapeLanguage === 'Malayalam' ? 'all' : (autoScrapeLanguage === 'All' ? 'all' : 'waytochurch'))" :disabled="autoScrapingActive" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold transition flex items-center space-x-1.5 shadow-sm disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed active:scale-95">
+                                <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                                <span>Start Scraper (<span x-text="autoScrapeLanguage === 'All' ? 'All Sources' : autoScrapeLanguage"></span>)</span>
+                            </button>
+
+                            <button type="button" @click="openReviewQueueModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm active:scale-95" :class="reviewQueueCount > 0 ? 'animate-pulse' : 'opacity-90'">
+                                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                <span>Review Queue (<strong x-text="reviewQueueCount || 0">0</strong>)</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs">
@@ -1391,6 +1398,7 @@
                             <div class="flex items-center space-x-3">
                                 <span class="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-white shadow-xs" x-text="'Song ' + (reviewCurrentIndex + 1) + ' of ' + reviewQueueItems.length"></span>
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200" x-text="reviewQueueItems[reviewCurrentIndex].language"></span>
+                                <span x-show="reviewQueueItems[reviewCurrentIndex].matched_id" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200" x-text="'🔄 Re-evaluating Song #' + reviewQueueItems[reviewCurrentIndex].matched_id"></span>
                                 <span class="text-xs text-slate-400 font-mono" x-text="'Confidence: ' + (reviewQueueItems[reviewCurrentIndex].overall_confidence || 0).toFixed(0) + '%'"></span>
                             </div>
 
@@ -2356,7 +2364,8 @@
                             lyrics: item.cleaned_lyrics || item.raw_lyrics,
                             lyrics2: item.lyrics2 || '',
                             author: item.author || '',
-                            tags: item.tags || ''
+                            tags: item.tags || '',
+                            matched_id: item.matched_id || null
                         };
                         const res = await fetch('/api/scraper/review-resolve', {
                             method: 'POST',

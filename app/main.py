@@ -606,7 +606,7 @@ def _resolve_scraped_review_once(data: dict, action: str, raw_id_val):
             cur.execute("PRAGMA busy_timeout = 60000")
             cur.execute("PRAGMA journal_mode = WAL")
             try:
-                cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2, author, tags FROM raw_scrapes WHERE id = ?", (raw_id_val,))
+                cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2, author, tags, matched_id FROM raw_scrapes WHERE id = ?", (raw_id_val,))
             except Exception:
                 cur.execute("SELECT title_cleaned, language, cleaned_lyrics, lyrics2 FROM raw_scrapes WHERE id = ?", (raw_id_val,))
             row = cur.fetchone()
@@ -623,16 +623,20 @@ def _resolve_scraped_review_once(data: dict, action: str, raw_id_val):
             tags = data.get("tags")
             if tags is None:
                 tags = (row[5] if row and len(row) > 5 else "") or ""
+            matched_id = data.get("matched_id") or (row[6] if row and len(row) > 6 else None)
 
             if action == 'approve':
-                db_manager.save_song({
+                song_payload = {
                     "title": title,
                     "category": lang,
                     "lyrics": lyrics,
                     "lyrics2": lyrics2,
                     "tags": tags,
                     "author": author
-                }, sync_cloud=True)
+                }
+                if matched_id:
+                    song_payload["id"] = int(matched_id)
+                db_manager.save_song(song_payload, sync_cloud=True)
                 try:
                     cur.execute("UPDATE raw_scrapes SET status = 'approved', title_cleaned = ?, cleaned_lyrics = ?, lyrics2 = ?, author = ?, tags = ? WHERE id = ?", (title, lyrics, lyrics2, author, tags, raw_id_val))
                 except Exception:

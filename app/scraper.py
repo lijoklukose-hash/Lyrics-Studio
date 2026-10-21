@@ -18,7 +18,7 @@ from app.raw_archive_manager import save_raw_scrape, get_review_queue
 from app.translit_engine import generate_natural_transliteration
 from app.legacy_font_converter import (
     has_indic_unicode, looks_like_legacy_font,
-    convert_legacy_lyrics, detect_category_from_url,
+    convert_legacy_lyrics, detect_category_from_url, detect_category_from_title,
     detect_unconverted_residue, try_convert_residue,
     normalize_indic_digits
 )
@@ -515,8 +515,20 @@ def scrape_url(url, language_hint=None, html_content=None):
         if html_content:
             raw_html = html_content
         else:
-            res = session.get(url, headers=HEADERS, timeout=12)
-            res.raise_for_status()
+            try:
+                res = session.get(url, headers=HEADERS, timeout=12)
+                res.raise_for_status()
+            except Exception as req_err:
+                m_sid = re.search(r'waytochurch\.com/lyrics/song/(\d+)', url)
+                if m_sid:
+                    clean_url = f"https://waytochurch.com/lyrics/song/{m_sid.group(1)}"
+                    if clean_url != url:
+                        res = session.get(clean_url, headers=HEADERS, timeout=12)
+                        res.raise_for_status()
+                    else:
+                        raise req_err
+                else:
+                    raise req_err
             if 'madely.us' in url.lower() or 'waytochurch.com' in url.lower():
                 res.encoding = 'utf-8'
             else:
@@ -974,7 +986,26 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         if auto_scraper_state.get("stop_requested"):
                             break
                         u = c.get("url")
-                        lang = c.get("language") or catalog_url_to_lang.get(u) or detect_category_from_url(u or '')
+                        t = c.get("title") or ''
+                        lang = (
+                            c.get("language")
+                            or catalog_url_to_lang.get(u)
+                            or detect_category_from_url(u or '')
+                            or detect_category_from_title(t)
+                        )
+                        if not lang and not is_all_languages:
+                            w = set(re.findall(r'[a-zA-Z]+', t.lower()))
+                            TELUGU_WORDS = {'yesayya', 'yessaiah', 'yesaiah', 'yesuni', 'prabhuvu', 'sthothram', 'devuda', 'krupa', 'jeevinchuvaadavu', 'dheevinchu', 'vaadavu', 'ninnu', 'neeku', 'chethunu', 'veylalaa', 'shalemu', 'andala', 'arudinchenakai'}
+                            MALAYALAM_WORDS = {'ente', 'enne', 'njan', 'ninne', 'ninte', 'yeshuve', 'karthave', 'daivame', 'sthuthi', 'sneham', 'halleluya', 'aanandam', 'nadante', 'seeyon', 'puthran', 'kuravukal', 'neekki', 'padumini', 'manna', 'jeevitham'}
+                            TAMIL_WORDS = {'enathu', 'yesuvae', 'karthar', 'karthare', 'thuthi', 'aaradhanai', 'anbu', 'appaa', 'thevan', 'devane', 'magimai', 'parisutha', 'adaikalame', 'aaviye', 'vaarum', 'pugazh', 'ummai'}
+                            HINDI_WORDS = {'hai', 'mera', 'meri', 'mere', 'tera', 'teri', 'tere', 'hum', 'humko', 'hamare', 'yeshu', 'masih', 'masihi', 'khuda', 'prabhu', 'shukriya', 'shukariya', 'tu', 'zindagi', 'rooh', 'paak', 'aaya', 'dhanyawad', 'pavitra', 'shanti', 'dil', 'barish', 'anugrah', 'saath', 'sath', 'jeevan', 'karo', 'gaye', 'pyar', 'chahiye', 'apne', 'pyara', 'geet', 'bhajan'}
+                            KANNADA_WORDS = {'nanna', 'ninna', 'nanu', 'devaru', 'nodi', 'baruve', 'preethi', 'sthothravu'}
+                            if w & TELUGU_WORDS: lang = 'Telugu'
+                            elif w & MALAYALAM_WORDS: lang = 'Malayalam'
+                            elif w & TAMIL_WORDS: lang = 'Tamil'
+                            elif w & HINDI_WORDS: lang = 'Hindi'
+                            elif w & KANNADA_WORDS: lang = 'Kannada'
+
                         if lang:
                             if lang not in target_langs:
                                 continue
@@ -1153,6 +1184,56 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
 
                         # Duplicate Action:
                         if dup_status in ['exact_duplicate', 'near_duplicate']:
+                            # Under force_recheck (Fresh Ingestion), the explicit intent is to re-evaluate existing catalog songs!
+                            if force_recheck:
+                                if require_manual_review:
+                                    review_count += 1
+                                    auto_scraper_state["needs_review"] = review_count
+                                    queue_save({
+                                        'source_url': cand['url'],
+                                        'source_website': cand['source_name'],
+                                        'raw_html': res.get('raw_html', '')[:2000],
+                                        'raw_lyrics': lyrics,
+                                        'cleaned_lyrics': lyrics,
+                                        'lyrics2': lyrics2,
+                                        'author': author,
+                                        'tags': tags,
+                                        'title_original': cand['title'],
+                                        'title_cleaned': title,
+                                        'language': category,
+                                        'overall_confidence': overall_conf,
+                                        'duplicate_score': sim,
+                                        'matched_id': matched_id,
+                                        'preserve_review': True,
+                                        'status': 'review'
+                                    })
+                                    auto_scraper_state["message"] = f"Queued for Review: {title} ({review_count} pending review)"
+                                    continue
+                                else:
+                                    # Auto Ingestion mode: update existing song if new conversion is cleaner or enriched
+                                    existing_song = next((s for s in existing_songs_cache if s.get('id') == matched_id), None)
+                                    ex_lyrics = (existing_song.get('lyrics') or '') if existing_song else ''
+                                    ex_lyrics2 = (existing_song.get('lyrics2') or '') if existing_song else ''
+                                    has_fix = (
+                                        (lyrics and lyrics != ex_lyrics and any(bad in ex_lyrics for bad in ('द्ध', '।ंठंतप्', ';2द्ध', 'ाे', 'आरक़ना')))
+                                        or (lyrics2 and not ex_lyrics2)
+                                        or (lyrics and len(lyrics) > len(ex_lyrics) + 20)
+                                    )
+                                    if has_fix and matched_id:
+                                        db_manager.save_song({
+                                            "id": matched_id,
+                                            "title": title,
+                                            "category": category,
+                                            "lyrics": lyrics,
+                                            "lyrics2": lyrics2,
+                                            "tags": tags,
+                                            "author": author
+                                        }, sync_cloud=True)
+                                        imported_count += 1
+                                        auto_scraper_state["imported"] = imported_count
+                                        auto_scraper_state["message"] = f"Re-evaluated & Updated: {title}"
+                                        continue
+
                             auto_scraper_state["duplicates_skipped"] += 1
                             
                             # If existing song lacks lyrics2/author/tags and candidate
@@ -1211,9 +1292,9 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         # Save to Raw Scrape Archive
                         # Thresholds mirror compute_song_confidence policy:
                         # >= 90 auto_save, >= 75 needs_review, < 75 reject
-                        archive_status = 'approved' if (overall_conf >= 90.0 and sim < 0.80) else ('review' if (overall_conf >= 75.0 and sim < 0.95) else 'rejected')
+                        archive_status = 'approved' if (overall_conf >= 90.0 and sim < 0.80) else ('review' if (overall_conf >= 70.0 and sim < 0.95) else 'rejected')
 
-                        if archive_status == 'rejected':
+                        if archive_status == 'rejected' and not (require_manual_review and overall_conf >= 60.0):
                             auto_scraper_state["duplicates_skipped"] += 1
                             queue_save({
                                 'source_url': cand['url'],

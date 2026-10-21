@@ -727,14 +727,33 @@ _URL_CATEGORY_MAP = {
     'telugu': 'Telugu',
     'kannada': 'Kannada',
     'hindi': 'Hindi',
+    'marathi': 'Hindi',
     'english': 'English',
 }
 
 def detect_category_from_url(url: str) -> str | None:
-    """Return language name if the URL contains a known language path segment."""
+    """Return language name if the URL contains a known language path segment or slug marker."""
+    if not url:
+        return None
     lower = url.lower()
     for key, lang in _URL_CATEGORY_MAP.items():
-        if f'/{key}-' in lower or f'/{key}/' in lower:
+        if f'/{key}-' in lower or f'/{key}/' in lower or f'-({key}' in lower or f'({key}' in lower or f'-{key})' in lower:
+            return lang
+        if re.search(r'[\-_\/(]' + re.escape(key) + r'[\-_\/)]', lower):
+            return lang
+        if lower.endswith(f'-{key}') or lower.endswith(f'_{key}'):
+            return lang
+    return None
+
+def detect_category_from_title(title: str) -> str | None:
+    """Detect language if the song title contains explicit language tags or distinctive Roman phonetics."""
+    if not title:
+        return None
+    t_lower = title.lower()
+    for key, lang in _URL_CATEGORY_MAP.items():
+        if re.search(r'[\(\[]\s*' + re.escape(key) + r'\s*[\)\]]', t_lower):
+            return lang
+        if re.search(r'\b' + re.escape(key) + r'\b', t_lower):
             return lang
     return None
 
