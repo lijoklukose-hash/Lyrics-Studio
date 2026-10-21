@@ -320,7 +320,7 @@ def separate_mixed_script_lyrics(lyrics, lyrics2='', title=''):
 
     return lyrics, lyrics2
 
-def _break_mega_stanzas(lyrics, max_lines=8):
+def _break_mega_stanzas(lyrics, max_lines=12):
     """Split oversized stanza blocks (>max_lines) into verse-sized chunks.
 
     Deterministic rule-based pass: keeps natural stanzas intact and only
@@ -330,10 +330,24 @@ def _break_mega_stanzas(lyrics, max_lines=8):
     if not lyrics:
         return lyrics
     stanzas = [s for s in lyrics.split('<BR><BR>') if s.strip()]
-    if not stanzas or all(len(s.split('<BR>')) <= max_lines for s in stanzas):
+    if not stanzas:
         return lyrics
-    lines = [l for l in lyrics.replace('<BR><BR>', '<BR>').split('<BR>')]
-    return structure_lyrics_into_stanzas(lines) or lyrics
+    if len(stanzas) <= 1:
+        if len(stanzas[0].split('<BR>')) > max_lines:
+            lines = [l for l in stanzas[0].split('<BR>')]
+            return structure_lyrics_into_stanzas(lines) or lyrics
+        return lyrics
+
+    processed_stanzas = []
+    for s in stanzas:
+        s_lines = s.split('<BR>')
+        has_label = bool(re.match(r'^\s*(\[[^\]]+\]|[1-9]\d{0,1}\.)', s))
+        if has_label or len(s_lines) <= 14:
+            processed_stanzas.append(s)
+        else:
+            re_chunked = structure_lyrics_into_stanzas(s_lines)
+            processed_stanzas.append(re_chunked if re_chunked else s)
+    return '<BR><BR>'.join(processed_stanzas)
 
 VERSE_START_FLUSH = re.compile(
     r'^(?:\(?[1-9]\d{0,1}(?:[.)\]}:]\s*|\s+(?=[A-Za-z\u0900-\u0D7F])|$)|(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|'
@@ -500,34 +514,60 @@ def _persist_live_catalog(path, items):
         print(f"Live catalog save notice ({path}): {e}")
 
 
-def strip_header_cruft(text: str, song_title: str) -> str:
+def strip_header_cruft(text: str, song_title: str, category: str = "") -> str:
     if not text:
         return text
     text = re.sub(r'(^|<BR>|<BR><BR>)\s*[,;\u2013\u2014\-]+\s*', r'\1', text)
     text = re.sub(r'\s+([,;])', r'\1 ', text)
     text = re.sub(r'[ \t]+', ' ', text)
     quote_chars = '\"\'\u201c\u201d\u2018\u2019`'
-    for _ in range(4):
-        prev = text
-        text = re.sub(
-            r'(?i)^\s*[' + quote_chars + r']?\s*(?:Bible\s*(?:Verse|Reference|Quote)|Scripture(?:\s*Reference|\s*Verse)?|Memory\s*Verse)\s*:.*?(?:<BR><BR>|$)',
-            '',
-            text
-        ).strip()
-        text = re.sub(r'^(?:<BR>|<BR><BR>|\s)+', '', text)
-        if song_title:
-            t_clean = ''.join(ch for ch in song_title if ch not in quote_chars and ch not in '()[]-').strip()
-            if t_clean and len(t_clean) >= 3:
-                first_line = text.split('<BR><BR>')[0].split('<BR>')[0].strip()
-                fl_clean = ''.join(ch for ch in first_line if ch not in quote_chars and ch not in '()[]-').strip()
-                if fl_clean.lower() == t_clean.lower():
-                    if '<BR>' in text.split('<BR><BR>')[0]:
-                        text = re.sub(r'^[^\n<]+<BR>', '', text, count=1).strip()
-                    else:
-                        text = re.sub(r'^[^\n<]+(?:<BR><BR>)?', '', text, count=1).strip()
-                    text = re.sub(r'^(?:<BR>|<BR><BR>|\s)+', '', text)
-        if text == prev:
+    
+    stanzas = [s.strip() for s in text.split('<BR><BR>') if s.strip()]
+    if not stanzas:
+        return text
+
+    has_section_marker = any(re.match(r'^\s*(\[(?:Chorus|Verse|Stanza|Intro|Refrain|Bridge|Pallavi|Charanam)|1[\.\s])', s, re.I) for s in stanzas)
+    cleaned_stanzas = []
+    past_headers = False
+    
+    t_clean = re.sub(r'["\'`“”‘’\(\)\-–—\s.,;:]', '', song_title.lower()) if song_title else ""
+    from app.translit_engine import generate_natural_transliteration
+    try:
+        t_trans = generate_natural_transliteration(song_title, category or 'Hindi')
+        t_trans_norm = re.sub(r'[^a-z0-9]', '', t_trans.lower())
+    except Exception:
+        t_trans_norm = ""
+
+    for s in stanzas:
+        if past_headers or not has_section_marker:
+            cleaned_stanzas.append(s)
+            continue
+        if re.match(r'^\s*(\[(?:Chorus|Verse|Stanza|Intro|Refrain|Bridge|Pallavi|Charanam)|1[\.\s])', s, re.I):
+            past_headers = True
+            cleaned_stanzas.append(s)
+            continue
+        if re.search(r'(?i)\b(?:Bible\s*(?:Verse|Reference|Quote)|Scripture|Hebrews|Genesis|Psalms|Matthew|John|Romans|इब्रानियों|भजन|मत्ती)\b', s):
+            continue
+        s_lines = [l.strip() for l in s.split('<BR>') if l.strip()]
+        is_title_repeat = True
+        for l in s_lines:
+            l_clean = re.sub(r'["\'`“”‘’\(\)\-–—\s.,;:]', '', l.lower())
+            try:
+                l_trans = generate_natural_transliteration(l, category or 'Hindi')
+                l_trans_norm = re.sub(r'[^a-z0-9]', '', l_trans.lower())
+            except Exception:
+                l_trans_norm = ""
+
+            if (t_clean and l_clean == t_clean) or (t_trans_norm and l_trans_norm == t_trans_norm):
+                continue
+            is_title_repeat = False
             break
+        if is_title_repeat:
+            continue
+        cleaned_stanzas.append(s)
+        past_headers = True
+
+    text = '<BR><BR>'.join(cleaned_stanzas)
     text = re.sub(
         r'(?i)(?:<BR><BR>)\s*[' + quote_chars + r']?\s*(?:Bible\s*(?:Verse|Reference|Quote)|Scripture(?:\s*Reference|\s*Verse)?|Memory\s*Verse)\s*:.*?(?=<BR><BR>|$)',
         '',
@@ -710,7 +750,7 @@ def scrape_url(url, language_hint=None, html_content=None):
         lyrics = split_on_section_cues(lyrics)
         lyrics = _break_mega_stanzas(lyrics)
         if lyrics:
-            lyrics = strip_header_cruft(lyrics, title)
+            lyrics = strip_header_cruft(lyrics, title, det_lang)
             lyrics = re.sub(r'\s+([,;])', r'\1', lyrics)
             lyrics = re.sub(r'([,;])(?=[^\s\d\)])', r'\1 ', lyrics)
             lyrics = re.sub(r'(^|<BR>|<BR><BR>)\s*[,;–—\-]+\s*', r'\1', lyrics)
@@ -761,7 +801,7 @@ def scrape_url(url, language_hint=None, html_content=None):
                 except Exception:
                     pass
         if lyrics2:
-            lyrics2 = strip_header_cruft(lyrics2, title)
+            lyrics2 = strip_header_cruft(lyrics2, title, 'English')
             lyrics2 = re.sub(r'\s+([,;])', r'\1', lyrics2)
             lyrics2 = re.sub(r'([,;])(?=[^\s\d\)])', r'\1 ', lyrics2)
             lyrics2 = re.sub(r'(^|<BR>|<BR><BR>)\s*[,;–—\-]+\s*', r'\1', lyrics2)

@@ -482,7 +482,8 @@ def structure_lyrics_into_stanzas(lines):
             else:
                 merged.append(l)
 
-        if len(merged) >= 7 and not any(re.match(r'^[1-9]\.', l) for l in merged[1:]):
+        has_section_head = bool(re.match(r'^\s*\[[^\]]+\]', merged[0])) if merged else False
+        if len(merged) > 10 and not has_section_head and not any(re.match(r'^[1-9]\.', l) for l in merged[1:]):
             chunk = []
             for line in merged:
                 chunk.append(line)
