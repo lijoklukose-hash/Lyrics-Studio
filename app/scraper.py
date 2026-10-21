@@ -499,7 +499,7 @@ def _persist_live_catalog(path, items):
     except Exception as e:
         print(f"Live catalog save notice ({path}): {e}")
 
-def scrape_url(url, language_hint=None):
+def scrape_url(url, language_hint=None, html_content=None):
     if not isinstance(url, str) or not url.strip():
         return {"success": False, "url": url, "error": "A valid http(s) URL is required."}
     try:
@@ -512,13 +512,16 @@ def scrape_url(url, language_hint=None):
         return {"success": False, "url": url, "error": "Mizpha scraping is permanently disabled."}
 
     try:
-        res = session.get(url, headers=HEADERS, timeout=12)
-        res.raise_for_status()
-        if 'madely.us' in url.lower() or 'waytochurch.com' in url.lower():
-            res.encoding = 'utf-8'
+        if html_content:
+            raw_html = html_content
         else:
-            res.encoding = res.apparent_encoding or 'utf-8'
-        raw_html = res.text
+            res = session.get(url, headers=HEADERS, timeout=12)
+            res.raise_for_status()
+            if 'madely.us' in url.lower() or 'waytochurch.com' in url.lower():
+                res.encoding = 'utf-8'
+            else:
+                res.encoding = res.apparent_encoding or 'utf-8'
+            raw_html = res.text
         soup = BeautifulSoup(raw_html, 'html.parser')
 
         # 1. Title Extraction with scoring
@@ -560,7 +563,7 @@ def scrape_url(url, language_hint=None):
                                 page_lang = known
                                 break
 
-            det_lang = language_hint or page_lang or detect_category_from_url(url) or 'Malayalam'
+            det_lang = page_lang or language_hint or detect_category_from_url(url) or 'Malayalam'
 
             from app.legacy_font_converter import is_valid_indic_lyrics, roman_to_indic_native, sanitize_converted_indic_lyrics
 
@@ -612,8 +615,11 @@ def scrape_url(url, language_hint=None):
                         elif raw_extracted and is_valid_web_lyrics(raw_extracted, title, det_lang):
                             lyrics2 = raw_extracted
                             lyrics = roman_to_indic_native(lyrics2, det_lang)
-                        elif has_indic_unicode(converted_native):
+                        elif has_indic_unicode(converted_native) and is_valid_indic_lyrics(converted_native, det_lang):
                             lyrics = sanitize_converted_indic_lyrics(converted_native, det_lang)
+                        elif raw_extracted:
+                            lyrics2 = raw_extracted
+                            lyrics = roman_to_indic_native(lyrics2, det_lang)
                     elif eng_div and eng_div.get_text().strip():
                         extractor = DOMStructureExtractor(eng_div)
                         lyrics2 = extractor.extract_structured_stanzas(eng_div)
@@ -649,20 +655,43 @@ def scrape_url(url, language_hint=None):
         # split section labels into their own stanzas, or break up
         # monolithic blocks into verse-sized stanzas
         if lyrics and '<BR><BR>' not in lyrics:
-            reconstructed, _ = smart_reconstruct_stanzas(lyrics, category=language_hint or "Malayalam", title=title)
+            reconstructed, _ = smart_reconstruct_stanzas(lyrics, category=det_lang, title=title)
             if reconstructed:
                 lyrics = reconstructed
         lyrics = split_on_section_cues(lyrics)
         lyrics = _break_mega_stanzas(lyrics)
         if lyrics:
+            lyrics = re.sub(r'\|+', ' ', lyrics)
+            lyrics = re.sub(r'_+', ' ', lyrics)
+            lyrics = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', lyrics)
+            lyrics = re.sub(r'([\u0BBE-\u0BD7\u0C3E-\u0C56\u0CBE-\u0CD6\u0D3E-\u0D57])\s*([\u0B85-\u0B94\u0C05-\u0C14\u0C85-\u0C94\u0D05-\u0D14])', r'\1 \2', lyrics)
+            lyrics = re.sub(r'<BR>\s*[\'’"“”`]\s*<BR>', '<BR>', lyrics)
+            lyrics = re.sub(r'[,;]+\s*(?=<BR>|$)', '', lyrics)
+            lyrics = re.sub(r'(<BR><BR>|^)\s*([1-9]\d{0,1})\.?\s*<BR>\s*(?=[\u0900-\u0D7F])', r'\1\2. ', lyrics)
             lyrics = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1. ', lyrics)
             lyrics = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1\2. ', lyrics)
             lyrics = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})ण\s+', r'\1\2. ', lyrics)
+            lyrics = re.sub(r'\s*[\-\–\—]?\s*\(([xX]?\s*([2-9])\s*[xX]?)\)', r' (\2)', lyrics)
+            lyrics = re.sub(r'\s*[\(\[]\s*([2-9])\s*[xX]\s*[\)\]]', r' (\1)', lyrics)
+            lyrics = re.sub(r'\s*[\(\[]\s*[xX]\s*([2-9])\s*[\)\]]', r' (\1)', lyrics)
+            lyrics = re.sub(r'\s*[\-\–\—]\s*([2-9])\s*(?=<BR>|$)', r' (\1)', lyrics)
+            lyrics = re.sub(r'<BR>\s*(\([2-9]\))\s*(?=<BR>|$)', r' \1', lyrics)
             lyrics = normalize_indic_digits(lyrics)
         if lyrics2:
+            lyrics2 = re.sub(r'\|+', ' ', lyrics2)
+            lyrics2 = re.sub(r'_+', ' ', lyrics2)
+            lyrics2 = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', lyrics2)
+            lyrics2 = re.sub(r'<BR>\s*[\'’"“”`]\s*<BR>', '<BR>', lyrics2)
+            lyrics2 = re.sub(r'[,;]+\s*(?=<BR>|$)', '', lyrics2)
+            lyrics2 = re.sub(r'(<BR><BR>|^)\s*([1-9]\d{0,1})\.?\s*<BR>\s*(?=[A-Za-z])', r'\1\2. ', lyrics2)
             lyrics2 = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[A-Za-z])', r'\1. ', lyrics2)
             lyrics2 = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[A-Za-z])', r'\1\2. ', lyrics2)
             lyrics2 = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})[Nn]\s+(?=[A-Za-z])', r'\1\2. ', lyrics2)
+            lyrics2 = re.sub(r'\s*[\-\–\—]?\s*\(([xX]?\s*([2-9])\s*[xX]?)\)', r' (\2)', lyrics2)
+            lyrics2 = re.sub(r'\s*[\(\[]\s*([2-9])\s*[xX]\s*[\)\]]', r' (\1)', lyrics2)
+            lyrics2 = re.sub(r'\s*[\(\[]\s*[xX]\s*([2-9])\s*[\)\]]', r' (\1)', lyrics2)
+            lyrics2 = re.sub(r'\s*[\-\–\—]\s*([2-9])\s*(?=<BR>|$)', r' (\1)', lyrics2)
+            lyrics2 = re.sub(r'<BR>\s*(\([2-9]\))\s*(?=<BR>|$)', r' \1', lyrics2)
             lyrics2 = normalize_indic_digits(lyrics2)
 
         # Legacy-font residue guard: raw Bamini/KrutiDev/Karthika text is not

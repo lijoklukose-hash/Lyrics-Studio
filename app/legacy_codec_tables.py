@@ -493,6 +493,14 @@ BAMINI_EXC = {}
 
 # baraha: 160 keys, 1 exceptions
 BARAHA_TABLE = {
+    '\xb9': 'ಿ',
+    '\xef': '್',
+    '\xd6': 'ೂ',
+    '\xb0': 'ಂ',
+    '\xba': '್',
+    '\xdd': '್',
+    '\xfc': 'ು',
+    '\xb5': 'ಮ',
     'A': 'ಿ',
     'Ai': 'ಯ',
     'AiÀi': 'ಿಯ',

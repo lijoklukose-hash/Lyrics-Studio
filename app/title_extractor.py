@@ -23,11 +23,14 @@ def clean_raw_title(raw_title: str) -> str:
     # Remove empty brackets if left over
     t = re.sub(r'[\(\[\{]\s*[\)\]\}]', '', t)
     t = re.sub(r'^\s*[\d\.\-\:\)]+\s*', '', t)
+    t = re.sub(r'\|+', ' ', t)
     # Strip musical Raga & Thalam performance prefixes/suffixes if present (e.g. "Bhairavi - Aadithaalam", "Aanandabhairavi Chaayvu")
     RAGA_THALAM_RE = r'(?:ആനന്ദഭൈരവി|ഭൈരവി|ശങ്കരാഭരണം|കല്യാണി|തോഡി|മോഹനം|ഖരഹരപ്രിയ|ബിലഹരി|ഹംസധ്വനി|നാട്ട|ആഹാരി|സാവേരി|ആദിതാളം|രൂപകതാളം|ചായ്പുതാളം|ഏകതാളം|ഭൂപാളം|ചായ്[\u200c\u200d]*വ്|aanandabhairavi|bhairavi|aadithaalam|aadi\s*thaalam|roopaka\s*thaalam|chaayputhaalam|chaayvu|chaayv|eekathaalam)'
     t = re.sub(r'^(?:' + RAGA_THALAM_RE + r')\s*[-–—:]*\s*(?:' + RAGA_THALAM_RE + r')?\s*[-–—:]*\s*', '', t, flags=re.IGNORECASE)
     t = re.sub(r'\s*[-–—:]*\s*(?:' + RAGA_THALAM_RE + r')\s*[-–—:]*\s*(?:' + RAGA_THALAM_RE + r')?$', '', t, flags=re.IGNORECASE)
-    t = re.sub(r'[\|\-\–\—&]+$', '', t)
+    t = re.sub(r'[\s\|\-\–\—&,;:\.]+$', '', t)
+    t = re.sub(r'[\s\|\-\–\—]+\d+\s*$', '', t)
+    t = re.sub(r'[\s\|\-\–\—&,;:\.]+$', '', t)
     t = re.sub(r'\s+', ' ', t).strip()
     return t
 

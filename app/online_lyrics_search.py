@@ -132,12 +132,12 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     if not raw_lyrics or not str(raw_lyrics).strip():
         return "", ""
 
-    t = str(raw_lyrics).replace('\u2026', '...').replace('…', '...')
+    from app.legacy_font_converter import normalize_indic_digits, unescape_backslashes
+    t = unescape_backslashes(str(raw_lyrics)).replace('\u2026', '...').replace('…', '...')
     # Normalize HTML tags
     t = re.sub(r'</?(?:p|div|li|article|section|tr|table|blockquote)[^>]*>', '\n\n', t, flags=re.IGNORECASE)
     t = re.sub(r'<br\s*/?>', '\n', t, flags=re.IGNORECASE)
     t = t.replace('<BR><BR>', '\n\n').replace('<BR>', '\n')
-    from app.legacy_font_converter import normalize_indic_digits
     t = normalize_indic_digits(t)
     t = re.sub(r'<[^>]+>', ' ', t)
     # Detach section labels glued to lyric text ([अंतरा - 1], (कोरस),
@@ -145,13 +145,23 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = '\n'.join(detach_glued_section_labels(t.split('\n')))
     # Split multi-spaces into separate lines (reconstructs lines that were flattened with double spaces)
     t = re.sub(r'[ \t]{2,}', '\n', t)
+    # If English text has no line breaks but is a flattened paragraph, break on line starts
+    if category == 'English' and '\n' not in t and len(t) > 60:
+        t = re.sub(r'(?<=[a-z,\.\!\?])\s+(?=(?:The|A|And|I|But|O|You|When|In|For|To|With|By|My|Your|His|Her|Our|Their|He|She|It|They|We)\b)', '\n', t)
 
     # Strip chords
     t = CHORD_PATTERN.sub(' ', t)
 
     # Clean garbage chars
     t = GARBAGE_REGEX.sub('', t)
+    t = re.sub(r'\|+', ' ', t)
+    t = re.sub(r'_+', ' ', t)
+    t = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', t)
+    t = re.sub(r'(?<=[\u0900-\u0D7F])[\u0080-\u00FF]+|[\u0080-\u00FF]+(?=[\u0900-\u0D7F])', '', t)
     t = t.replace('\r\n', '\n').replace('\r', '\n')
+
+    # Un-glue vowel signs touching independent vowels (e.g. glued words)
+    t = re.sub(r'([\u0BBE-\u0BD7\u0C3E-\u0C56\u0CBE-\u0CD6\u0D3E-\u0D57])\s*([\u0B85-\u0B94\u0C05-\u0C14\u0C85-\u0C94\u0D05-\u0D14])', r'\1 \2', t)
 
     # Un-glue Roman words and Indic boundary (e.g. "By Masilamani అందాల"):
     # Require at least 2 Roman letters and never split before an Indic combining mark
@@ -180,10 +190,13 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = re.sub(r'([\"“])([A-Za-z\u0900-\u0D7F])', r'\1 \2', t)
     # Strip chorus refrain markers/cues like ";- Aanada…" or ";-" on repeat lines
     t = re.sub(r';\s*[-–—]\s*(?:[A-Za-z\u0900-\u0D7F]+[.…\s]*)?', '', t)
+    t = re.sub(r'(?<=[\u0900-\u0D7F]);+|;+(?=[\u0900-\u0D7F])', ' ', t)
 
     # Standardize repeat markers
     t = re.sub(r'\|\|\s*(\d+)\s*\|\|', r'(\1)', t)
     t = re.sub(r'\(\s*(\d+)\s*\)', r'(\1)', t)
+    t = re.sub(r'\s*[\(\[]\s*([2-9])\s*[xX]\s*[\)\]]', r' (\1)', t)
+    t = re.sub(r'\s*[\(\[]\s*[xX]\s*([2-9])\s*[\)\]]', r' (\1)', t)
     t = re.sub(r'[\-\–\—]\s*([2-9])(?=\s*$|\s*[,\.\!\n])', r' (\1)', t)
 
     # Attach repeat markers to end of preceding line
@@ -483,7 +496,16 @@ def structure_lyrics_into_stanzas(lines):
         else:
             formatted_stanzas.append('<BR>'.join(merged))
 
-    return split_on_section_cues('<BR><BR>'.join(formatted_stanzas).strip())
+    res = split_on_section_cues('<BR><BR>'.join(formatted_stanzas).strip())
+    res = re.sub(r'<BR>\s*[\'’"“”`]\s*<BR>', '<BR>', res)
+    res = re.sub(r'[,;]+\s*(?=<BR>|$)', '', res)
+    res = re.sub(r'(<BR><BR>|^)\s*([1-9]\d{0,1})\.?\s*<BR>\s*(?=[\u0900-\u0D7FA-Za-z])', r'\1\2. ', res)
+    res = re.sub(r'\s*[\-\–\—]?\s*\(([xX]?\s*([2-9])\s*[xX]?)\)', r' (\2)', res)
+    res = re.sub(r'\s*[\-\–\—]\s*([2-9])\s*(?=<BR>|$)', r' (\1)', res)
+    res = re.sub(r'<BR>\s*(\([2-9]\))\s*(?=<BR>|$)', r' \1', res)
+    res = re.sub(r'\s*[\(\[]\s*([2-9])\s*[xX]\s*[\)\]]', r' (\1)', res)
+    res = re.sub(r'\s*[\(\[]\s*[xX]\s*([2-9])\s*[\)\]]', r' (\1)', res)
+    return res
 
 def is_valid_web_lyrics(scraped_lyrics, title, category="English", scraped_lyrics2=""):
     """

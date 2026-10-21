@@ -46,7 +46,8 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
     if lang == 'english':
         return bool(re.search(r'[A-Za-z]{3,}', text))
 
-    plain = re.sub(r'<[^>]+>', '\n', text)
+    import unicodedata
+    plain = unicodedata.normalize('NFC', re.sub(r'<[^>]+>', '\n', text)).replace('\xad', '')
     indic_chars = re.findall(r'[\u0900-\u0D7F]', plain)
     if not indic_chars:
         return False
@@ -81,7 +82,7 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
         return False
 
     # Unconverted legacy font noise characters (braces, math symbols, accents, backslashes inside Indic lyrics)
-    if re.search(r'[\\}{~`^$|_\u0080-\u00FF\u0100-\u017F]', plain):
+    if re.search(r'[\\}{~`^$\u0080-\u00FF\u0100-\u017F]', plain):
         return False
 
     # Check for stray single letters [a-zA-Z] inside Indic lyrics
@@ -247,7 +248,7 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                         'khud': 'खुद', 'hi': 'ही', 'dat': 'दात', 'daat': 'दात', 'dan': 'दान', 'daan': 'दान',
                         'chahe': 'चाहे', 'zameen': 'ज़मीन', 'zamin': 'ज़मीन', 'tootkar': 'टूटकर', 'choor': 'चूर', 'ho': 'हो',
                         'tab': 'तब', 'bhi': 'भी', 'vishwas': 'विश्वास', 'har': 'हर', 'neev': 'नीव', 'dagmagaye': 'डगमगाए',
-                        'pre': 'प्री', 'chorus': 'कोरस', 'bharose': 'भरोसे', 'layak': 'लायक', 'jab': 'जब', 'kuch': 'कुछ',
+                        'pre': 'प्री', 'chorus': 'कोरस', 'bridge': 'ब्रिज', 'leheraunga': 'लहराउंगा', 'janda': 'झंडा', 'teraa': 'तेरा', 'swagat': 'स्वागत', 'masih': 'मसीह', 'dekhunga': 'देखूंगा', 'aankhon': 'आँखों', 'vyarth': 'व्यर्थ', 'hoga': 'होगा', 'bharose': 'भरोसे', 'layak': 'लायक', 'jab': 'जब', 'kuch': 'कुछ',
                         'na': 'न', 'rahe': 'रहे', 'gaun': 'गाऊं', 'phir': 'फिर', 'tujhpar': 'तुझपर', 'bharosa': 'भरोसा',
                         'hai': 'है', 'hain': 'हैं', 'andhera': 'अंधेरा', 'raah': 'राह', 'cha': 'छा', 'jaye': 'जाए', 'toh': 'तो',
                         'bhavishya': 'भविष्य', 'aashayein': 'आशाएं', 'ashayein': 'आशाएं', 'toot': 'टूट', 'sahar': 'शहर',
@@ -279,6 +280,77 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                         out_words.append(w_trans)
                     conv = ' '.join(out_words)
                     conv = re.sub(r'([\u0915-\u0939])\u094D\u093F([\u0915-\u0939])', '\\g<1>\u094D\\g<2>\u093F', conv)
+                elif lang == 'tamil':
+                    TAMIL_WORD_DICT = {
+                        'yesu': 'இயேசு', 'yeshu': 'இயேசு', 'yesuvae': 'இயேசுவே', 'yesuve': 'இயேசுவே',
+                        'karthar': 'கர்த்தர்', 'karthare': 'கர்த்தரே', 'thuthi': 'துதி', 'sthotra': 'ஸ்தோத்திர',
+                        'sthothram': 'ஸ்தோத்திரம்', 'halleluya': 'அல்லேலூயா', 'hallelujah': 'அல்லேலூயா',
+                        'deva': 'தேவா', 'devane': 'தேவனே', 'anbu': 'அன்பு', 'aaradhana': 'ஆராதனை',
+                        'aaradhanai': 'ஆராதனை', 'appa': 'அப்பா', 'pithave': 'பிதாவே', 'parisutha': 'பரிசுத்த',
+                        'aaviye': 'ஆவியே', 'adaikalame': 'அடைக்கலமே', 'adaikkalame': 'அடைக்கலமே',
+                        'aagamangal': 'ஆகமங்கள்', 'aanantha': 'ஆனந்த', 'aanantham': 'ஆனந்தம்',
+                        'magizhchi': 'மகிழ்ச்சி', 'magimai': 'மகிமை', 'pugazh': 'புகழ்', 'vaarum': 'வாரும்'
+                    }
+                    words = l_clean.split(' ')
+                    out_words = []
+                    for w in words:
+                        if not w:
+                            continue
+                        m_w = re.match(r'^([^a-zA-Z]*)([a-zA-Z]+)([^a-zA-Z]*)$', w)
+                        if m_w:
+                            pre_p, core_w, post_p = m_w.group(1), m_w.group(2), m_w.group(3)
+                            if core_w in TAMIL_WORD_DICT:
+                                out_words.append(pre_p + TAMIL_WORD_DICT[core_w] + post_p)
+                                continue
+                        w_trans = transliterate(w, sanscript.ITRANS, tgt_scheme)
+                        out_words.append(w_trans)
+                    conv = ' '.join(out_words)
+                elif lang == 'telugu':
+                    TELUGU_WORD_DICT = {
+                        'yesu': 'యేసు', 'yesayya': 'యేసయ్యా', 'yesuni': 'యేసుని', 'prabhu': 'ప్రభు',
+                        'prabhuvu': 'ప్రభువు', 'halleluya': 'హల్లెలూయా', 'hallelujah': 'హల్లెలూయా',
+                        'sthothram': 'స్తోత్రం', 'deva': 'దేవా', 'devuda': 'దేవుడా', 'prema': 'ప్రేమ',
+                        'parishuddha': 'పరిశుద్ధ', 'aathma': 'ఆత్మ', 'mahima': 'మహిమ', 'krupa': 'కృప',
+                        'aaradhana': 'ఆరాధన', 'naamamu': 'నామము', 'naamamupe': 'నామముపై', 'kanna': 'కన్నా',
+                        'anni': 'అన్ని', 'namamula': 'నామముల'
+                    }
+                    words = l_clean.split(' ')
+                    out_words = []
+                    for w in words:
+                        if not w:
+                            continue
+                        m_w = re.match(r'^([^a-zA-Z]*)([a-zA-Z]+)([^a-zA-Z]*)$', w)
+                        if m_w:
+                            pre_p, core_w, post_p = m_w.group(1), m_w.group(2), m_w.group(3)
+                            if core_w in TELUGU_WORD_DICT:
+                                out_words.append(pre_p + TELUGU_WORD_DICT[core_w] + post_p)
+                                continue
+                        w_trans = transliterate(w, sanscript.ITRANS, tgt_scheme)
+                        out_words.append(w_trans)
+                    conv = ' '.join(out_words)
+                elif lang == 'kannada':
+                    KANNADA_WORD_DICT = {
+                        'yesu': 'ಯೇಸು', 'yesuva': 'ಯೇಸುವ', 'yesuve': 'ಯೇಸುವೇ', 'karthane': 'ಕರ್ತನೇ',
+                        'karthanu': 'ಕರ್ತನು', 'devara': 'ದೇವರ', 'devare': 'ದೇವರೇ', 'aathma': 'ಆತ್ಮ',
+                        'swaroopane': 'ಸ್ವರೂಪನೇ', 'swaropane': 'ಸ್ವರೂಪನೇ', 'parishudda': 'ಪರಿಶುದ್ಧ',
+                        'sthothra': 'ಸ್ತೋತ್ರ', 'hallelujah': 'ಹಲ್ಲೇಲೂಯ', 'halleluya': 'ಹಲ್ಲೇಲೂಯ',
+                        'aadhara': 'ಆಧಾರ', 'bekayya': 'ಬೇಕಯ್ಯ', 'aaradhane': 'ಆರಾಧನೆ', 'preethi': 'ಪ್ರೀತಿ',
+                        'abrahama': 'ಅಬ್ರಹಾಮ', 'abrahamana': 'ಅಬ್ರಹಾಮನ', 'aalveke': 'ಆಳ್ವಿಕೆ', 'maadu': 'ಮಾಡು'
+                    }
+                    words = l_clean.split(' ')
+                    out_words = []
+                    for w in words:
+                        if not w:
+                            continue
+                        m_w = re.match(r'^([^a-zA-Z]*)([a-zA-Z]+)([^a-zA-Z]*)$', w)
+                        if m_w:
+                            pre_p, core_w, post_p = m_w.group(1), m_w.group(2), m_w.group(3)
+                            if core_w in KANNADA_WORD_DICT:
+                                out_words.append(pre_p + KANNADA_WORD_DICT[core_w] + post_p)
+                                continue
+                        w_trans = transliterate(w, sanscript.ITRANS, tgt_scheme)
+                        out_words.append(w_trans)
+                    conv = ' '.join(out_words)
                 else:
                     conv = transliterate(l_clean, sanscript.ITRANS, tgt_scheme)
                 # Strip Indic 'ksha' artifacts resulting from 'x (2)' or 'x 2' in source:
@@ -677,6 +749,11 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         # Strip dotted circles caused by orphan matras
         res = res.replace('\u25CC', '')
         res = res.replace('‚', ',')
+    elif lang == 'kannada':
+        res = re.sub(r'[\u0CBE-\u0CCC]{2,}', lambda m: m.group(0)[0], res)
+        res = res.replace('\ufffd', '')
+    elif lang == 'malayalam':
+        res = res.replace('\xad', '')
     # Standardize bare verse numbers at line start: e.g. "1 भरने" -> "1. भरने"
     res = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1. ', res)
     res = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1\2. ', res)
@@ -806,16 +883,18 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'kannada')
         elif lang == 'hindi':
-            if KRUTIDEV_MARK.search(text) and not SHUSHA_MARK.search(text):
+            if KRUTIDEV_MARK.search(text) and not any(m in text for m in ('%', '`', '~', '^', '@', 'OU')):
                 converted = decode_krutidev(text)
-                if has_indic_unicode(converted):
+                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'hindi'):
                     return sanitize_converted_indic_lyrics(converted, 'hindi')
-            converted = decode_shusha(text)
-            if has_indic_unicode(converted):
-                return sanitize_converted_indic_lyrics(converted, 'hindi')
-            converted = decode_krutidev(text)
-            if has_indic_unicode(converted):
-                return sanitize_converted_indic_lyrics(converted, 'hindi')
+            if any(m in text for m in ('%', '`', '~', '^', '@', 'OU', '~a', '`a')):
+                converted = decode_shusha(text)
+                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'hindi'):
+                    return sanitize_converted_indic_lyrics(converted, 'hindi')
+            if KRUTIDEV_MARK.search(text):
+                converted = decode_krutidev(text)
+                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'hindi'):
+                    return sanitize_converted_indic_lyrics(converted, 'hindi')
         elif lang == 'malayalam':
             if any(k in text for k in ('Axe8', '5xni', 'eexvM', 'W2CF', 's~W', 'cmc/v[', 'Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u', 'jyviLik]')):
                 converted = decode_w2cf_malayalam(text)
