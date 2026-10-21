@@ -84,7 +84,7 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
         return False
 
     # Semicolons inside words (Bamini/KrutiDev artifact, e.g. 'ik;k', 't;', 'Z;')
-    if re.search(r'[\u0900-\u0D7Fa-zA-Z];[\u0900-\u0D7Fa-zA-Z]|;[\u0900-\u0D7F]|[\u0900-\u0D7F];', plain):
+    if re.search(r'[\u0900-\u0D7Fa-zA-Z];[\u0900-\u0D7Fa-zA-Z]|;[\u0900-\u0D7F]', plain):
         return False
 
     # Unconverted legacy font noise characters (braces, math symbols, accents, backslashes inside Indic lyrics)
@@ -638,6 +638,61 @@ def convert_baraha_to_kannada(text: str) -> str:
 # ── Shusha & KrutiDev → Hindi ────────────────────────────────────────────────
 
 SHUSHA_RULES = [
+    ('ivarajamaana', 'विराजमान'),
+    ('haokr', 'होकर'),
+    ('banaayaa', 'बनाया'),
+    ('Kaitr', 'खातिर'),
+    ('garIba', 'गरीब'),
+    ('dama', 'दाम'),
+    ('kBaI', 'कभी'),
+    ('jaanaUÐÐ', 'जानूँ'),
+    ('jaanaUÐ', 'जानूँ'),
+    ('caZ,anao', 'चढ़ाने'),
+    ('caZanao', 'चढ़ाने'),
+    ('sauMdr', 'सुंदर'),
+    ('Ait', 'अति'),
+    ('Kuda', 'खुदा'),
+    ('jyaaoit', 'ज्योति'),
+    ('KUbasaUtI-', 'खूबसूरती'),
+    ('KUbasaUrtI', 'खूबसूरती'),
+    (']tra', 'उतरा'),
+    (']samao', 'उसमें'),
+    ('}ÐÐcaa', 'ऊँचा'),
+    ('}Ðcaa', 'ऊँचा'),
+    ('AnaMt', 'अनंत'),
+    ('sabasao', 'सबसे'),
+    ('maihmaa', 'महिमा'),
+    ('pUro', 'पूरे'),
+    ('idla', 'दिल'),
+    ('toro', 'तेरे'),
+    ('saMga', 'संग'),
+    ('Jauka}Ð', 'झुकाऊँ'),
+    ('caahUÐ', 'चाहूँ'),
+    ('k$Ð', 'करूँ'),
+    ('k$', 'करूँ'),
+    ('nama`', 'नम्र'),
+    ('AwBaut', 'अद्भुत'),
+    ('yaaogya', 'योग्य'),
+    ('AMQakar', 'अंधकार'),
+    ('AaMKoM', 'आँखों'),
+    ('Kaola', 'खोल'),
+    ('tUnao', 'तूने'),
+    ('maorI', 'मेरी'),
+    ('maora', 'मेरा'),
+    ('tuJao', 'तुझे'),
+    ('mauJakao', 'मुझको'),
+    ('isaf-', 'सिर्फ़'),
+    ('isaf', 'सिर्फ़'),
+    ('yaISau', 'यीशु'),
+    ('sar', 'सर'),
+    ('jaga', 'जग'),
+    ('ijasa', 'जिस'),
+    ('saMsaar', 'संसार'),
+    ('huAa', 'हुआ'),
+    ('maoro', 'मेरे'),
+    ('saUlaI', 'सूली'),
+    ('AaSaa', 'आशा'),
+    ('jaIvana', 'जीवन'),
     (r'AaAao', 'आओ'), (r'AaAo', 'आओ'), (r'Aao', 'आओ'),
     (r'Aa%maa', 'आत्मा'), (r'Aa%ma', 'आत्मा'), (r'%maa', 'त्मा'),
     ('praoSauw', 'प्रभु'), ('praoSau', 'प्रभु'), ('raoTI', 'रोटी'), ('ipta', 'पिता'),
@@ -934,7 +989,7 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'kannada')
         elif lang == 'hindi':
-            shusha_markers = ('%', '`', '~', '^', '@', 'OU', '~a', '`a', 'AaraQanaa', 'AaBaarI', 'Saubah', 'Aao', 'maanatao', 'yaoSaulaa', 'praoSau')
+            shusha_markers = ('%', '`', '~', '^', '@', 'OU', '~a', '`a', 'AaraQanaa', 'AaBaarI', 'Saubah', 'Aao', 'maanatao', 'yaoSaulaa', 'praoSau', 'jyaaoit', ']tra', 'AMQakar', 'Kaola', 'KUbasaUtI', 'caahUÐ', 'saMga', 'AwBaut', 'AnaMt', '}Ð')
             if any(m in text for m in shusha_markers) or re.search(r'\b(?:AaraQanaa|AaBaarI|Saubah|Aao|maanatao|yaoSaulaa)\b', text):
                 converted = decode_shusha(text)
                 sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')

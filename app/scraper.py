@@ -711,6 +711,9 @@ def scrape_url(url, language_hint=None, html_content=None):
         lyrics = _break_mega_stanzas(lyrics)
         if lyrics:
             lyrics = strip_header_cruft(lyrics, title)
+            lyrics = re.sub(r'\s+([,;])', r'\1', lyrics)
+            lyrics = re.sub(r'([,;])(?=[^\s\d\)])', r'\1 ', lyrics)
+            lyrics = re.sub(r'(^|<BR>|<BR><BR>)\s*[,;–—\-]+\s*', r'\1', lyrics)
             lyrics = re.sub(r'\|+', ' ', lyrics)
             lyrics = re.sub(r'_+', ' ', lyrics)
             lyrics = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', lyrics)
@@ -759,6 +762,9 @@ def scrape_url(url, language_hint=None, html_content=None):
                     pass
         if lyrics2:
             lyrics2 = strip_header_cruft(lyrics2, title)
+            lyrics2 = re.sub(r'\s+([,;])', r'\1', lyrics2)
+            lyrics2 = re.sub(r'([,;])(?=[^\s\d\)])', r'\1 ', lyrics2)
+            lyrics2 = re.sub(r'(^|<BR>|<BR><BR>)\s*[,;–—\-]+\s*', r'\1', lyrics2)
             lyrics2 = re.sub(r'\|+', ' ', lyrics2)
             lyrics2 = re.sub(r'_+', ' ', lyrics2)
             lyrics2 = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', lyrics2)

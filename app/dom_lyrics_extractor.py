@@ -41,6 +41,19 @@ CHORD_REGEX = re.compile(
     r'\[\s*[A-G][b#]?(?:m|maj|min|dim|aug|sus\d*|\d+)?(?:\/[A-G][b#]?)?\s*\]'
 )
 
+CHORD_TOKEN_RE = re.compile(r'^[A-G][b#]?(?:m|maj|min|dim|aug|sus\d*|\d+)?(?:\/[A-G][b#]?)?$', re.IGNORECASE)
+
+def is_chord_only_line(line: str) -> bool:
+    line_clean = line.strip().strip('-–—()[]:;,')
+    if not line_clean:
+        return False
+    tokens = [t.strip('()[]:,;-') for t in line_clean.split()]
+    tokens = [t for t in tokens if t]
+    if not tokens:
+        return False
+    return all(bool(CHORD_TOKEN_RE.match(t)) for t in tokens)
+
+
 def is_ui_noise_line(line: str) -> bool:
     if not line:
         return False
@@ -128,7 +141,8 @@ class DOMStructureExtractor:
             if current_line_parts:
                 full_line = " ".join(" ".join(current_line_parts).split()).strip()
                 current_line_parts = []
-                if full_line and not is_ui_noise_line(full_line):
+                if full_line and not is_ui_noise_line(full_line) and not is_chord_only_line(full_line):
+                    full_line = re.sub(r'^(?:[A-G][b#]?(?:m|maj|min|dim|aug|sus\d*|\d+)?(?:\/[A-G][b#]?)?\s+)+(?=[\u0900-\u0D7F])', '', full_line)
                     if VERSE_START_REGEX.match(full_line) and current_stanza:
                         flush_stanza()
                     current_stanza.append(full_line)
