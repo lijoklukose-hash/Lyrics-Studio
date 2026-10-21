@@ -499,6 +499,42 @@ def _persist_live_catalog(path, items):
     except Exception as e:
         print(f"Live catalog save notice ({path}): {e}")
 
+
+def strip_header_cruft(text: str, song_title: str) -> str:
+    if not text:
+        return text
+    text = re.sub(r'(^|<BR>|<BR><BR>)\s*[,;\u2013\u2014\-]+\s*', r'\1', text)
+    text = re.sub(r'\s+([,;])', r'\1 ', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    quote_chars = '\"\'\u201c\u201d\u2018\u2019`'
+    for _ in range(4):
+        prev = text
+        text = re.sub(
+            r'(?i)^\s*[' + quote_chars + r']?\s*(?:Bible\s*(?:Verse|Reference|Quote)|Scripture(?:\s*Reference|\s*Verse)?|Memory\s*Verse)\s*:.*?(?:<BR><BR>|$)',
+            '',
+            text
+        ).strip()
+        text = re.sub(r'^(?:<BR>|<BR><BR>|\s)+', '', text)
+        if song_title:
+            t_clean = ''.join(ch for ch in song_title if ch not in quote_chars and ch not in '()[]-').strip()
+            if t_clean and len(t_clean) >= 3:
+                first_line = text.split('<BR><BR>')[0].split('<BR>')[0].strip()
+                fl_clean = ''.join(ch for ch in first_line if ch not in quote_chars and ch not in '()[]-').strip()
+                if fl_clean.lower() == t_clean.lower():
+                    if '<BR>' in text.split('<BR><BR>')[0]:
+                        text = re.sub(r'^[^\n<]+<BR>', '', text, count=1).strip()
+                    else:
+                        text = re.sub(r'^[^\n<]+(?:<BR><BR>)?', '', text, count=1).strip()
+                    text = re.sub(r'^(?:<BR>|<BR><BR>|\s)+', '', text)
+        if text == prev:
+            break
+    text = re.sub(
+        r'(?i)(?:<BR><BR>)\s*[' + quote_chars + r']?\s*(?:Bible\s*(?:Verse|Reference|Quote)|Scripture(?:\s*Reference|\s*Verse)?|Memory\s*Verse)\s*:.*?(?=<BR><BR>|$)',
+        '',
+        text
+    )
+    return text
+
 def scrape_url(url, language_hint=None, html_content=None):
     if not isinstance(url, str) or not url.strip():
         return {"success": False, "url": url, "error": "A valid http(s) URL is required."}
@@ -534,6 +570,7 @@ def scrape_url(url, language_hint=None, html_content=None):
             else:
                 res.encoding = res.apparent_encoding or 'utf-8'
             raw_html = res.text
+        raw_html = re.sub(r'<\s*/\s*br\s*>', '<br/>', raw_html, flags=re.IGNORECASE)
         soup = BeautifulSoup(raw_html, 'html.parser')
 
         # 1. Title Extraction with scoring
@@ -673,6 +710,7 @@ def scrape_url(url, language_hint=None, html_content=None):
         lyrics = split_on_section_cues(lyrics)
         lyrics = _break_mega_stanzas(lyrics)
         if lyrics:
+            lyrics = strip_header_cruft(lyrics, title)
             lyrics = re.sub(r'\|+', ' ', lyrics)
             lyrics = re.sub(r'_+', ' ', lyrics)
             lyrics = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', lyrics)
@@ -720,6 +758,7 @@ def scrape_url(url, language_hint=None, html_content=None):
                 except Exception:
                     pass
         if lyrics2:
+            lyrics2 = strip_header_cruft(lyrics2, title)
             lyrics2 = re.sub(r'\|+', ' ', lyrics2)
             lyrics2 = re.sub(r'_+', ' ', lyrics2)
             lyrics2 = re.sub(r'[\ufffd\u200b-\u200f\ufeff]', '', lyrics2)

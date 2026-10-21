@@ -73,6 +73,7 @@ def clean_chords(text: str) -> str:
 class DOMStructureExtractor:
     def __init__(self, soup_or_html):
         if isinstance(soup_or_html, str):
+            soup_or_html = re.sub(r'<\s*/\s*br\s*>', '<br/>', soup_or_html, flags=re.IGNORECASE)
             self.soup = BeautifulSoup(soup_or_html, 'html.parser')
         else:
             self.soup = soup_or_html

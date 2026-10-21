@@ -495,6 +495,7 @@ def generate_natural_transliteration(text, category):
 
             # Preserve Dravidian short vowels
             l = l.replace('è', 'e').replace('é', 'e').replace('ò', 'o').replace('ó', 'o').replace('à', 'a').replace('á', 'a')
+            l = re.sub(r'\|+', '', l)
 
             if category == 'Hindi':
                 # Pre-clean ITRANS artifacts before consonant replacements
@@ -527,6 +528,7 @@ def generate_natural_transliteration(text, category):
                 (r'R\^i|RRI|RRi|rRI|rRi', 'ri'),
                 (r'L', 'l'),
                 (r'R', 'r'),
+                (r'[\.\^~]', ''),
             ]
             for pat, rep in CLEANERS:
                 l = re.sub(pat, rep, l)
@@ -557,8 +559,8 @@ def generate_natural_transliteration(text, category):
                     (r'\bteree\b', 'teri'),
                     (r'\bteraa\b', 'tera'),
                     (r'\btere\b', 'tere'),
-                    (r'\bmeiree\b|\bmeraa\b|\bmeree\b', 'meri'),
-                    (r'\bmeiraa\b', 'mera'),
+                    (r'\bmeiree\b|\bmeree\b', 'meri'),
+                    (r'\bmeiraa\b|\bmeraa\b', 'mera'),
                     (r'\bmeire\b', 'mere'),
                     (r'\bhamaaraa\b', 'hamara'),
                     (r'\bhamaaree\b', 'hamari'),
@@ -721,6 +723,16 @@ def generate_natural_transliteration(text, category):
                     (r'\bhaath\b|\bhaatha\b', 'haath'),
                     (r'\bsaath\b|\bsaatha\b', 'saath'),
                     (r'\bmaatha\b|\bmaatha\b', 'maatha'),
+                    (r'\beka\b', 'ek'),
+                    (r'\bbaarisha\b|\bbarisha\b|\bbaaris\b|\bbaarish\b', 'barish'),
+                    (r'\bdhala\b|\bdhaala\b', 'dhal'),
+                    (r'\bnaheem\b|\bnaheen\b|\bnahim\b', 'nahin'),
+                    (r'\bchodoongaa\b|\bcho\.?dunga\b|\bchodunga\b|\bchhodunga\b|\bchhodungaa\b', 'chhodunga'),
+                    (r'\btyaagoongaa\b|\btyagunga\b|\btyaagungaa\b|\btyaagunga\b', 'tyaagunga'),
+                    (r'\bapanom\b|\bapanon\b', 'apno'),
+                    (r'\bzakhmom\b|\bzakhamom\b|\bzaKhmom\b', 'zakhmo'),
+                    (r'\bdhokhom\b|\bdhokhamom\b', 'dhokho'),
+                    (r'(?<=[a-zA-Z]{3})om\b', 'o'),
                 ]
                 for pat, rep in HINDI_POST_PROCESS:
                     l = re.sub(pat, rep, l, flags=re.IGNORECASE)
@@ -731,7 +743,7 @@ def generate_natural_transliteration(text, category):
                 for wt in words_temp:
                     wt_lower = wt.lower()
                     # Strip trailing schwa 'a' on word endings
-                    if len(wt) > 3 and wt_lower.endswith('a') and not wt_lower.endswith('aa') and not wt_lower.endswith('ya') and not wt_lower.endswith('ra') and not wt_lower in ('kripa', 'daya', 'hawa', 'raja', 'sewa', 'pavitra', 'aatma', 'mahima', 'aaradhana', 'prarthana', 'khushi', 'sarvada'):
+                    if len(wt) > 3 and wt_lower.endswith('a') and not wt_lower.endswith('aa') and not wt_lower.endswith('ya') and not wt_lower.endswith('ra') and not wt_lower.endswith('ga') and not wt_lower in ('kripa', 'daya', 'hawa', 'raja', 'sewa', 'pavitra', 'aatma', 'mahima', 'aaradhana', 'prarthana', 'khushi', 'sarvada'):
                         wt = wt[:-1]
                     
                     # Convert internal double aa to a (e.g. Sarvadaa -> Sarvada, Gayaa -> Gaya, Diyaa -> Diya)
@@ -782,11 +794,15 @@ def generate_natural_transliteration(text, category):
 
         line_str = " ".join(natural_words)
         if line_str:
-            m_num = re.match(r'^(\d+[\.\:\)\-]?\s*)(.*)', line_str)
-            if m_num:
-                line_str = m_num.group(1) + (m_num.group(2).capitalize() if m_num.group(2) else '')
+            m_sec = re.match(r'^\[([a-z]+)(\s*\d*)\]$', line_str, re.IGNORECASE)
+            if m_sec:
+                line_str = f"[{m_sec.group(1).capitalize()}{m_sec.group(2)}]"
             else:
-                line_str = line_str[0].upper() + line_str[1:]
+                m_num = re.match(r'^(\d+[\.\:\)\-]?\s*)(.*)', line_str)
+                if m_num:
+                    line_str = m_num.group(1) + (m_num.group(2).capitalize() if m_num.group(2) else '')
+                else:
+                    line_str = line_str[0].upper() + line_str[1:]
         clean_lines.append(line_str)
 
     stanzas = "\n".join(clean_lines).split('\n\n')
