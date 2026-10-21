@@ -684,12 +684,41 @@ def scrape_url(url, language_hint=None, html_content=None):
             lyrics = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1\2. ', lyrics)
             lyrics = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})ण\s+', r'\1\2. ', lyrics)
             lyrics = re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', lyrics)
+            lyrics = re.sub(r'ऋऋत्म्च्ऋ\s*([1-9]\d{0,1})\s*ऋऋ', r' (\1)', lyrics)
+            lyrics = lyrics.replace('श्ीयाँ', 'शियाँ').replace('ख्ी', 'खी')
+            lyrics = re.sub(r'([\u0915-\u0939])\u094D\u0940याँ', r'\g<1>ियाँ', lyrics)
+            lyrics = re.sub(r'([\u0915-\u0939])\u094D([\u093E-\u094C])', r'\g<1>\g<2>', lyrics)
+            lyrics = re.sub(r'\bप्रश्?ु(?=\s+(?:तू|तेरा|तेरे|तेरी|का|की|के|में|ने|को|से|हमारा|हमारे|यीशु|मसीह|मुझको|मुझे))', 'प्रभु', lyrics)
+            lyrics = re.sub(r'(^|<BR>|\s)प्रश्?ु(\s+तू|\s+मुझको)', r'\1प्रभु\2', lyrics)
+            lyrics = re.sub(r'\bप्रश्ु\b', 'प्रभु', lyrics)
             lyrics = re.sub(r'\s*[\-\–\—]?\s*\(([xX]?\s*([2-9])\s*[xX]?)\)', r' (\2)', lyrics)
             lyrics = re.sub(r'\s*[\(\[]\s*([2-9])\s*[xX]\s*[\)\]]', r' (\1)', lyrics)
             lyrics = re.sub(r'\s*[\(\[]\s*[xX]\s*([2-9])\s*[\)\]]', r' (\1)', lyrics)
             lyrics = re.sub(r'\s*[\-\–\—]\s*([2-9])\s*(?=<BR>|$)', r' (\1)', lyrics)
             lyrics = re.sub(r'<BR>\s*(\([2-9]\))\s*(?=<BR>|$)', r' \1', lyrics)
             lyrics = normalize_indic_digits(lyrics)
+
+            # Check for truncated / cut-off lyrics (e.g. contributor ended mid-sentence like "मेरा मन," or trailing dangling word)
+            plain_end = re.sub(r'<[^>]+>', ' ', lyrics).strip()
+            if re.search(r'(?:[,\-–—]|\b(?:मेरा मन|और|तथा|कि|क्योंकि))\s*$', plain_end):
+                try:
+                    cat_file = os.path.join(CATALOG_DIR, f"{det_lang}_catalog.json")
+                    if os.path.exists(cat_file):
+                        with open(cat_file, 'r', encoding='utf-8') as cf:
+                            cat_items = json.load(cf)
+                        t_words = [w.lower() for w in re.findall(r'[a-zA-Z]+', title) if len(w) > 3][:3]
+                        if t_words:
+                            for it in cat_items:
+                                it_u = it.get('url') or ''
+                                if it_u != url and all(w in (it.get('title') or '').lower() for w in t_words):
+                                    alt_res = scrape_url(it_u, language_hint=det_lang)
+                                    if alt_res.get('success') and alt_res.get('lyrics') and len(alt_res['lyrics']) > len(lyrics) + 20:
+                                        lyrics = alt_res['lyrics']
+                                        if alt_res.get('lyrics2') and len(alt_res['lyrics2']) > len(lyrics2 or ''):
+                                            lyrics2 = alt_res['lyrics2']
+                                        break
+                except Exception:
+                    pass
         if lyrics2:
             lyrics2 = re.sub(r'\|+', ' ', lyrics2)
             lyrics2 = re.sub(r'_+', ' ', lyrics2)
@@ -701,6 +730,7 @@ def scrape_url(url, language_hint=None, html_content=None):
             lyrics2 = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[A-Za-z])', r'\1\2. ', lyrics2)
             lyrics2 = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})[Nn]\s+(?=[A-Za-z])', r'\1\2. ', lyrics2)
             lyrics2 = re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', lyrics2)
+            lyrics2 = re.sub(r'ऋऋत्म्च्ऋ\s*([1-9]\d{0,1})\s*ऋऋ', r' (\1)', lyrics2)
             lyrics2 = re.sub(r'\s*[\-\–\—]?\s*\(([xX]?\s*([2-9])\s*[xX]?)\)', r' (\2)', lyrics2)
             lyrics2 = re.sub(r'\s*[\(\[]\s*([2-9])\s*[xX]\s*[\)\]]', r' (\1)', lyrics2)
             lyrics2 = re.sub(r'\s*[\(\[]\s*[xX]\s*([2-9])\s*[\)\]]', r' (\1)', lyrics2)

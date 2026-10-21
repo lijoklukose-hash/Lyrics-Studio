@@ -682,6 +682,7 @@ SHUSHA_RULES = [
 
 KRUTIDEV_RULES = [
     ("f'kQ+k", 'शिफ़ा'), ("f'kQk", 'शिफ़ा'),
+    ('ç“q', 'प्रभु'), ('ç”q', 'प्रभु'), ('ç“', 'प्रभु'), ('ç”', 'प्रभु'), ('ç', 'प्र'),
     (',slk', 'ऐसा'), ('eq>s', 'मुझे'), ('yxrk', 'लगता'), ('gS]', 'है'),
     (';h\'kq', 'यीशु'), ('rsjs', 'तेरे'), ('lax', 'संग'), ('pyds', 'चलके'),
     ('tSls', 'जैसे'), ('dh', 'की'), ('dksbZ', 'कोई'), ('nqYgu]', 'दुल्हन'),
@@ -774,6 +775,17 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
     elif lang == 'hindi':
         # KrutiDev repeat markers: ;2द्ध, ;3द्ध, ;4द्ध, 2द्ध -> (2), (3), (4)
         res = re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', res)
+        # Clean KrutiDev repeat artifact: ऋऋत्म्च्ऋ2ऋऋ -> (2)
+        res = re.sub(r'ऋऋत्म्च्ऋ\s*([1-9]\d{0,1})\s*ऋऋ', r' (\1)', res)
+        # Fix Devanagari broken glyph: virama followed by matra (e.g. श् + ◌ी + याँ -> शियाँ / खुशियाँ)
+        res = res.replace('श्ीयाँ', 'शियाँ')
+        res = res.replace('ख्ी', 'खी')
+        res = re.sub(r'([\u0915-\u0939])\u094D\u0940याँ', r'\g<1>ियाँ', res)
+        res = re.sub(r'([\u0915-\u0939])\u094D([\u093E-\u094C])', r'\g<1>\g<2>', res)
+        # Fix KrutiDev quote artifact where प्रभु became प्रश्ु or प्रश
+        res = re.sub(r'\bप्रश्?ु(?=\s+(?:तू|तेरा|तेरे|तेरी|का|की|के|में|ने|को|से|हमारा|हमारे|यीशु|मसीह|मुझको|मुझे))', 'प्रभु', res)
+        res = re.sub(r'(^|<BR>|\s)प्रश्?ु(\s+तू|\s+मुझको)', r'\1प्रभु\2', res)
+        res = re.sub(r'\bप्रश्ु\b', 'प्रभु', res)
         # Shusha split vowel matra artifact: ाे -> ो
         res = res.replace('ाे', 'ो')
         # Danda + anusvara artifacts (।ं or Iं)

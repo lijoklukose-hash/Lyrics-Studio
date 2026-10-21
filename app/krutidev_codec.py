@@ -66,13 +66,18 @@ def krutidev_to_unicode(text: str) -> str:
     if not text:
         return ''
     import re as _re
-    # Pre-protect repeat markers like (2), (3) so they don't get mapped to ;2द्ध
-    text = _re.sub(r'\(\s*([1-9]\d{0,1})\s*\)', r'__REP_\1__', text)
-    parts = _re.split(r'(<[^>]+>)', text)
-    res = ''.join(_convert_part(p) if not p.startswith('<') else p for p in parts)
-    res = _re.sub(r'__REP_(\d+)__', r'(\1)', res)
-    # Convert any un-bracketed or mapped KrutiDev repeat markers (;2द्ध, 2द्ध -> (2))
+    # Pre-map common KrutiDev ligatures
+    text = text.replace('ç“q', 'प्रभु').replace('ç”q', 'प्रभु').replace('ç“', 'प्रभु').replace('ç”', 'प्रभु')
+    # Normalize dash-based repeat markers at line ends: --2, ---2, ----2 -> (2)
+    text = _re.sub(r'[-–—]{2,}\s*([1-9]\d{0,1})(?=\s*(?:<[^>]+>|$))', r' (\1)', text)
+    # Split text protecting both HTML tags and bracketed repeat markers (e.g. (2), (3))
+    # so they pass through untouched without turning into ;2द्ध or ऋऋत्म्च्ऋ
+    parts = _re.split(r'(<[^>]+>|\(\s*[1-9]\d{0,1}\s*\)|;\s*[1-9]\d{0,1}\s*द्ध|ऋऋत्म्च्ऋ\s*\d+\s*ऋऋ)', text)
+    res = ''.join(_convert_part(p) if not (p.startswith('<') or _re.match(r'^\(\s*[1-9]\d{0,1}\s*\)$', p)) else p for p in parts)
+    # Convert any un-bracketed KrutiDev repeat markers (;2द्ध, 2द्ध -> (2))
     res = _re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', res)
+    # Clean any legacy encoded repeat artifacts
+    res = _re.sub(r'ऋऋत्म्च्ऋ\s*([1-9]\d{0,1})\s*ऋऋ', r' (\1)', res)
     return res
 
 
