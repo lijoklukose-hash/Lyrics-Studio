@@ -336,7 +336,7 @@ def _break_mega_stanzas(lyrics, max_lines=8):
     return structure_lyrics_into_stanzas(lines) or lyrics
 
 VERSE_START_FLUSH = re.compile(
-    r'^(?:\(?[1-9]\d{0,1}(?:[.)\]}]\s*|:\s*|$)|(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|'
+    r'^(?:\(?[1-9]\d{0,1}(?:[.)\]}:]\s*|\s+(?=[A-Za-z\u0900-\u0D7F])|$)|(?:verse|chorus|pre[\s\-]*chorus|prechorus|stanza|refrain|bridge|intro|outro|interlude|sthayi|sthaayi|antaraa?|mukhda|'
     r'pallavi|anupallavi|charanam|\u0c9a\u0cb0\u0ca3|\u0caa\u0cb2\u0ccd\u0cb2\u0cb5\u0cbf|'
     r'\u0b9a\u0bb0\u0ba3\u0bae\u0bcd|\u0baa\u0bb2\u0bcd\u0bb2\u0bb5\u0bbf|'
     r'\u0c1a\u0c30\u0c23\u0c02|\u0c2a\u0c32\u0c4d\u0c32\u0c35\u0c3f|'
@@ -655,8 +655,14 @@ def scrape_url(url, language_hint=None):
         lyrics = split_on_section_cues(lyrics)
         lyrics = _break_mega_stanzas(lyrics)
         if lyrics:
+            lyrics = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1. ', lyrics)
+            lyrics = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1\2. ', lyrics)
+            lyrics = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})ण\s+', r'\1\2. ', lyrics)
             lyrics = normalize_indic_digits(lyrics)
         if lyrics2:
+            lyrics2 = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[A-Za-z])', r'\1. ', lyrics2)
+            lyrics2 = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[A-Za-z])', r'\1\2. ', lyrics2)
+            lyrics2 = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})[Nn]\s+(?=[A-Za-z])', r'\1\2. ', lyrics2)
             lyrics2 = normalize_indic_digits(lyrics2)
 
         # Legacy-font residue guard: raw Bamini/KrutiDev/Karthika text is not

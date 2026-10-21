@@ -595,6 +595,7 @@ SHUSHA_RULES = [
 ]
 
 KRUTIDEV_RULES = [
+    ("f'kQ+k", 'शिफ़ा'), ("f'kQk", 'शिफ़ा'),
     (',slk', 'ऐसा'), ('eq>s', 'मुझे'), ('yxrk', 'लगता'), ('gS]', 'है'),
     (';h\'kq', 'यीशु'), ('rsjs', 'तेरे'), ('lax', 'संग'), ('pyds', 'चलके'),
     ('tSls', 'जैसे'), ('dh', 'की'), ('dksbZ', 'कोई'), ('nqYgu]', 'दुल्हन'),
@@ -676,6 +677,11 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         # Strip dotted circles caused by orphan matras
         res = res.replace('\u25CC', '')
         res = res.replace('‚', ',')
+    # Standardize bare verse numbers at line start: e.g. "1 भरने" -> "1. भरने"
+    res = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1. ', res)
+    res = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1\2. ', res)
+    # Clean any KrutiDev dot artifact like 1ण -> 1.
+    res = re.sub(r'(^|<BR>|\s*)([1-9]\d{0,1})ण\s+', r'\1\2. ', res)
     res = normalize_indic_digits(res)
     return res
 

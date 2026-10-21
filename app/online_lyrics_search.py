@@ -64,7 +64,7 @@ METADATA_TRAILER_PATTERNS = [
 ]
 
 STANZA_SPLIT_MARKERS = [
-    r'(?<![\(\[\d])\b([1-9])\s*[\.\:\)\-](?!\d)',
+    r'(?<![\(\[\d])\b([1-9]\d{0,1})\s*[\.\:\)\-](?!\d)|(?<![\(\[\d\w])\b([1-9]\d{0,1})\s+(?=[A-Za-z\u0900-\u0D7F])',
     r'\b(?:Verse\s*\d+|Chorus\s*:|Refrain\s*:|Bridge\s*:|Ending\s*:|Intro\s*:|Outro\s*:|Pre-Chorus\s*:)',
     r'(?:\b(?:पल्लवी|अनुपल्लवी|कोरस)\s*:|^\s*(?:पल्लवी|अनुपल्लवी|कोरस)\s*$|\bचरण\s*\d+\b|\bचरण\s*:|^\s*चरण\s*$)',
     r'(?:\b(?:పల్లవి|అనుపల్లవి|కోరస్)\s*:|^\s*(?:పల్లవి|అనుపల్లవి|కోరస్)\s*$|\bచరణం\s*\d+\b|\bచరణం\s*:|^\s*చరణం\s*$)',
@@ -286,7 +286,7 @@ _SECTION_WORDS = (
 
 _SECTION_HEAD_RE = re.compile(
     r'^(?:'
-    r'\(?[1-9]\d{0,1}(?:[.)\]}:]\s*|$)'  # 1. / 2: / bare number
+    r'\(?[1-9]\d{0,1}(?:[.)\]}:]\s*|\s+(?=[A-Za-z\u0900-\u0D7F])|$)'  # 1. / 2: / bare number
     r'|(?:' + _SECTION_WORDS + r')\s*\d{0,2}\s*[:.]?\s*$'  # bare label line
     r'|(?:' + _SECTION_WORDS + r')\s+\d{1,2}\b'  # Verse 1 / Pre-Chorus 2 + text
     r'|(?:' + _SECTION_WORDS + r')\s*(?:[:.]\s*\S|[\-–—]\s*$)'  # Chorus: x / Chorus -
@@ -444,7 +444,9 @@ def structure_lyrics_into_stanzas(lines):
     # Standardize verse prefixes: (1) or 1. or 1: or 1) at line start -> 1. 
     t = re.sub(r'(?m)^(?:\(?([1-9]\d{0,1})\s*[\.\:\)\-]+\s*|\(([1-9]\d{0,1})\)\s*)(?=[^\d\s\n])', lambda m: f"{(m.group(1) or m.group(2))}. ", t)
     # If verse number is on its own standalone line, join it to the following verse line: '1\nText' -> '1. Text'
+    t = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[A-Za-z\u0900-\u0D7F])', r'\1. ', t)
     t = re.sub(r'(?m)^([1-9]\d{0,1})\s*\n+([A-Za-z\u0900-\u0D7F])', r'\1. \2', t)
+    t = re.sub(r'(?m)(?<!\n\n)(^[1-9]\d{0,1}\.\s+)', r'\n\n\1', t)
     # Rejoin any broken prepositional clauses before cues
     t = re.sub(r'(\b[A-Za-z\u0900-\u0D7F]+\s+(?:के|का|की))\s*\n+\s*([A-Za-z\u0900-\u0D7F]+)', r'\1 \2', t)
 
