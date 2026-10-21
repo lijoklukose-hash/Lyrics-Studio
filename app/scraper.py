@@ -590,10 +590,15 @@ def scrape_url(url, language_hint=None):
                         if eng_div and eng_div.get_text().strip():
                             extractor2 = DOMStructureExtractor(eng_div)
                             lyrics2 = extractor2.extract_structured_stanzas(eng_div)
-                    elif looks_like_legacy_font(orig_text) and not is_sparse_indic:
+                    elif (looks_like_legacy_font(orig_text) or 'w2cf' in str(orig_div).lower()) and not is_sparse_indic:
                         extractor = DOMStructureExtractor(orig_div)
                         raw_extracted = extractor.extract_structured_stanzas(orig_div)
-                        converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
+                        converted_native = ""
+                        if 'w2cf' in str(orig_div).lower() or any(k in raw_extracted for k in ('Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u')):
+                            from app.legacy_font_converter import decode_w2cf_malayalam
+                            converted_native = decode_w2cf_malayalam(raw_extracted)
+                        if not converted_native or not is_valid_indic_lyrics(converted_native, det_lang):
+                            converted_native = convert_legacy_lyrics(raw_extracted, det_lang)
                         if is_valid_indic_lyrics(converted_native, det_lang):
                             lyrics = converted_native
                             if eng_div and eng_div.get_text().strip():
@@ -736,6 +741,8 @@ def scrape_url(url, language_hint=None):
                 lyrics2 = lyrics
 
         if lyrics2:
+            lyrics2 = re.sub(r';\s*[-–—]\s*(?:[A-Za-z\u0900-\u0D7F]+[.…\s]*)?', '', lyrics2)
+            lyrics2 = re.sub(r'([a-zA-Z])[\'’]([a-zA-Z])', r'\1\2', lyrics2)
             lyrics2 = _break_mega_stanzas(split_on_section_cues(lyrics2))
 
         # If lyrics is empty or 1-2 line stub while lyrics2 is full:

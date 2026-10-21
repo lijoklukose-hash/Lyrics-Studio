@@ -174,9 +174,12 @@ def smart_reconstruct_stanzas(raw_lyrics, category="Hindi", title="", ai_model="
     t = re.sub(r'(\d+)\s*(?:వ\s*)?(?:చరణం|चरण|சரணம்|ചരണം|ಚರಣ)\s*', r'\1. ', t)
     t = re.sub(r'(?:పల్లవి|पल्लवी|பல்லவி|പല്ലവി|ಪಲ್ಲವಿ)\s*[:\-]?\s*', r'', t)
 
-    # Un-glue quotes touching words
-    t = re.sub(r'([\"\'\”\’])([A-Za-z\u0900-\u0D7F])', r'\1\n\2', t)
-    t = re.sub(r'([A-Za-z\u0900-\u0D7F])([\"\'\”\’])', r'\1\n\2', t)
+    # Do NOT split intra-word contractions, syllables, or quotes across lines.
+    # Preserve intra-word apostrophes (e.g. don't, jaya'vilikal) and detach glued double-quotes with a space.
+    t = re.sub(r'([A-Za-z\u0900-\u0D7F])([\"”])', r'\1 \2', t)
+    t = re.sub(r'([\"“])([A-Za-z\u0900-\u0D7F])', r'\1 \2', t)
+    # Strip chorus refrain markers/cues like ";- Aanada…" or ";-" on repeat lines
+    t = re.sub(r';\s*[-–—]\s*(?:[A-Za-z\u0900-\u0D7F]+[.…\s]*)?', '', t)
 
     # Standardize repeat markers
     t = re.sub(r'\|\|\s*(\d+)\s*\|\|', r'(\1)', t)

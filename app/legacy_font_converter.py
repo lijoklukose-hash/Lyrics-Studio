@@ -176,6 +176,10 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
             line_str = re.sub(r'(?i)\bx\s*\(?([1-9]\d{0,1})\)?(?=\s*[\)\],.;:]*|$)', r'(\1)', line_str)
             line_str = re.sub(r'\(([1-9]\d{0,1})\)\)+', r'(\1)', line_str)
             line_str = re.sub(r'\(\s*\(([1-9]\d{0,1})\)\s*\)', r'(\1)', line_str)
+            # Remove intra-word apostrophes in Manglish/Roman words (e.g. jaya'vilikal -> jayavilikal)
+            line_str = re.sub(r"([a-zA-Z])[\'’]([a-zA-Z])", r"\1\2", line_str)
+            # Remove trailing refrain markers/cues like ";- Aanada…" or ";-"
+            line_str = re.sub(r";\s*[-–—]\s*(?:[A-Za-z]+[.…\s]*)?", "", line_str)
 
             try:
                 l_clean = line_str.lower()
@@ -195,7 +199,19 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                         'neekiye': 'നീക്കിയേ', 'neekkiye': 'നീക്കിയേ', 'neekki': 'നീക്കി', 'sthuthikkam': 'സ്തുതിക്കാം', 'sthuthi': 'സ്തുതി',
                         'sthothram': 'സ്തോത്രം', 'halleluya': 'ഹല്ലേലൂയ്യാ', 'hallelujah': 'ഹല്ലേലൂയ്യാ', 'daivame': 'ദൈവമേ', 'daivam': 'ദൈവം',
                         'karthave': 'കർത്താവേ', 'karthavu': 'കർത്താവ്', 'aanandham': 'ആനന്ദം', 'aanandhame': 'ആനന്ദമേ',
-                        'jeevitham': 'ജീവിതം', 'jeevithame': 'ജീവിതമേ', 'njan': 'ഞാൻ', 'njaan': 'ഞാൻ', 'ninte': 'നിന്റെ', 'ninne': 'നിന്നെ'
+                        'jeevitham': 'ജീവിതം', 'jeevithame': 'ജീവിതമേ', 'njan': 'ഞാൻ', 'njaan': 'ഞാൻ', 'ninte': 'നിന്റെ', 'ninne': 'നിന്നെ',
+                        'aanada': 'ആനന്ദ', 'aanadha': 'ആനന്ദ', 'aanandam': 'ആനന്ദം', 'kahala': 'കാഹള',
+                        'jayavilikal': 'ജയവിളികൾ', 'jayavili': 'ജയവിളി', 'kothitheere': 'കൊതിതീരെ', 'kothithere': 'കൊതിതീരെ',
+                        'onnukettiduvan': 'ഒന്നുകേട്ടിടുവാൻ', 'swargeeya': 'സ്വർഗ്ഗീയ', 'sowrgeeya': 'സ്വർഗ്ഗീയ', 'seeyon': 'സീയോൻ',
+                        'kshenikkunnallo': 'ക്ഷീണിക്കുന്നല്ലോ', 'kshenikunnallo': 'ക്ഷീണിക്കുന്നല്ലോ', 'mrithyolam': 'മൃത്യുവോളം',
+                        'padumini': 'പാടുമിനി', 'swarloka': 'സ്വർലോക', 'nadante': 'നാഥന്റെ', 'naadhante': 'നാഥന്റെ',
+                        'nirlobha': 'നിർലോഭ', 'nirlobhasnehathin': 'നിർലോഭസ്നേഹത്തിൻ', 'snehathin': 'സ്നേഹത്തിൻ', 'manna': 'മന്ന',
+                        'swarnnavum': 'സ്വർണ്ണവും', 'velliyum': 'വെള്ളിയും', 'nishprabhamay': 'നിഷ്പ്രഭമായ്',
+                        'rajaraj': 'രാജരാജ', 'sannidiyil': 'സന്നിധിയിൽ', 'sannidhiyil': 'സന്നിധിയിൽ',
+                        'sampurnna': 'സമ്പൂർണ്ണ', 'sampoorna': 'സമ്പൂർണ്ണ', 'munnil': 'മുന്നിൽ',
+                        'sankadangalkkinnu': 'സങ്കടങ്ങൾക്കിന്നു', 'sankadangalkinnu': 'സങ്കടങ്ങൾക്കിന്നു',
+                        'sthanamilla': 'സ്ഥാനമില്ല', 'chenkadanilappuram': 'ചെങ്കടലപ്പുറം', 'pakapadilla': 'പകപ്പതില്ല',
+                        'thanka': 'തങ്ക', 'suryante': 'സൂര്യന്റെ', 'nattil': 'നാട്ടിൽ', 'bhujikum': 'ഭുജിക്കും', 'bhujikkum': 'ഭുജിക്കും'
                     }
                     words = l_clean.split(' ')
                     out_words = []
@@ -689,7 +705,27 @@ W2CF_MALAYALAM_WORDS = {
     'viLic/Ea]': 'വിളിച്ചപ്പോൾ', 'viLic/E\u201ea]': 'വിളിച്ചപ്പോൾ',
     '5xni[': 'ഏദനിൽ', 'maZmanil|': 'കാൺമാനില്ല', 'kU7ayi': 'കൂട്ടായി', 't9': 'തന്ന',
     't9u': 'തന്നു', '4e9': 'എന്നെ', 'ctic/El|a': 'ചതിച്ചല്ലോ', 'Eta78i}': 'തോട്ടത്തിൽ',
-    'ni9ver': 'നിന്നവരെ', 'A7ipuR8iR6i': 'ആട്ടിപുറത്തിറക്കി', 'malKamaer': 'മാലാഖമാരെ'
+    'ni9ver': 'നിന്നവരെ', 'A7ipuR8iR6i': 'ആട്ടിപുറത്തിറക്കി', 'malKamaer': 'മാലാഖമാരെ',
+    'Anº': 'ആനന്ദ', 'kahL': 'കാഹള', 'jyviLik]': 'ജയവിളികൾ',
+    'ekatitIer': 'കൊതിതീരെ', 'o9uEk7ifuva[': 'ഒന്നുകേട്ടിടുവാൻ',
+    'o9u': 'ഒന്നു', 'Ek7ifuva[': 'കേട്ടിടുവാൻ', 'Ek7i': 'കേട്ടി',
+    'sV{”Iy': 'സ്വർഗ്ഗീയ', 'sV{”I': 'സ്വർഗ്ഗീ', 'sIEya[': 'സീയോൻ',
+    '=zi6u9El|a': 'ക്ഷീണിക്കുന്നല്ലോ', '=zi6u9': 'ക്ഷീണിക്കുന്ന',
+    'm~tiEyaLM': 'മൃത്യുവോളം', 's\\tuti': 'സ്തുതി', 'stuti': 'സ്തുതി',
+    'pafumini': 'പാടുമിനി', 'sV{Elak': 'സ്വർലോക',
+    'naTeå': 'നാഥന്റെ', 'ky/i}': 'കയ്യിൽ',
+    'ni{ElaBs\\Enh8i[': 'നിർലോഭസ്നേഹത്തിൻ', 'ni{ElaBsEnh8i[': 'നിർലോഭസ്നേഹത്തിൻ',
+    'ni{ElaB': 'നിർലോഭ', 's\\Enh8i[': 'സ്നേഹത്തിൻ', 'sEnh8i[': 'സ്നേഹത്തിൻ',
+    's\\Enh': 'സ്നേഹ', 'sEnh': 'സ്നേഹ', 'm9': 'മന്ന',
+    'sV{¡vuM': 'സ്വർണ്ണവും', 'ev-iyuM': 'വെള്ളിയും',
+    'niW\\`pBmay\\': 'നിഷ്പ്രഭമായ്', 'niW`pBmay\\': 'നിഷ്പ്രഭമായ്',
+    'rajraj': 'രാജരാജ', 's9iXiyi}': 'സന്നിധിയിൽ',
+    's©U{¡': 'സമ്പൂർണ്ണ', 'mu9i}': 'മുന്നിൽ',
+    's…fN]6i9u': 'സങ്കടങ്ങൾക്കിന്നു', 's…fN]': 'സങ്കടങ്ങൾ',
+    's\\Tanmil|': 'സ്ഥാനമില്ല', 'sTanmil|': 'സ്ഥാനമില്ല',
+    'ec…flin„uRM': 'ചെങ്കടലപ്പുറം', 'p…„afil|': 'പകപ്പതില്ല',
+    't…': 'തങ്ക', 'sUrYeå': 'സൂര്യന്റെ', 'na7i}': 'നാട്ടിൽ',
+    'qa[': 'ഞാൻ', 'Buji6uM': 'ഭുജിക്കും'
 }
 
 W2CF_MALAYALAM_CHARS = [
@@ -706,17 +742,35 @@ W2CF_MALAYALAM_CHARS = [
     ('r', 'ര'), ('R', 'റ'), ('l', 'ല'), ('v', 'വ'),
     ('s', 'സ'), ('h', 'ഹ'), ('L', 'ള'), ('z', 'ഴ'),
     ('a', 'ാ'), ('i', 'ി'), ('u', 'ു'), ('E', 'േ'),
-    ('e', 'െ'), ('O', 'വ്വ'), ('H', 'ണ്ട'), ('Q', 'ഞ്ഞ')
+    ('e', 'െ'), ('O', 'വ്വ'), ('H', 'ണ്ട'), ('Q', 'ഞ്ഞ'),
+    ('sV{', 'സ്വർ'), ('{¡', 'ർണ്ണ'), ('º', 'ന്ദ'), ('„', 'പ്പ'),
+    ('…', 'ങ്ക'), ('f', 'ട'), ('X', 'ധ'), ('q', 'ഞ'),
+    ('l|', 'ല്ല'), ('El|a', 'ല്ലോ'), ('rY', 'ര്യ'), ('eå', 'ന്റെ')
 ]
 
 def decode_w2cf_malayalam(text: str) -> str:
     """Decode WayToChurch W2CF Malayalam ASCII legacy font into Malayalam Unicode."""
     if not text:
         return ''
-    parts = re.split(r'(<[^>]+>)', text)
+    t = text
+    # Standardize repeat markers in W2CF (<@>;_ or <@> -> (2))
+    t = re.sub(r'<@>;_|<@>;\s*[-–—]?|<@>', ' (2)', t)
+    # Strip trailing chorus refrain markers (e.g. ';_ Anº..' or ';- Aanada...')
+    t = re.sub(r';_\s*Anº\.{0,3}|;\s*[-–—]\s*Anº\.{0,3}|;\s*Anº\.{0,3}', '', t)
+    t = re.sub(r'(?i)\s*Anº\.{1,3}\s*', '', t)
+    # Convert stanza markers to verse numbers safely using placeholders
+    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*@\s*', '<BR><BR>__VNUM1__. ', t, flags=re.IGNORECASE)
+    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*#\s*', '<BR><BR>__VNUM2__. ', t, flags=re.IGNORECASE)
+    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*\$\s*', '<BR><BR>__VNUM3__. ', t, flags=re.IGNORECASE)
+    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*%\s*', '<BR><BR>__VNUM4__. ', t, flags=re.IGNORECASE)
+    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*\^\s*', '<BR><BR>__VNUM5__. ', t, flags=re.IGNORECASE)
+    t = re.sub(r'^\s*!\s*', '', t)
+    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*!\s*', '<BR><BR>', t, flags=re.IGNORECASE)
+
+    parts = re.split(r'(<[^>]+>|__VNUM\d+__\.\s*)', t)
     out = []
     for p in parts:
-        if p.startswith('<') and p.endswith('>'):
+        if (p.startswith('<') and p.endswith('>')) or p.startswith('__VNUM'):
             out.append(p)
             continue
         res = p
@@ -726,7 +780,9 @@ def decode_w2cf_malayalam(text: str) -> str:
             res = res.replace(k, v)
         res = res.replace('å', '')
         out.append(res)
-    return ''.join(out)
+    res_str = ''.join(out)
+    res_str = re.sub(r'__VNUM(\d+)__\.', r'\1.', res_str)
+    return res_str
 
 def convert_legacy_lyrics(text: str, language: str) -> str:
     """Attempt legacy-font conversion for the given language."""
@@ -755,14 +811,16 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'hindi')
         elif lang == 'malayalam':
-            if any(k in text for k in ('Axe8', '5xni', 'eexvM', 'W2CF', 's~W', 'cmc/v[')):
+            if any(k in text for k in ('Axe8', '5xni', 'eexvM', 'W2CF', 's~W', 'cmc/v[', 'Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u', 'jyviLik]')):
                 converted = decode_w2cf_malayalam(text)
-                if has_indic_unicode(converted):
+                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'malayalam'):
                     return sanitize_converted_indic_lyrics(converted, 'malayalam')
             converted = convert_karthika_to_malayalam(text)
-            if has_indic_unicode(converted):
+            if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'malayalam'):
                 return sanitize_converted_indic_lyrics(converted, 'malayalam')
             converted = decode_w2cf_malayalam(text)
+            if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'malayalam'):
+                return sanitize_converted_indic_lyrics(converted, 'malayalam')
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'malayalam')
     except Exception as e:
