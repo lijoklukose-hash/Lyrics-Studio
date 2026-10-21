@@ -78,6 +78,7 @@ def init_raw_archive(db_path=ARCHIVE_DB_PATH):
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_url ON raw_scrapes(source_url)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status ON raw_scrapes(status)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_source_status ON raw_scrapes(source_website, status)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_source_id ON raw_scrapes(source_website, id DESC)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_conf ON raw_scrapes(status, overall_confidence DESC)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_lang ON raw_scrapes(status, language)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_raw_status_attempt ON raw_scrapes(status, retry_count)')
@@ -222,14 +223,19 @@ def get_scrape_health(db_path=ARCHIVE_DB_PATH):
     try:
         rows = conn.execute('''
             SELECT COALESCE(NULLIF(source_website, ''), 'Unknown') AS source,
-                   status, COUNT(*) AS count, MAX(scraped_at) AS last_scraped
+                   status, COUNT(*) AS count
             FROM raw_scrapes GROUP BY source, status ORDER BY source, status
         ''').fetchall()
         sources = {}
         for row in rows:
             source = sources.setdefault(row['source'], {'source': row['source'], 'approved': 0, 'review': 0, 'failed': 0, 'rejected': 0, 'last_scraped': None})
             source[row['status']] = row['count']
-            source['last_scraped'] = max(filter(None, [source['last_scraped'], row['last_scraped']]), default=None)
+        for src_name, s_dict in sources.items():
+            last = conn.execute(
+                "SELECT scraped_at FROM raw_scrapes WHERE source_website = ? ORDER BY id DESC LIMIT 1",
+                (src_name,)).fetchone()
+            if last and last[0]:
+                s_dict['last_scraped'] = last[0]
         return list(sources.values())
     finally:
         conn.close()

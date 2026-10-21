@@ -34,11 +34,24 @@ sync_state = {
 
 @app.on_event("startup")
 def auto_pull_on_startup():
-    """Automatically pull and sync full song database from Cloud database on app startup."""
+    """Automatically pull and sync full song database from Cloud database on app startup if local DB is empty."""
     if cloud_is_configured():
         def _initial_pull():
             try:
-                print("App Startup: Initializing automatic sync from Cloud database...")
+                # If local database already has songs, don't block/lock the database with a heavy 21MB pull on startup
+                local_count = 0
+                try:
+                    conn = db_manager.get_connection()
+                    local_count = conn.execute("SELECT COUNT(*) FROM songs").fetchone()[0]
+                    conn.close()
+                except Exception:
+                    local_count = 0
+
+                if local_count > 0:
+                    print(f"App Startup: Local database already populated ({local_count:,} songs). Skipping blocking startup pull.")
+                    return
+
+                print("App Startup: Local database empty. Initializing sync from Cloud database...")
                 background_cloud_pull()
                 print("App Startup: Cloud database auto-sync completed successfully!")
             except Exception as e:
