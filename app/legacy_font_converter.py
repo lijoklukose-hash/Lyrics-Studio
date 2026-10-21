@@ -72,6 +72,12 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
     if len(loose_marks) >= 1:
         return False
 
+    # Latin letters directly touching Indic combining marks (e.g. Iं, Tू, corrupted font decode)
+    if re.search(r'[a-zA-Z]' + ALL_INDIC_COMBINING + r'|' + ALL_INDIC_COMBINING + r'[a-zA-Z]', plain):
+        return False
+    if re.search(r'[\u0964\u0965\u007C]\u0902', plain):
+        return False
+
     # 4. Stray Latin letters or dense ASCII characters mixed into Indic text (e.g. x, q, e, B, c, n inside words)
     glued = re.findall(r'[a-zA-Z~`%^&_{}\[\]\\/+=<>@$*][\u0900-\u0D7F]|[\u0900-\u0D7F][a-zA-Z~`%^&_{}\[\]\\/+=<>@$*]', plain)
     if len(glued) >= 2:
@@ -251,7 +257,7 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                         'pre': 'प्री', 'chorus': 'कोरस', 'bridge': 'ब्रिज', 'leheraunga': 'लहराउंगा', 'janda': 'झंडा', 'teraa': 'तेरा', 'swagat': 'स्वागत', 'masih': 'मसीह', 'dekhunga': 'देखूंगा', 'aankhon': 'आँखों', 'vyarth': 'व्यर्थ', 'hoga': 'होगा', 'bharose': 'भरोसे', 'layak': 'लायक', 'jab': 'जब', 'kuch': 'कुछ',
                         'na': 'न', 'rahe': 'रहे', 'gaun': 'गाऊं', 'phir': 'फिर', 'tujhpar': 'तुझपर', 'bharosa': 'भरोसा',
                         'hai': 'है', 'hain': 'हैं', 'andhera': 'अंधेरा', 'raah': 'राह', 'cha': 'छा', 'jaye': 'जाए', 'toh': 'तो',
-                        'bhavishya': 'भविष्य', 'aashayein': 'आशाएं', 'ashayein': 'आशाएं', 'toot': 'टूट', 'sahar': 'शहर',
+                        'bhavishya': 'भविष्य', 'aashayein': 'आशाएं', 'ashayein': 'आशाएं', 'toot': 'टूट', 'sahar': 'शहर', 'sahara': 'सहारा', 'sahaara': 'सहारा',
                         'iss': 'इस', 'is': 'इस', 'jahan': 'जहान', 'koi': 'कोई', 'aake': 'आके', 'hum': 'हम', 'jamja': 'जमजा',
                         'ae': 'ऐ', 'khuda': 'खुदा', 'de': 'दे', 'paak': 'पाक', 'pak': 'पाक', 'rooh': 'रूह', 'ruh': 'रूह',
                         'humko': 'हमको', 'maza': 'मज़ा', 'bhej': 'भेज', 'aag': 'आग', 'sarabor': 'सराबोर', 'masiha': 'मसीहा',
@@ -634,6 +640,14 @@ def convert_baraha_to_kannada(text: str) -> str:
 SHUSHA_RULES = [
     (r'AaAao', 'आओ'), (r'AaAo', 'आओ'), (r'Aao', 'आओ'),
     (r'Aa%maa', 'आत्मा'), (r'Aa%ma', 'आत्मा'), (r'%maa', 'त्मा'),
+    ('praoSauw', 'प्रभु'), ('praoSau', 'प्रभु'), ('raoTI', 'रोटी'), ('ipta', 'पिता'),
+    ('svagaI-ya', 'स्वर्गीय'), ('Syaama', 'शाम'), ('panaI', 'पानी'), ('rajaaAaoM', 'राजाओं'),
+    ('Aanaovaalaa', 'आनेवाला'), ('sabaka', 'सबका'), ('sahayak', 'सहायक'), ('rhta', 'रहता'),
+    ('Saubah', 'सुबह'), ('AaBaarI', 'आभारी'), ('AamhI', 'आम्ही'), ('maanatao', 'मानतो'),
+    ('yaoSaulaa', 'येशूला'), ('Kayaalaa', 'खायाला'), ('ipyaalaa', 'प्यायला'),
+    ('nao', 'ने'), ('idlao', 'दिले'), ('rayaalaa', 'राहायला'), ('jaagaa', 'जागा'),
+    ('gauNaacaI', 'गुन्हांची'), ('maafI', 'माफी'), ('navaa', 'नवे'), ('Aao', 'आओ'),
+    ('ro', 'रे'), ('yaoSau', 'येशू'),
     (r'piva~', 'पवित्र'), (r'p`Bau', 'प्रभु'), (r'p`aqa-naa', 'प्रार्थना'),
     (r'p\Bau', 'प्रभु'), (r'p\aqa-naa', 'प्रार्थना'), (r'p\aqa', 'प्रार्थ'), (r'p\a', 'प्रा'),
     (r'toro', 'तेरे'), (r'torI', 'तेरी'), (r'toraa', 'तेरा'),
@@ -739,6 +753,12 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         res = re.sub(r'\u0BC8([\u0B85-\u0BB9])', r'\g<1>' + '\u0BC8', res)
         res = res.replace('ாா்', 'ார்')
     elif lang == 'hindi':
+        # KrutiDev repeat markers: ;2द्ध, ;3द्ध, ;4द्ध, 2द्ध -> (2), (3), (4)
+        res = re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', res)
+        # Shusha split vowel matra artifact: ाे -> ो
+        res = res.replace('ाे', 'ो')
+        # Danda + anusvara artifacts (।ं or Iं)
+        res = re.sub(r'[।I]ं', ' ', res)
         res = re.sub(r'(^|\s)ि([क-ह])', r'\1\2ि', res)
         res = re.sub(r'िा', 'ी', res)
         # Fix KrutiDev reph-i ligature artifact (e.g. भर्इया -> भईया / भैया, बुरार्इ -> बुराई)
@@ -883,18 +903,26 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'kannada')
         elif lang == 'hindi':
-            if KRUTIDEV_MARK.search(text) and not any(m in text for m in ('%', '`', '~', '^', '@', 'OU')):
-                converted = decode_krutidev(text)
-                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'hindi'):
-                    return sanitize_converted_indic_lyrics(converted, 'hindi')
-            if any(m in text for m in ('%', '`', '~', '^', '@', 'OU', '~a', '`a')):
+            shusha_markers = ('%', '`', '~', '^', '@', 'OU', '~a', '`a', 'AaraQanaa', 'AaBaarI', 'Saubah', 'Aao', 'maanatao', 'yaoSaulaa', 'praoSau')
+            if any(m in text for m in shusha_markers) or re.search(r'\b(?:AaraQanaa|AaBaarI|Saubah|Aao|maanatao|yaoSaulaa)\b', text):
                 converted = decode_shusha(text)
-                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'hindi'):
-                    return sanitize_converted_indic_lyrics(converted, 'hindi')
+                sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
+                if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
+                    return sanitized
+            if KRUTIDEV_MARK.search(text) and not any(m in text for m in shusha_markers):
+                converted = decode_krutidev(text)
+                sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
+                if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
+                    return sanitized
             if KRUTIDEV_MARK.search(text):
                 converted = decode_krutidev(text)
-                if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'hindi'):
-                    return sanitize_converted_indic_lyrics(converted, 'hindi')
+                sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
+                if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
+                    return sanitized
+            converted = decode_shusha(text)
+            sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
+            if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
+                return sanitized
         elif lang == 'malayalam':
             if any(k in text for k in ('Axe8', '5xni', 'eexvM', 'W2CF', 's~W', 'cmc/v[', 'Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u', 'jyviLik]')):
                 converted = decode_w2cf_malayalam(text)

@@ -454,6 +454,7 @@ def structure_lyrics_into_stanzas(lines):
     t = '\n'.join(lines)
     from app.legacy_font_converter import normalize_indic_digits
     t = normalize_indic_digits(t)
+    t = re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', t)
     # Standardize verse prefixes: (1) or 1. or 1: or 1) at line start -> 1. 
     t = re.sub(r'(?m)^(?:\(?([1-9]\d{0,1})\s*[\.\:\)\-]+\s*|\(([1-9]\d{0,1})\)\s*)(?=[^\d\s\n])', lambda m: f"{(m.group(1) or m.group(2))}. ", t)
     # If verse number is on its own standalone line, join it to the following verse line: '1\nText' -> '1. Text'

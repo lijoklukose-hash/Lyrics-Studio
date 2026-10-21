@@ -66,8 +66,14 @@ def krutidev_to_unicode(text: str) -> str:
     if not text:
         return ''
     import re as _re
+    # Pre-protect repeat markers like (2), (3) so they don't get mapped to ;2द्ध
+    text = _re.sub(r'\(\s*([1-9]\d{0,1})\s*\)', r'__REP_\1__', text)
     parts = _re.split(r'(<[^>]+>)', text)
-    return ''.join(_convert_part(p) if not p.startswith('<') else p for p in parts)
+    res = ''.join(_convert_part(p) if not p.startswith('<') else p for p in parts)
+    res = _re.sub(r'__REP_(\d+)__', r'(\1)', res)
+    # Convert any un-bracketed or mapped KrutiDev repeat markers (;2द्ध, 2द्ध -> (2))
+    res = _re.sub(r'[\s;]*\b([1-9]\d{0,1})द्ध', r' (\1)', res)
+    return res
 
 
 def _convert_part(text: str) -> str:
