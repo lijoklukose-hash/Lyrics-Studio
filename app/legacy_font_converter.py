@@ -924,8 +924,20 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         res = re.sub(r'[\u0CBE-\u0CCC]{2,}', lambda m: m.group(0)[0], res)
         res = res.replace('\ufffd', '')
     elif lang == 'malayalam':
-        # Reorder Remington typewriter prefix vowel signs (e.g. േ + Consonant -> Consonant + േ)
-        res = re.sub(r'([\u0D46\u0D47\u0D48])((?:[\u0D15-\u0D3A]\u0D4D)*[\u0D15-\u0D3A])', r'\g<2>\g<1>', res)
+        # Normalize chillu representations (converts decomposed virama sequences to standard atomic chillu characters)
+        CHILLU_MAP = [
+            (r'ന്\u200d|ന്(?=[\s\.,;:\!\?\)\(\[\]\<\>]|$)', 'ൻ'),
+            (r'ല്\u200d|ല്(?=[\s\.,;:\!\?\)\(\[\]\<\>]|$)', 'ൽ'),
+            (r'ര്\u200d|ര്(?=[\s\.,;:\!\?\)\(\[\]\<\>]|$)', 'ർ'),
+            (r'ള്\u200d|ള്(?=[\s\.,;:\!\?\)\(\[\]\<\>]|$)', 'ൾ'),
+            (r'ണ്\u200d|ണ്(?=[\s\.,;:\!\?\)\(\[\]\<\>]|$)', 'ൺ'),
+            (r'ന്(?=[മവ])', 'ൻ'),
+            (r'ല്(?=[പകചതസ])', 'ൽ'),
+            (r'ര്(?=[കതപസന])', 'ർ'),
+            (r'ള്(?=[കപതസ])', 'ൾ')
+        ]
+        for pat, rep in CHILLU_MAP:
+            res = re.sub(pat, rep, res)
         # Fix split vowel signs: േ + ാ -> ോ, െ + ാ -> ൊ
         res = res.replace('\u0D47\u0D3E', '\u0D4B').replace('\u0D46\u0D3E', '\u0D4A')
         # Fix hyphen followed by anusvara (e.g. ഇന്നു-ം -> ഇന്നും - )
