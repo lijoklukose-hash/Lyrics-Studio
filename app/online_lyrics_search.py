@@ -445,12 +445,48 @@ def clean_citation_lines(lines):
     return [c for c in (_strip_citation(l) for l in merged) if c]
 
 
+# Auxiliary verb tails, severed continuations, and orphan line ends across Hindi/Indic languages
+SEVERED_ORPHAN_LINE_RE = re.compile(
+    r'^(?:'
+    r'है|हैं|था|थी|थे|हो|गया|गई|गए|जाए|जाएगा|जाएगी|सके|सकता|सकती|सकते|'
+    r'घबराहट|हम्म|रहा|रही|रहे|दिया|दी|दिए|लिया|ली|लिए|हुआ|हुई|हुए|'
+    r'ആണ്|ആയി|ആകുന്നു|ഉണ്ട്|പോയി|കഴിഞ്ഞു|'
+    r'உள்ளது|ஆனது|இருக்கிறது|போனது|'
+    r'ఉంది|ఉన్నాడు|అయింది|పోయెను|'
+    r'ಇದೆ|ಆಗಿದೆ|ಇದ್ದಾನೆ|ಹೋಯಿತು'
+    r')[।\.\!\?,]*$',
+    re.IGNORECASE
+)
+
+def rejoin_severed_orphan_lines(lines_list):
+    """Rejoins line-wrapped auxiliary verbs or orphan line continuations to the preceding line."""
+    merged = []
+    for l in lines_list:
+        l_str = l.strip()
+        if not l_str:
+            continue
+        words = l_str.split()
+        # Case 1: Auxiliary verb tail / severed single word continuation
+        if len(words) <= 2 and SEVERED_ORPHAN_LINE_RE.match(l_str) and merged:
+            merged[-1] += ' ' + l_str
+            continue
+        # Case 2: Incomplete line continuation: if previous line ended without terminal punctuation
+        # and current line has <= 2 words (not a verse number, repeat marker, or section header)
+        if len(words) <= 2 and not re.match(r'^(?:[1-9]\d{0,1}\.|\(|\[)', l_str) and merged:
+            prev = merged[-1]
+            if not re.search(r'[।\.\!\?\)\]]\s*$', prev) and len(prev.split()) >= 4:
+                merged[-1] += ' ' + l_str
+                continue
+        merged.append(l_str)
+    return merged
+
 def structure_lyrics_into_stanzas(lines):
     if not lines:
         return ""
     lines = clean_citation_lines(detach_glued_section_labels(lines))
     if not lines:
         return ""
+    lines = rejoin_severed_orphan_lines(lines)
     t = '\n'.join(lines)
     from app.legacy_font_converter import normalize_indic_digits
     t = normalize_indic_digits(t)
