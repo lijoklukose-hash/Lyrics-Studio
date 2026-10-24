@@ -736,6 +736,13 @@ def scrape_url(url, language_hint=None, html_content=None):
                 extractor2 = DOMStructureExtractor(trans_div)
                 lyrics2 = extractor2.extract_structured_stanzas(trans_div)
 
+        # Attach any bare verse numbers on their own line before splitting mixed scripts:
+        # e.g. "<BR><BR>1<BR><BR>Line text" -> "<BR><BR>1. Line text"
+        if lyrics:
+            lyrics = re.sub(r'(?:<BR><BR>|<BR>|^)\s*([1-9]\d{0,1})\.?\s*(?:<BR><BR>|<BR>)\s*(?=[\u0900-\u0D7FA-Za-z])', r'<BR><BR>\1. ', lyrics)
+        if lyrics2:
+            lyrics2 = re.sub(r'(?:<BR><BR>|<BR>|^)\s*([1-9]\d{0,1})\.?\s*(?:<BR><BR>|<BR>)\s*(?=[\u0900-\u0D7FA-Za-z])', r'<BR><BR>\1. ', lyrics2)
+
         # Unmix any dual native/roman lyrics packed in the same container
         if lyrics:
             lyrics, lyrics2 = separate_mixed_script_lyrics(lyrics, lyrics2, title=title)
