@@ -838,7 +838,23 @@ def detect_category_from_title(title: str) -> str | None:
             return lang
         if re.search(r'\b' + re.escape(key) + r'\b', t_lower):
             return lang
-    return None
+    # Check if title itself is in native Indic script
+    return detect_category_from_indic_text(title)
+
+def detect_category_from_indic_text(text: str) -> str | None:
+    """Detect language from actual Indic Unicode character blocks."""
+    if not text:
+        return None
+    SCRIPT_MAP = {
+        'Malayalam': r'[\u0D00-\u0D7F]',
+        'Telugu': r'[\u0C00-\u0C7F]',
+        'Tamil': r'[\u0B80-\u0BFF]',
+        'Kannada': r'[\u0C80-\u0CFF]',
+        'Hindi': r'[\u0900-\u097F]'
+    }
+    counts = {lang: len(re.findall(pat, text)) for lang, pat in SCRIPT_MAP.items()}
+    best_lang, count = max(counts.items(), key=lambda x: x[1])
+    return best_lang if count >= 6 else None
 
 def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
     """Normalize NFC and fix common post-conversion ligatures."""

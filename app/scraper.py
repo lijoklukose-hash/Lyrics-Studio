@@ -1270,7 +1270,11 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         title = res['title']
                         lyrics = res.get('lyrics') or ''
                         lyrics2 = res.get('lyrics2') or ''
-                        category = res.get('category') or cand['language']
+                        
+                        from app.legacy_font_converter import detect_category_from_indic_text
+                        # Priority: 1. Script detected from actual lyrics, 2. Scraped category, 3. Candidate language
+                        script_cat = detect_category_from_indic_text(lyrics)
+                        category = script_cat or res.get('category') or cand['language']
 
                         if not lyrics and lyrics2:
                             if category == 'English':
@@ -1286,7 +1290,6 @@ def run_preset_auto_scraper(source="all", allowed_languages=None, require_manual
                         tags = (res.get('tags') or '').strip()
                         # Strict target language guard: drop ones outside the requested target languages
                         if category not in target_langs:
-                            auto_scraper_state["duplicates_skipped"] += 1
                             continue
                         conf = res.get('confidence', {})
                         overall_conf = conf.get('overall_confidence', 0.0)
