@@ -1445,7 +1445,7 @@
                                     <button type="button" @click="reviewScriptTab = 'dual'" :class="reviewScriptTab === 'dual' ? 'bg-white text-indigo-700 font-bold shadow-xs' : 'text-slate-600'" class="px-3 py-1 rounded-lg transition">Dual View</button>
                                 </div>
 
-                                <button type="button" @click="reviewQueueItems[reviewCurrentIndex].editing = !reviewQueueItems[reviewCurrentIndex].editing;" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border border-indigo-200">
+                                <button type="button" @click="toggleReviewEdit(reviewCurrentIndex)" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border" :class="reviewQueueItems[reviewCurrentIndex].editing ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border-indigo-200'">
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                                     <span x-text="reviewQueueItems[reviewCurrentIndex].editing ? '✓ Done Editing' : '✏️ Edit Lyrics'"></span>
                                 </button>
@@ -2352,10 +2352,39 @@
                     this.$nextTick(() => lucide.createIcons());
                 },
 
+                toggleReviewEdit(index) {
+                    const item = this.reviewQueueItems[index];
+                    if (!item) return;
+                    if (!item.editing) {
+                        // Entering edit mode: ensure editText is freshly loaded from current lyrics
+                        const l1 = item.cleaned_lyrics || item.raw_lyrics || '';
+                        const l2 = item.lyrics2 || '';
+                        item.editText = this.formatFromBrTags(l1);
+                        item.editText2 = this.formatFromBrTags(l2);
+                        item.editing = true;
+                    } else {
+                        // Exiting edit mode: sync textareas back to formatted <BR> strings
+                        item.cleaned_lyrics = this.formatToBrTags(item.editText || '');
+                        item.lyrics2 = this.formatToBrTags(item.editText2 || '');
+                        item.editing = false;
+                    }
+                    this.$nextTick(() => {
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                    });
+                },
+
                 async resolveReviewItem(id, action, index) {
                     try {
                         const item = this.reviewQueueItems[index];
                         if (!item) return;
+
+                        // Ensure any in-progress edits in the textareas are saved to cleaned_lyrics/lyrics2 before resolving
+                        if (item.editing) {
+                            item.cleaned_lyrics = this.formatToBrTags(item.editText || '');
+                            item.lyrics2 = this.formatToBrTags(item.editText2 || '');
+                            item.editing = false;
+                        }
+
                         const payload = {
                             id: id,
                             action: action,
