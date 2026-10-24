@@ -79,7 +79,8 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
         return False
 
     # 4. Stray Latin letters or dense ASCII characters mixed into Indic text (e.g. x, q, e, B, c, n inside words)
-    glued = re.findall(r'[a-zA-Z~`%^&_{}\[\]\\/+=<>@$*][\u0900-\u0D7F]|[\u0900-\u0D7F][a-zA-Z~`%^&_{}\[\]\\/+=<>@$*]', plain)
+    # Exclude slash / repeat counts like ನೀನಿಲ್ಲದೆ/೨ or chord slashes D/F#
+    glued = re.findall(r'[a-zA-Z~`%^&_{}\[\]\\+=<>@$*][\u0900-\u0D7F]|[\u0900-\u0D7F][a-zA-Z~`%^&_{}\[\]\\+=<>@$*]', plain)
     if len(glued) >= 2:
         return False
 
@@ -88,7 +89,8 @@ def is_valid_indic_lyrics(text: str, language: str = 'Malayalam') -> bool:
         return False
 
     # Unconverted legacy font noise characters (braces, math symbols, accents, backslashes inside Indic lyrics)
-    if re.search(r'[\\}{~`^$\u0080-\u00FF\u0100-\u017F]', plain):
+    # Excludes \u00A0 (NBSP) which is standard web spacing
+    if re.search(r'[\\}{~`^$\u0080-\u009F\u00A1-\u00FF\u0100-\u017F]', plain):
         return False
 
     # Check for stray single letters [a-zA-Z] inside Indic lyrics
@@ -589,7 +591,28 @@ BAMINI_RULES = [
     ('fPjq;fs;', 'கீதங்கள்'), ('tho;j;jpLNthk;', 'வாழ்த்திடுவோம்'),
     ('uh[h', 'ராஜா'), ('fpUig', 'கிருபை'), ('NjtNd', 'தேவனே'),
     ('md;G', 'அன்பு'), ('thik', 'வாமை'), ('thH;f', 'வாழ்க'),
-    ('Nghw;wp', 'போற்றி'), ('ed;wp', 'நன்றி')
+    ('Nghw;wp', 'போற்றி'), ('ed;wp', 'நன்றி'),
+    ('ed;ikfspd;', 'நன்மைகளின்'), ('ed;ikfs;', 'நன்மைகள்'), ('ed;ik', 'நன்மை'),
+    ('ehafNd', 'நாயகனே'), ('ehafNu', 'நாயகரே'), ('nrhy;yp', 'சொல்லி'),
+    ('kfpo;fpNwd;', 'மகிழ்கிறேன்'), ('cz;ikAs;s', 'உண்மையுள்ள'), ('nja;tNk', 'தெய்வமே'),
+    ('capNuhL', 'உயிரோடு'), ('fye;jtNu', 'கலந்தவரே'), ('fle;j', 'கடந்த'),
+    ('Mz;nly;yhk;', 'ஆண்டெல்லாம்'), ('fz;kzp', 'கண்மணி'), ('fhj;jPNu', 'காத்தீரே'),
+    ('Gjpa', 'புதிய'), ('Gjpad', 'புதியன'), ('GJikfs;', 'புதுமைகள்'),
+    ('nra;gtNu', 'செய்பவரே'), ('ckf;fha;', 'உமக்காய்'), ('fhf;jpUe;J', 'காத்திருந்து'),
+    ('Gjngyd;', 'புதுபெலன்'), ('milfpd;Nwd;', 'அடைகின்றேன்'), ('gw;wpf;', 'பற்றிக்'),
+    ('nfhz;L', 'கொண்டு'), ('kD\\dhNdd;', 'மனுஷனானேன்'), ('fHj;jH', 'கர்த்தர்'),
+    ('fuk;', 'கரம்'), ('vd;NdhL', 'என்னோடு'), (',Ug;gij', 'இருப்பதை'),
+    ('czu', 'உணர'), ('itj;jPH', 'வைத்தீர்'), ('mNefH', 'அநேகர்'),
+    ('mwpf;ifapl', 'அறிக்கையிட'), ('nra;jPH', 'செய்தீர்'), ('vdf;F', 'எனக்கு'),
+    ('vjpuhNdhH', 'எதிரானோர்'), ('rhHgpy;', 'சார்பில்'), ('tuitj;jPH', 'வரவைத்தீர்'),
+    ('rkhjhdk;', 'சமாதானம்'), ('rHt', 'சர்வ'), ('ty;ytNu', 'வல்லவரே'),
+    ('vg;rpgh', 'எப்சிபா'), ('vd;wioj;J', 'என்றழைத்து'), ('vd;NkNy', 'என்மேலே'),
+    ('gphpakhdPH', 'பிரியமானீர்'), ('kzkfshf;fptpl;BH', 'மணமகளாக்கிவிட்டீர்'),
+    ('VNrf;F', 'ஏசேக்கு'), ('rpj;dh', 'சித்னா'), (',d;NwhL', 'இன்றோடு'),
+    ('Kbe;jJ', 'முடிந்தது'), ('nuNfhNghj;', 'ரெகொபோத்'), ('njhlq;fpaJ', 'தொடங்கியது'),
+    ('jilfSk;', 'தடைகளும்'), ('tpyfpaJ', 'விலகியது'), ('gioad', 'பழையன'),
+    ('fle;jd', 'கடந்தன'), ('GFe;jd', 'புகுந்தன'), ('vy;yhNk', 'எல்லாமே'),
+    ('Gjpjhapw;W', 'புதிதாயிற்று'), ('ghLNtd', 'பாடுவேன்')
 ]
 
 def convert_bamini_to_tamil(text: str) -> str:
@@ -819,13 +842,32 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         return ''
     import unicodedata
     res = unicodedata.normalize('NFC', text)
+    # Normalize non-breaking spaces and soft hyphens
+    res = res.replace('\u00A0', ' ').replace('\xad', '')
+
+    # 1. Strip orphan combining marks preceded by whitespace, tags, or at start of text/lines
+    res = re.sub(r'(?:^|(?<=[\s\r\n\(\[\{>_.,;:!?\'\\]))\s*' + ALL_INDIC_COMBINING + r'+', '', res)
+
+    # 2. Pad slashes, brackets and punctuation touching Indic letters (excluding < and > so <BR> tags are preserved)
+    res = re.sub(r'([\u0900-\u0D7F])([/\\|*~`%^&_{}\[\]+=@$]+)', r'\1 \2 ', res)
+    res = re.sub(r'([/\\|*~`%^&_{}\[\]+=@$]+)([\u0900-\u0D7F])', r' \1 \2', res)
+
+    # 3. Separate Dravidian concatenated words where vowel sign or virama is glued directly to an independent vowel
+    res = re.sub(r'([\u0BBE-\u0BCD\u0C3E-\u0C4C\u0CBE-\u0CCC\u0D3E-\u0D4C])([\u0B85-\u0B94\u0C05-\u0C14\u0C85-\u0C94\u0D05-\u0D14])', r'\1 \2', res)
+
+    # 4. Separate English loan-word suffix gluing (e.g. mindல -> mind ல, Styleல -> Style ல)
+    res = re.sub(r'([a-zA-Z]+)([\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F])', r'\1 \2', res)
+    res = re.sub(r'([\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F])([a-zA-Z]+)', r'\1 \2', res)
+
     lang = (language or '').lower()
     if lang == 'tamil':
+        res = re.sub(r'[\u0BC6\u0BC7](\u0BBF)', r'\1', res)
         res = re.sub(r'[\u0BBE]{2,}', '\u0BBE', res)
         res = re.sub(r'\u0BC7\u0BBE', '\u0BCB', res)
         res = re.sub(r'\u0BC6\u0BBE', '\u0BCA', res)
         res = re.sub(r'[\u0BBE-\u0BCD][\u0BCD]', '\u0BCD', res)
-        res = re.sub(r'\u0BC8([\u0B85-\u0BB9])', r'\g<1>' + '\u0BC8', res)
+        # Only swap visual \u0BC8 if it occurs at word start or preceded by whitespace/non-Indic
+        res = re.sub(r'(?:^|(?<=[\s\r\n\(\[\{<>\-_.,;:!?\'\\]))\u0BC8([\u0B85-\u0BB9])', r'\g<1>' + '\u0BC8', res)
         res = res.replace('ாா்', 'ார்')
     elif lang == 'hindi':
         # KrutiDev repeat markers: ;2द्ध, ;3द्ध, ;4द्ध, 2द्ध -> (2), (3), (4)
@@ -841,8 +883,11 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         res = re.sub(r'\bप्रश्?ु(?=\s+(?:तू|तेरा|तेरे|तेरी|का|की|के|में|ने|को|से|हमारा|हमारे|यीशु|मसीह|मुझको|मुझे))', 'प्रभु', res)
         res = re.sub(r'(^|<BR>|\s)प्रश्?ु(\s+तू|\s+मुझको)', r'\1प्रभु\2', res)
         res = re.sub(r'\bप्रश्ु\b', 'प्रभु', res)
-        # Shusha split vowel matra artifact: ाे -> ो
-        res = res.replace('ाे', 'ो')
+        # Shusha split vowel matra artifacts
+        res = res.replace('िे', 'िए').replace('िा', 'ी').replace('ाू', 'ू').replace('ेे', 'े').replace('ाे', 'ो').replace('ेा', 'ो').replace('ाै', 'ौ')
+        res = re.sub(r'([\u093E-\u094C])आओ', r'\1ओं', res)
+        res = re.sub(r'([\u093E-\u094C])([अआइईएऐ])', r'\1 \2', res)
+        res = re.sub(r'([ीेै])(ओ)', r'\1 \2', res)
         # Danda + anusvara artifacts (।ं or Iं)
         res = re.sub(r'[।I]ं', ' ', res)
         res = re.sub(r'(^|\s)ि([क-ह])', r'\1\2ि', res)
@@ -859,7 +904,13 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         res = re.sub(r'[\u0CBE-\u0CCC]{2,}', lambda m: m.group(0)[0], res)
         res = res.replace('\ufffd', '')
     elif lang == 'malayalam':
-        res = res.replace('\xad', '')
+        # Reorder Remington typewriter prefix vowel signs (e.g. േ + Consonant -> Consonant + േ)
+        res = re.sub(r'([\u0D46\u0D47\u0D48])((?:[\u0D15-\u0D3A]\u0D4D)*[\u0D15-\u0D3A])', r'\g<2>\g<1>', res)
+        # Fix split vowel signs: േ + ാ -> ോ, െ + ാ -> ൊ
+        res = res.replace('\u0D47\u0D3E', '\u0D4B').replace('\u0D46\u0D3E', '\u0D4A')
+        # Fix hyphen followed by anusvara (e.g. ഇന്നു-ം -> ഇന്നും - )
+        res = re.sub(r'([-\–\—])\s*([\u0D02\u0902\u0C02\u0C82\u0B82])', r'\2 \1 ', res)
+        res = re.sub(r'[\u0D3E-\u0D4C]{2,}', lambda m: m.group(0)[0], res)
     # Standardize bare verse numbers at line start: e.g. "1 भरने" -> "1. भरने"
     res = re.sub(r'(?m)^([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1. ', res)
     res = re.sub(r'(<BR><BR>|<BR>)\s*([1-9]\d{0,1})\s+(?=[\u0900-\u0D7F])', r'\1\2. ', res)
@@ -918,23 +969,41 @@ W2CF_MALAYALAM_WORDS = {
 }
 
 W2CF_MALAYALAM_CHARS = [
-    ('s\\`tI', 'സ്ത്രീ'), ('s`tI', 'സ്ത്രീ'), ('s\\`t', 'സ്ത്ര'), ('s`t', 'സ്ത്ര'), ('s\\T', 'സ്ഥ'), ('sT', 'സ്ഥ'),
-    ('c/', 'ച്ച'), ('s~W\\', 'സൃഷ്ടി'), ('s~Wf', 'സൃഷ്ടി'), ('s~W', 'സൃഷ്ടി'), ('s~', 'സൃ'),
+    # Multi-character ligatures & clusters
+    ('s\\`tI', 'സ്ത്രീ'), ('s`tI', 'സ്ത്രീ'), ('s\\`t', 'സ്ത്ര'), ('s`t', 'സ്ത്ര'),
+    ('s\\T', 'സ്ഥ'), ('sT', 'സ്ഥ'), ('s\\t', 'സ്തു'), ('st', 'സ്തു'),
+    ('sVI', 'സ്വീ'), ('sVÆ', 'സ്വന്ത'), ('sÆ', 'സന്ത'),
+    ('kS\\c', 'ഴ്ച'), ('kSc', 'ഴ്ച'), ('S\\c', 'ഴ്ച'), ('Sc', 'ഴ്ച'), ('S\\8', 'ഴ്ത്തി'), ('S8', 'ഴ്ത്തി'),
+    ('tV', 'ത്വ'), ('tY', 'ത്യ'), ('rY', 'ര്യ'), ('gY', 'ഗ്യ'), ('KY', 'ഖ്യ'),
     ('eexvM', 'ദൈവം'), ('ee', 'ൈ'),
-    ('1', 'അ'), ('A', 'ആ'), ('4', 'എ'), ('5', 'ഏ'),
+    ('c/', 'ച്ച'), ('s~W\\', 'സൃഷ്ടി'), ('s~Wf', 'സൃഷ്ടി'), ('s~W', 'സൃഷ്ടി'), ('s~', 'സൃ'),
+    ('`p', 'പ്ര'), ('`t', 'ത്ര'), ('`w', 'ശ്ര'),
+    ('{9', 'ർന്നു'), ('{¡', 'ർണ്ണ'), ('sV{', 'സ്വർ'), ('{', 'ർപ്പ'),
+    ('ir\\8', 'ിർത്ത'), ('r\\8', 'ർത്ത'),
+    ('n\\\\', 'ൻ'), ('n\\', 'ൻ'), ('1[', 'എൻ'), ('4[', 'എൻ'), ('5k', 'ഏക'),
+    ('El|a', 'ല്ലോ'), ('l|', 'ല്ല'), ('eå', 'ന്റെ'),
+    ('gn\\X', 'ഗന്ധ'), ('gnX', 'ഗന്ധ'), ('nss', 'നസ്സി'), ('k¡', 'ണ്ണ'),
+    ('•', 'റ്റി'), ('º', 'ന്ദ'), ('„', 'പ്പ'), ('…', 'ങ്ക'),
+    ('sO', 'സൗ'), ('o', 'ൊ'),
+    ('1', 'അ'), ('2', 'ഇ'), ('3', 'ഈ'), ('4', 'എ'), ('5', 'ഏ'),
+    ('A', 'ആ'), ('B', 'ഭ'), ('C', 'ഛ'), ('D', 'ഡ'), ('E', 'േ'),
+    ('F', 'ഫ'), ('G', 'ഘ'), ('H', 'ണ്ട'), ('I', 'ീ'), ('J', 'ഝ'),
+    ('K', 'ഖ'), ('L', 'ള'), ('M', 'ം'), ('N', 'ങ'), ('O', 'വ്വ'),
+    ('P', 'പ'), ('Q', 'ഞ്ഞ'), ('R', 'റ'), ('S', 'ഴ'), ('T', 'ഥ'),
+    ('U', 'ൂ'), ('V', 'വ്വ'), ('W', 'ഷ'), ('X', 'ധ'), ('Y', '്യ'), ('Z', 'ദ'),
     ('x', 'ദ'), ('8', 'ത്ത'), ('6', 'ക്ക'), ('7', 'ട്ട'),
-    ('9', 'ന്ന'), ('M', 'ം'), ('z', 'ണ'), ('U', 'ൂ'),
-    ('[', 'ൻ'), ('}', 'ൽ'), (']', 'ൾ'), ('{', 'ർപ്പ'),
+    ('9', 'ന്ന'), ('z', 'ണ'),
+    ('[', 'ൻ'), ('}', 'ൽ'), (']', 'ൾ'),
     ('k', 'ക'), ('g', 'ഗ'), ('c', 'ച'), ('j', 'ജ'),
     ('t', 'ത'), ('d', 'ഡ'), ('n', 'ന'), ('p', 'പ'),
-    ('b', 'ബ'), ('B', 'ഭ'), ('m', 'മ'), ('y', 'യ'),
-    ('r', 'ര'), ('R', 'റ'), ('l', 'ല'), ('v', 'വ'),
-    ('s', 'സ'), ('h', 'ഹ'), ('L', 'ള'), ('z', 'ഴ'),
-    ('a', 'ാ'), ('i', 'ി'), ('u', 'ു'), ('E', 'േ'),
-    ('e', 'െ'), ('O', 'വ്വ'), ('H', 'ണ്ട'), ('Q', 'ഞ്ഞ'),
-    ('sV{', 'സ്വർ'), ('{¡', 'ർണ്ണ'), ('º', 'ന്ദ'), ('„', 'പ്പ'),
-    ('…', 'ങ്ക'), ('f', 'ട'), ('X', 'ധ'), ('q', 'ഞ'),
-    ('l|', 'ല്ല'), ('El|a', 'ല്ലോ'), ('rY', 'ര്യ'), ('eå', 'ന്റെ')
+    ('b', 'ബ'), ('m', 'മ'), ('y', 'യ'),
+    ('r', 'ര'), ('l', 'ല'), ('v', 'വ'),
+    ('s', 'സ'), ('h', 'ഹ'), ('w', 'ശ'), ('f', 'ട'), ('q', 'ഞ'),
+    ('a', 'ാ'), ('i', 'ി'), ('u', 'ു'), ('e', 'െ'),
+    ('ay\\\\', 'ായ്'), ('y\\\\', 'യ്'), ('ay\\', 'ായ്'), ('y\\', 'യ്'),
+    ('=', 'ക്ഷ'), ('Æ', 'ന്ത്യ'), ('ñ', 'ത്ര'), ('‰', 'ത്സ'), ('¤', 'ങ്ക'), ('Å', 'ണ്ട'), ('”', 'ർഗ്ഗ'),
+    ('R', 'റ'), ('v/', 'വ്വ'), ('c/', 'ച്ച'),
+    ('¡', 'ണ്ണ'), ('~', '')
 ]
 
 def decode_w2cf_malayalam(text: str) -> str:
@@ -945,16 +1014,17 @@ def decode_w2cf_malayalam(text: str) -> str:
     # Standardize repeat markers in W2CF (<@>;_ or <@> -> (2))
     t = re.sub(r'<@>;_|<@>;\s*[-–—]?|<@>', ' (2)', t)
     # Strip trailing chorus refrain markers (e.g. ';_ Anº..' or ';- Aanada...')
-    t = re.sub(r';_\s*Anº\.{0,3}|;\s*[-–—]\s*Anº\.{0,3}|;\s*Anº\.{0,3}', '', t)
+    t = re.sub(r';_\s*([@#\$%\^!])', r'\n\1', t)
+    t = re.sub(r';_\s*Anº\.{0,3}|;\s*[-–—]\s*Anº\.{0,3}|;\s*Anº\.{0,3}|;_\s*', '', t)
     t = re.sub(r'(?i)\s*Anº\.{1,3}\s*', '', t)
     # Convert stanza markers to verse numbers safely using placeholders
-    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*@\s*', '<BR><BR>__VNUM1__. ', t, flags=re.IGNORECASE)
-    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*#\s*', '<BR><BR>__VNUM2__. ', t, flags=re.IGNORECASE)
-    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*\$\s*', '<BR><BR>__VNUM3__. ', t, flags=re.IGNORECASE)
-    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*%\s*', '<BR><BR>__VNUM4__. ', t, flags=re.IGNORECASE)
-    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*\^\s*', '<BR><BR>__VNUM5__. ', t, flags=re.IGNORECASE)
+    t = re.sub(r'[\s\r\n]*@\s*', '<BR><BR>__VNUM1__. ', t)
+    t = re.sub(r'[\s\r\n]*#\s*', '<BR><BR>__VNUM2__. ', t)
+    t = re.sub(r'[\s\r\n]*\$\s*', '<BR><BR>__VNUM3__. ', t)
+    t = re.sub(r'[\s\r\n]*%\s*', '<BR><BR>__VNUM4__. ', t)
+    t = re.sub(r'[\s\r\n]*\^\s*', '<BR><BR>__VNUM5__. ', t)
     t = re.sub(r'^\s*!\s*', '', t)
-    t = re.sub(r'(?:<br\s*/?>|<BR>|\n)\s*!\s*', '<BR><BR>', t, flags=re.IGNORECASE)
+    t = re.sub(r'[\s\r\n]*!\s*', '<BR><BR>', t)
 
     parts = re.split(r'(<[^>]+>|__VNUM\d+__\.\s*)', t)
     out = []
@@ -968,6 +1038,8 @@ def decode_w2cf_malayalam(text: str) -> str:
         for k, v in sorted(W2CF_MALAYALAM_CHARS, key=lambda x: -len(x[0])):
             res = res.replace(k, v)
         res = res.replace('å', '')
+        # Drop residual stray backslashes from legacy font decode
+        res = res.replace('\\', '')
         out.append(res)
     res_str = ''.join(out)
     res_str = re.sub(r'__VNUM(\d+)__\.', r'\1.', res_str)
@@ -981,6 +1053,9 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
     try:
         from app.legacy_codec import decode_bamini, decode_baraha, decode_shusha, decode_krutidev, SHUSHA_MARK, KRUTIDEV_MARK
         if lang == 'tamil':
+            converted = convert_bamini_to_tamil(text)
+            if has_indic_unicode(converted) and is_valid_indic_lyrics(converted, 'tamil'):
+                return sanitize_converted_indic_lyrics(converted, 'tamil')
             converted = decode_bamini(text)
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'tamil')
@@ -989,18 +1064,15 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
             if has_indic_unicode(converted):
                 return sanitize_converted_indic_lyrics(converted, 'kannada')
         elif lang == 'hindi':
+            # Strip HTML tags before testing font markers
+            plain_test = re.sub(r'<[^>]+>', ' ', text)
             shusha_markers = ('%', '`', '~', '^', '@', 'OU', '~a', '`a', 'AaraQanaa', 'AaBaarI', 'Saubah', 'Aao', 'maanatao', 'yaoSaulaa', 'praoSau', 'jyaaoit', ']tra', 'AMQakar', 'Kaola', 'KUbasaUtI', 'caahUÐ', 'saMga', 'AwBaut', 'AnaMt', '}Ð')
-            if any(m in text for m in shusha_markers) or re.search(r'\b(?:AaraQanaa|AaBaarI|Saubah|Aao|maanatao|yaoSaulaa)\b', text):
+            if any(m in plain_test for m in shusha_markers) or re.search(r'\b(?:AaraQanaa|AaBaarI|Saubah|Aao|maanatao|yaoSaulaa)\b', plain_test):
                 converted = decode_shusha(text)
                 sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
                 if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
                     return sanitized
-            if KRUTIDEV_MARK.search(text) and not any(m in text for m in shusha_markers):
-                converted = decode_krutidev(text)
-                sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
-                if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
-                    return sanitized
-            if KRUTIDEV_MARK.search(text):
+            if KRUTIDEV_MARK.search(plain_test) and not any(m in plain_test for m in shusha_markers):
                 converted = decode_krutidev(text)
                 sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
                 if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
@@ -1009,6 +1081,11 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
             sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
             if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
                 return sanitized
+            if KRUTIDEV_MARK.search(plain_test):
+                converted = decode_krutidev(text)
+                sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')
+                if has_indic_unicode(sanitized) and is_valid_indic_lyrics(sanitized, 'hindi'):
+                    return sanitized
         elif lang == 'malayalam':
             if any(k in text for k in ('Axe8', '5xni', 'eexvM', 'W2CF', 's~W', 'cmc/v[', 'Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u', 'jyviLik]')):
                 converted = decode_w2cf_malayalam(text)

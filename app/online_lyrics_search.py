@@ -542,14 +542,17 @@ def is_valid_web_lyrics(scraped_lyrics, title, category="English", scraped_lyric
             search_target += " " + scraped_lyrics2.lower()
         elif has_indic and re.search(r'[a-zA-Z]', title or ""):
             search_target += " " + generate_natural_transliteration(scraped_lyrics[:300], category).lower()
+        elif not has_indic and re.search(r'[\u0900-\u0D7F]', title or ""):
+            search_target += " " + generate_natural_transliteration(title, category).lower()
+            title_words.extend([w for w in re.findall(r'[a-zA-Z]{4,}', generate_natural_transliteration(title, category).lower()) if w not in ('the', 'and', 'song', 'lyrics', 'christian', 'with')])
 
         matched = sum(1 for w in title_words if (w in search_target or (len(w) >= 5 and w[:5] in search_target)))
         if matched == 0 and len(title_words) >= 2:
             return False
 
-    # Check for minimum genuine lines
+    # Check for minimum genuine lines (or genuine word volume if flattened into single block)
     lines = [l.strip() for l in re.split(r'(?i)<BR>', scraped_lyrics) if len(l.strip()) > 3 and not any(re.search(pat, l.strip(), re.IGNORECASE) for pat in METADATA_HEADER_PATTERNS)]
-    if len(lines) < 3:
+    if len(lines) < 3 and len(scraped_lyrics.split()) < 15:
         return False
 
     return True
