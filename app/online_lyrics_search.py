@@ -458,6 +458,11 @@ SEVERED_ORPHAN_LINE_RE = re.compile(
     re.IGNORECASE
 )
 
+CLAUSE_CONTINUATIONS_RE = re.compile(
+    r'^(?:की|के|का|को|से|में|पर|तूने|ही|है|हैं|था|थी|थे|गा|गी|गे|लाए|लिए|liye|se|me|mein|ko|ki|ke|hai|hain|tha|thi|the|തോ|തു|ന്|ഉണ്ട്|ആണ്|പോയി|ആയി)\b',
+    re.IGNORECASE
+)
+
 def rejoin_severed_orphan_lines(lines_list):
     """Rejoins line-wrapped auxiliary verbs or orphan line continuations to the preceding line."""
     merged = []
@@ -466,19 +471,48 @@ def rejoin_severed_orphan_lines(lines_list):
         if not l_str:
             continue
         words = l_str.split()
+        if not merged:
+            merged.append(l_str)
+            continue
+
+        prev = merged[-1]
+        prev_words = prev.split()
+
+        is_verse_start = bool(re.match(r'^(?:[1-9]\d{0,1}\.|\(|\[)', l_str))
+        prev_has_terminal = bool(re.search(r'[।\.\!\?]\s*$', prev))
+
         # Case 1: Auxiliary verb tail / severed single word continuation
-        if len(words) <= 2 and SEVERED_ORPHAN_LINE_RE.match(l_str) and merged:
+        if len(words) <= 2 and SEVERED_ORPHAN_LINE_RE.match(l_str):
             merged[-1] += ' ' + l_str
             continue
+
         # Case 2: Incomplete line continuation: if previous line ended without terminal punctuation
-        # and current line has <= 2 words (not a verse number, repeat marker, or section header)
-        if len(words) <= 2 and not re.match(r'^(?:[1-9]\d{0,1}\.|\(|\[)', l_str) and merged:
-            prev = merged[-1]
-            if not re.search(r'[।\.\!\?\)\]]\s*$', prev) and len(prev.split()) >= 4:
-                merged[-1] += ' ' + l_str
-                continue
-        merged.append(l_str)
-    return merged
+        can_merge = not is_verse_start and not prev_has_terminal and (
+            CLAUSE_CONTINUATIONS_RE.search(l_str) or
+            (len(words) == 1 and not l_str.startswith('(')) or
+            (len(prev_words) <= 3 and len(words) <= 3) or
+            (len(prev_words) <= 2 and len(words) <= 6)
+        )
+
+        if can_merge and (len(prev_words) + len(words) <= 8):
+            merged[-1] += ' ' + l_str
+        else:
+            merged.append(l_str)
+
+    # Second pass for trailing orphan verb or single word attached to previous thought
+    final_merged = []
+    for l in merged:
+        if not final_merged:
+            final_merged.append(l)
+            continue
+        words = l.split()
+        is_verse_start = bool(re.match(r'^(?:[1-9]\d{0,1}\.|\(|\[)', l))
+        if not is_verse_start and (SEVERED_ORPHAN_LINE_RE.match(l) or (len(words) == 1 and not l.startswith('('))):
+            final_merged[-1] += ' ' + l
+        else:
+            final_merged.append(l)
+
+    return final_merged
 
 def structure_lyrics_into_stanzas(lines):
     if not lines:

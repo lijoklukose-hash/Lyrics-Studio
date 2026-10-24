@@ -269,7 +269,13 @@ def roman_to_indic_native(text: str, language: str = 'Malayalam') -> str:
                         'parso': 'परसों', 'parson': 'परसों', 'bada': 'बड़ा', 'din': 'दिन', 'gin': 'गिन', 're': 'रे',
                         'bhaiya': 'भैया', 'ghar': 'घर', 'roz': 'रोज़', 'roti': 'रोटी', 'dede': 'देदे', 'jeevan': 'जीवन',
                         'tuhi': 'तूही', 'bal': 'बल', 'jis': 'जिस', 'tarah': 'तरह', 'apne': 'अपने', 'apradhi': 'अपराधी',
-                        'maaf': 'माफ़', 'karte': 'करते', 'usi': 'उसी', 'hamare': 'हमारे'
+                        'maaf': 'माफ़', 'karte': 'करते', 'usi': 'उसी', 'hamare': 'हमारे',
+                        'mahima': 'महिमा', 'mahim': 'महिमा', 'bhara': 'भरा', 'charano': 'चरणों', 'charno': 'चरणों',
+                        'laaye': 'लाए', 'laayein': 'लाएं', 'laya': 'लाया', 'laye': 'लाए', 'duniya': 'दुनिया',
+                        'ruswaai': 'रुसवाई', 'ruswai': 'रुसवाई', 'gale': 'गले', 'lagaye': 'लगाए', 'lagaaye': 'लगाए',
+                        'alpha': 'अल्फा', 'omega': 'ओमेगा', 'aur': 'और', 'doobti': 'डूबती', 'naiya': 'नैया',
+                        'kinara': 'किनारा', 'toote': 'टूटे', 'bitate': 'बिताते', 'aadi': 'आदि', 'ant': 'अंत',
+                        'mukti': 'मुक्ति', 'marg': 'मार्ग', 'pyara': 'प्यारा'
                     }
                     words = l_clean.split(' ')
                     out_words = []
@@ -732,6 +738,18 @@ SHUSHA_RULES = [
     ('samauK', 'सम्मुख'), ('saaqa', 'साथ'), ('saamanao', 'सामने'),
     ('kao', 'को'), ('hma', 'हम'), ('caahtoM', 'चाहते'), ('hOM', 'हैं'), ('hO', 'है'),
     ('sao', 'से'), ('mauJakao', 'मुझको'), ('mauJao', 'मुझे'), ('mauJ', 'मुझ'),
+    ('\xccpaa', 'कृपा'), ('\xccpa', 'कृपा'), ('\xcbaoQa', 'क्रोध'), ('\xcb', 'क्र'),
+    ('pu~', 'पुत्र'), ('saRYTI', 'सृष्टि'), ('saRYT', 'सृष्ट'), ('Gaayala', 'घायल'), ('Ga', 'घ'),
+    ('AaOr', 'और'), ('AaAao', 'आओ'), ('naacao', 'नाचे'), ('gaae^M', 'गाएँ'),
+    ('gaayaoM', 'गाएँ'), ('maui>', 'मुक्ति'), ('SaaMit', 'शांति'), ('KuiSayaa^M', 'खुशियाँ'),
+    ('baaoJa', 'बोझ'), ('ija,ndgaI', 'ज़िंदगी'), ('qako', 'थके'), ('idlaanaoko ilae', 'दिलाने के लिए'),
+    ('idlaanao', 'दिलाने'), ('sa`iYTkt-a', 'सृष्टिकर्ता'), ('sa`iYT', 'सृष्टि'),
+    ('p`SaaMsaa', 'प्रशंसा'), ('k$Ð^gaa', 'करूँगा'), ('mahaana\\', 'महान'),
+    ('hllao\tlaUyaa^h', 'हल्लेलूयाह'), ('hllao laUyaa^h', 'हल्लेलूयाह'), ('stuit', 'स्तुति'),
+    ('yaaogya', 'योग्य'), ('yaaogyaa', 'योग्य'), ('p`Bau', 'प्रभु'), ('AaraQanaa', 'आराधना'),
+    ('jyaOsaa', 'जैसा'), ('jyaada', 'ज्यादा'), ('haqa', 'हाथ'), ('pUjanaa', 'पूजेंगे'),
+    ('tora naama', 'तेरा नाम'), ('tora kama', 'तेरा काम'), ('tora', 'तेरा'),
+    ('toro', 'तेरे'), ('tori', 'तेरी'),
     ('Bar ko¸', 'भर के,'), ('Bar ko', 'भर के'), ('Bar', 'भर'), ('ko¸', 'के,'), ('ko', 'के'), ('tU', 'तू'), ('calaa', 'चला'),
     ('mahImaa', 'महिमा'), ('kI', 'की'), ('ka', 'का'), ('ko', 'के'),
     ('tU', 'तू'), ('hI', 'ही'), ('masaIh', 'मसीह'),
@@ -917,9 +935,16 @@ def sanitize_converted_indic_lyrics(text: str, language: str) -> str:
         res = res.replace('भईया', 'भैया')
         # Fix inverted matra i across conjuncts: [Consonant] + virama + matra_i + [Consonant] (e.g. अग्िन -> अग्नि, बल्िक -> बल्कि)
         res = re.sub(r'([\u0915-\u0939])\u094D\u093F([\u0915-\u0939])', '\\g<1>\u094D\\g<2>\u093F', res)
+        # Fix Devanagari double/consecutive vowel signs (e.g. \u094B\u0947 -> \u094B, \u093E\u093E -> \u093E, \u0941\u093F -> \u0941)
+        res = re.sub(r'[\u094B\u094C][\u0947\u093E]+', '\u094B', res)
+        res = re.sub(r'\u093E{2,}', '\u093E', res)
+        res = re.sub(r'\u0941\u093F', '\u0941', res)
+        res = re.sub(r'[\u093E-\u094C]{2,}', lambda m: m.group(0)[0], res)
         # Strip dotted circles caused by orphan matras
         res = res.replace('\u25CC', '')
         res = res.replace('‚', ',')
+        # Remove stray Latin-1 residual noise characters from legacy font tables
+        res = res.replace('\xd9', '').replace('\xcc', '').replace('\xcb', '')
     elif lang == 'kannada':
         res = re.sub(r'[\u0CBE-\u0CCC]{2,}', lambda m: m.group(0)[0], res)
         res = res.replace('\ufffd', '')
@@ -1098,7 +1123,7 @@ def convert_legacy_lyrics(text: str, language: str) -> str:
         elif lang == 'hindi':
             # Strip HTML tags before testing font markers
             plain_test = re.sub(r'<[^>]+>', ' ', text)
-            shusha_markers = ('%', '`', '~', '^', '@', 'OU', '~a', '`a', 'AaraQanaa', 'AaBaarI', 'Saubah', 'Aao', 'maanatao', 'yaoSaulaa', 'praoSau', 'jyaaoit', ']tra', 'AMQakar', 'Kaola', 'KUbasaUtI', 'caahUÐ', 'saMga', 'AwBaut', 'AnaMt', '}Ð')
+            shusha_markers = ('%', '`', '~', '^', '@', 'OU', '~a', '`a', 'AaraQanaa', 'AaBaarI', 'Saubah', 'Aao', 'maanatao', 'yaoSaulaa', 'praoSau', 'jyaaoit', ']tra', 'AMQakar', 'Kaola', 'KUbasaUtI', 'caahUÐ', 'saMga', 'AwBaut', 'AnaMt', '}Ð', 'AaOr', 'stuit', 'yaaogya', 'p`Bau', 'haqa', 'maui>', 'SaaMit', 'KuiSayaa^M', 'baaoJa', 'ija,ndgaI', 'qako', 'naacao', 'gaae^M', 'gaayaoM')
             if any(m in plain_test for m in shusha_markers) or re.search(r'\b(?:AaraQanaa|AaBaarI|Saubah|Aao|maanatao|yaoSaulaa)\b', plain_test):
                 converted = decode_shusha(text)
                 sanitized = sanitize_converted_indic_lyrics(converted, 'hindi')

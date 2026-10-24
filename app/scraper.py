@@ -686,7 +686,9 @@ def scrape_url(url, language_hint=None, html_content=None):
                         extractor = DOMStructureExtractor(orig_div)
                         raw_extracted = extractor.extract_structured_stanzas(orig_div)
                         converted_native = ""
-                        if 'w2cf' in str(orig_div).lower() or any(k in raw_extracted for k in ('Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u')):
+                        orig_style = str(orig_div).lower()
+                        is_malayalam_w2cf = ('w2cf' in orig_style and 'shusha' not in orig_style and 'kruti' not in orig_style)
+                        if is_malayalam_w2cf or any(k in raw_extracted for k in ('Anº', 'sV{', 'sIEya[', 'm~tiEyaLM', '<@>', 'ekati', 'o9u')):
                             from app.legacy_font_converter import decode_w2cf_malayalam
                             converted_native = decode_w2cf_malayalam(raw_extracted)
                         if not converted_native or not is_valid_indic_lyrics(converted_native, det_lang):
