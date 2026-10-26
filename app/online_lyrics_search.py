@@ -450,6 +450,7 @@ SEVERED_ORPHAN_LINE_RE = re.compile(
     r'^(?:'
     r'है|हैं|था|थी|थे|हो|गया|गई|गए|जाए|जाएगा|जाएगी|सके|सकता|सकती|सकते|'
     r'घबराहट|हम्म|रहा|रही|रहे|दिया|दी|दिए|लिया|ली|लिए|हुआ|हुई|हुए|'
+    r'सदा गाऊं|गाऊं|गाएं|'
     r'ആണ്|ആയി|ആകുന്നു|ഉണ്ട്|പോയി|കഴിഞ്ഞു|'
     r'உள்ளது|ஆனது|இருக்கிறது|போனது|'
     r'ఉంది|ఉన్నాడు|అయింది|పోయెను|'
@@ -460,6 +461,19 @@ SEVERED_ORPHAN_LINE_RE = re.compile(
 
 CLAUSE_CONTINUATIONS_RE = re.compile(
     r'^(?:की|के|का|को|से|में|पर|तूने|ही|है|हैं|था|थी|थे|गा|गी|गे|लाए|लिए|liye|se|me|mein|ko|ki|ke|hai|hain|tha|thi|the|തോ|തു|ന്|ഉണ്ട്|ആണ്|പോയി|ആയി)\b',
+    re.IGNORECASE
+)
+
+PREP_CONNECTORS_END_RE = re.compile(
+    r'(?:'
+    r'के|का|की|को|से|में|पर|तूने|नाचे|खो|कर|गा|सदा|हो|'
+    r'liye|se|me|mein|ko|ki|ke|'
+    r'ന്റെ|ടെ|ൽ|ക്ക്|ന്|'
+    r'உடைய|இல்|க்கு|'
+    r'యొక్క|లో|కు|కి|'
+    r'ನ|ನಲ್ಲಿ|ಗೆ|'
+    r'खे|ते|जो|जी|जे'
+    r')[।\.\!\?,]*$',
     re.IGNORECASE
 )
 
@@ -487,9 +501,11 @@ def rejoin_severed_orphan_lines(lines_list):
             continue
 
         # Case 2: Incomplete line continuation: if previous line ended without terminal punctuation
+        prev_open = bool(PREP_CONNECTORS_END_RE.search(prev))
         can_merge = not is_verse_start and not prev_has_terminal and (
+            prev_open or
             CLAUSE_CONTINUATIONS_RE.search(l_str) or
-            (len(words) == 1 and not l_str.startswith('(')) or
+            (len(words) <= 2 and not l_str.startswith('(')) or
             (len(prev_words) <= 3 and len(words) <= 3) or
             (len(prev_words) <= 2 and len(words) <= 6)
         )
