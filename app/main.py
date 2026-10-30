@@ -440,6 +440,58 @@ async def trigger_cloud_sync(background_tasks: BackgroundTasks):
     background_tasks.add_task(background_cloud_sync)
     return {"status": "started", "message": "Cloud synchronization started in background"}
 
+def background_hindichurch_sync():
+    global sync_state
+    try:
+        from app.hindichurch_sync import sync_hindichurch_to_app
+        def update_cb(status="syncing", message="", progress=0, total=0):
+            global sync_state
+            sync_state["status"] = status
+            sync_state["message"] = message
+            sync_state["progress"] = progress
+            sync_state["total"] = total
+
+        sync_hindichurch_to_app(db_manager, push_to_cloud=True, status_callback=update_cb)
+    except Exception as e:
+        sync_state["status"] = "error"
+        sync_state["message"] = f"HindiChurch sync failed: {str(e)}"
+
+@app.post("/api/sync/hindichurch")
+async def trigger_hindichurch_sync(background_tasks: BackgroundTasks):
+    global sync_state
+    if sync_state["status"] == "syncing":
+        return {"status": "busy", "message": "Synchronization is already in progress"}
+    
+    sync_state["status"] = "syncing"
+    sync_state["message"] = "Connecting to HindiChurch Cloud Firestore..."
+    sync_state["progress"] = 0
+    sync_state["total"] = 1210
+
+    background_tasks.add_task(background_hindichurch_sync)
+    return {"status": "started", "message": "HindiChurch Cloud synchronization started in background"}
+
+@app.get("/api/sync/hindichurch/test")
+async def test_hindichurch_connection():
+    try:
+        import urllib.request, json
+        from app.hindichurch_sync import HINDICHURCH_BASE_URL
+        req = urllib.request.Request(f"{HINDICHURCH_BASE_URL}?pageSize=5", headers={'Accept': 'application/json'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.load(r)
+            docs = d.get('documents', [])
+            return {
+                "success": True,
+                "project": "hindichurch-lyrics-0xlyxf",
+                "sample_count": len(docs),
+                "message": "Connected to HindiChurch Cloud Firestore successfully!"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"HindiChurch connection error: {str(e)}"
+        }
+
 @app.get("/api/sync/status")
 async def get_sync_status():
     global sync_state

@@ -942,8 +942,8 @@
                     </div>
                 </div>
 
-                <!-- 2-WAY SYNC ACTION CARDS -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 2-WAY & HINDICHURCH CLOUD SYNC ACTION CARDS -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <!-- ACTION 1: SYNC FROM CLOUD (PULL) -->
                     <div class="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/80 to-slate-50 border border-indigo-200/80 space-y-3 flex flex-col justify-between shadow-2xs">
                         <div class="space-y-1.5">
@@ -956,7 +956,7 @@
                         </div>
                         <button @click="triggerCloudPull()" :disabled="syncing" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
                             <i data-lucide="cloud-download" class="w-4 h-4" :class="syncing ? 'animate-bounce' : ''"></i>
-                            <span x-text="syncing ? 'Synchronizing...' : '📥 Sync from Cloud (Download All Songs)'"></span>
+                            <span x-text="syncing ? 'Synchronizing...' : '📥 Sync from Cloud (Download)'"></span>
                         </button>
                     </div>
 
@@ -972,8 +972,30 @@
                         </div>
                         <button @click="triggerCloudSync()" :disabled="syncing" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
                             <i data-lucide="cloud-upload" class="w-4 h-4" :class="syncing ? 'animate-spin' : ''"></i>
-                            <span x-text="syncing ? 'Synchronizing...' : '📤 Push to Cloud (Upload All Songs)'"></span>
+                            <span x-text="syncing ? 'Synchronizing...' : '📤 Push to Cloud (Upload All)'"></span>
                         </button>
+                    </div>
+
+                    <!-- ACTION 3: HINDICHURCH CLOUD SYNC -->
+                    <div class="p-5 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/60 border border-amber-200/90 space-y-3 flex flex-col justify-between shadow-2xs">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="p-2 bg-gradient-to-tr from-amber-600 to-orange-500 text-white rounded-xl shadow-xs"><i data-lucide="flame" class="w-5 h-5"></i></span>
+                                <span class="text-[10px] bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold border border-amber-200">HindiChurch → Cloud</span>
+                            </div>
+                            <h3 class="text-base font-extrabold text-slate-900">Sync HindiChurch Cloud</h3>
+                            <p class="text-xs text-slate-600 leading-relaxed">Fetch live songs from HindiChurch Cloud Firestore (<code class="text-[11px] font-mono text-amber-900 bg-amber-100 px-1 py-0.5 rounded">hindichurch-lyrics-0xlyxf</code>), import newly added songs locally, and push directly to your App Cloud!</p>
+                        </div>
+                        <div class="space-y-2">
+                            <button @click="triggerHindiChurchSync()" :disabled="syncing" class="w-full py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-md shadow-amber-600/20 disabled:opacity-50 hover:scale-102 active:scale-98">
+                                <i data-lucide="refresh-cw" class="w-4 h-4" :class="syncing ? 'animate-spin' : ''"></i>
+                                <span x-text="syncing ? 'Synchronizing...' : '⚡ Sync HindiChurch to App Cloud'"></span>
+                            </button>
+                            <button @click="testHindiChurchConnection()" :disabled="testingHindiChurch" class="w-full py-1.5 bg-white/80 hover:bg-white text-amber-900 font-semibold text-[11px] rounded-lg transition border border-amber-200 flex items-center justify-center space-x-1.5 active:scale-98">
+                                <i data-lucide="activity" class="w-3.5 h-3.5 text-amber-600" :class="testingHindiChurch ? 'animate-pulse' : ''"></i>
+                                <span x-text="testingHindiChurch ? 'Checking HindiChurch...' : 'Test HindiChurch Connection'"></span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1650,6 +1672,7 @@
                 // Sync state
                 syncing: false,
                 testingConnection: false,
+                testingHindiChurch: false,
                 cloudRemoteCount: null,
                 syncState: { status: 'idle', progress: 0, total: 25056, message: 'Ready to synchronize' },
                 pollTimer: null,
@@ -2656,6 +2679,42 @@
                     } catch (e) {
                         this.showToast('Sync trigger failed: ' + e, 'error');
                         this.syncing = false;
+                    }
+                },
+
+                async triggerHindiChurchSync() {
+                    if (!confirm('Sync HindiChurch Cloud database into this App and push newly discovered songs directly to your App Cloud (Cloudflare D1)?')) return;
+                    this.syncing = true;
+                    try {
+                        const res = await fetch('/api/sync/hindichurch', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.status === 'started') {
+                            this.pollSyncStatus();
+                            this.showToast('Connecting to HindiChurch Cloud Firestore...', 'info');
+                        } else {
+                            this.showToast(data.message || 'Sync busy', 'error');
+                            this.syncing = false;
+                        }
+                    } catch (e) {
+                        this.showToast('HindiChurch sync failed: ' + e, 'error');
+                        this.syncing = false;
+                    }
+                },
+
+                async testHindiChurchConnection() {
+                    this.testingHindiChurch = true;
+                    try {
+                        const res = await fetch('/api/sync/hindichurch/test');
+                        const data = await res.json();
+                        if (data.success) {
+                            this.showToast('🟢 ' + data.message, 'success');
+                        } else {
+                            this.showToast('🔴 ' + (data.message || data.error), 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('HindiChurch test failed: ' + e, 'error');
+                    } finally {
+                        this.testingHindiChurch = false;
                     }
                 },
 
